@@ -5,7 +5,7 @@ import { DashboardPage } from "@/app/Dashboard";
 import { EventsPage } from "@/app/Events";
 import { Home } from "@/app/pages/Home";
 import { AppLayout } from "@/app/Layout";
-import { eventsApi, lytxTag, newSiteSetup } from "@/api";
+import { eventsApi, lytxTag, trackWebEvent, newSiteSetup } from "@/api";
 import { authMiddleware, sessionMiddleware } from "@/session/auth";
 import { Signup } from "@/app/pages/user/Signup";
 import { Login } from "@/app/pages/user/Login";
@@ -82,6 +82,7 @@ export default defineApp<RequestInfo<any, AppContext>>([
   //NOTE: API ROUTES / no component or html rendering
   //TODO: pass db provider as prop from ctx? or initial config
   lytxTag("sqlite"),
+  trackWebEvent("sqlite"),
   eventsApi,
   route("/api/auth/*", (r) => authMiddleware(r)),
   render(Document, [
