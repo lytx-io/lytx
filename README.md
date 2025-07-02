@@ -8,7 +8,7 @@ LYTX is an open-source web analytics and tag manager built for the privacy-drive
 
 ## Background
 
-I've been using LYTX in production for a while now across many of my client websites on Cloudflare, and wanted to share it with the open-source community. My main production version has been running on Hono, but I decided to move the open-source version to RedwoodSDK for better SSR support and easier frontend usage/deployment.
+I've been using LYTX in production for a while now across many of my client websites on Cloudflare, and wanted to share it with the open-source community. My main production version has been running on Hono but i've recently moved it over to Redwood SDK for better SSR support and easier frontend usage/deployment.
 
 ## Features
 
