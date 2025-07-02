@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+@theme {
+  /* Color Palette - Light Mode */
+  --color-primary: #6366f1;
+  --color-primary-hover: #5b5bd6;
+  --color-primary-light: #a5b4fc;
+
+  --color-secondary: #10b981;
+  --color-secondary-hover: #059669;
+  --color-secondary-light: #6ee7b7;
+
+  --color-accent: #f59e0b;
+  --color-accent-hover: #d97706;
+  --color-accent-light: #fcd34d;
+
+  --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-danger-light: #fca5a5;
+
+  --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-warning-light: #fcd34d;
+
+  /* Neutral Colors - Light Mode */
+  --color-white: #ffffff;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-black: #000000;
+
+  /* Typography Scale */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+
+  /* Line Heights */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Spacing Scale */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+  --spacing-3xl: 4rem;
+
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg:
+    0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl:
+    0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+:root {
+  /* Dark Mode Grayscale Theme Variables */
+  --theme-bg-primary: #3c3c3c; /* Main background */
+  --theme-bg-secondary: #666665; /* Secondary background */
+  --theme-bg-tertiary: #484743; /* Tertiary background */
+  --theme-text-primary: #ffffff; /* White - primary text */
+  --theme-text-secondary: #ffffff; /* White - secondary text */
+  --theme-text-tertiary: #ffffff; /* White - tertiary text */
+  --theme-border-primary: #575353; /* Borders */
+  --theme-border-secondary: #575353; /* Secondary borders */
+
+  /* Component Colors */
+  --theme-card-bg: #484743; /* Card background */
+  --theme-card-border: #575353; /* Card borders */
+  --theme-input-bg: #484743; /* Input background */
+  --theme-input-border: #575353; /* Input borders */
+  --theme-input-border-focus: #666665; /* Input focus borders */
+  --theme-button-bg: #666665; /* Button background - secondary gray */
+  --theme-button-hover: #575353; /* Button hover - border gray */
+}
+
+[data-theme="light"] {
+  /* Light Mode Theme Variables */
+  --theme-bg-primary: var(--color-white);
+  --theme-bg-secondary: var(--color-gray-50);
+  --theme-bg-tertiary: var(--color-gray-100);
+  --theme-text-primary: var(--color-gray-900);
+  --theme-text-secondary: var(--color-gray-600);
+  --theme-text-tertiary: var(--color-gray-500);
+  --theme-border-primary: var(--color-gray-200);
+  --theme-border-secondary: var(--color-gray-300);
+
+  /* Component Colors */
+  --theme-card-bg: var(--color-white);
+  --theme-card-border: var(--color-gray-200);
+  --theme-input-bg: var(--color-white);
+  --theme-input-border: var(--color-gray-300);
+  --theme-input-border-focus: var(--color-gray-400);
+  --theme-button-bg: var(--color-primary);
+  --theme-button-hover: var(--color-primary-hover);
+}
+
+@layer base {
+  * {
+    transition:
+      background-color 0.2s ease-in-out,
+      color 0.2s ease-in-out,
+      border-color 0.2s ease-in-out;
+  }
+
+  /* Remove default focus rings */
+  *:focus {
+    outline: none;
+    box-shadow: none;
+  }
+
+  body {
+    background-color: var(--theme-bg-primary);
+    color: var(--theme-text-primary);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+  }
+}
+
+/* Nivo tooltip theming */
+div[style*="pointer-events: none;"] > div[style*="background: white;"],
+div[style*="pointer-events: none;"]
+  > div[style*="background: rgb(255, 255, 255)"] {
+  background: var(--theme-card-bg) !important;
+  color: var(--theme-text-primary) !important;
+  border: 1px solid var(--theme-border-primary) !important;
+  border-radius: 8px !important;
+}
+
+div[style*="pointer-events: none;"]
+  > div[style*="background: white;"]
+  table
+  tbody
+  tr
+  td,
+div[style*="pointer-events: none;"]
+  > div[style*="background: rgb(255, 255, 255)"]
+  table
+  tbody
+  tr
+  td {
+  color: var(--theme-text-primary) !important;
+}
+
+div[style*="pointer-events: none;"]
+  > div[style*="background: white;"]
+  table
+  tbody
+  tr
+  td[style*="color: rgb(0, 0, 0);"],
+div[style*="pointer-events: none;"]
+  > div[style*="background: rgb(255, 255, 255)"]
+  table
+  tbody
+  tr
+  td[style*="color: rgb(0, 0, 0);"] {
+  color: var(--theme-text-primary) !important;
+}

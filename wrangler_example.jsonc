@@ -1,0 +1,68 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "compatibility_date": "2025-05-05",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "main": "src/worker.tsx",
+  //TODO: RENAME THIS
+  "name": "lytx-preview",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SYNC_DURABLE_OBJECT",
+        "class_name": "SyncDurableObject"
+      }
+    ]
+  },
+  "d1_databases": [
+    //MAIN DB
+    {
+      "binding": "lytx_core_db",
+      "database_id": "REPLACE_WITH_YOUR_DATABASE_ID",
+      "database_name": "lytx-core-db",
+      "migrations_dir": "db/d1/migrations",
+    }
+  ],
+  //ADAPTER DB's
+  "hyperdrive": [],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SyncDurableObject"
+      ]
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "LYTX_EVENTS",
+      "id": "REPLACE_WITH_YOUR_KV_ID",
+    },
+    {
+      "binding": "lytx_config",
+      "id": "REPLACE_WITH_YOUR_KV_ID",
+    },
+    {
+      "binding": "lytx_sessions",
+      "id": "REPLACE_WITH_YOUR_KV_ID",
+      //CONSIDER: Folding this one users might not want this turned on in better auth pass a config flag
+      // "id": "REPLACE_WITH_YOUR_KV_ID",
+    }
+  ],
+  //NOTE: If you have decent traffic you will get a lot of requests so you may want to lower the sample rate
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    }
+  },
+  "assets": {
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "BETTER_AUTH_SECRET": "saskldja82qu78u7j28qrumnl",
+    "BETTER_AUTH_URL": "http://localhost:6123"
+  },
+}

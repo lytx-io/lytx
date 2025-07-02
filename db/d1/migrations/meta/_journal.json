@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1750283268525,
+      "tag": "0000_nebulous_unicorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1750365703035,
+      "tag": "0001_greedy_omega_flight",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1751284375685,
+      "tag": "0002_narrow_squadron_sinister",
+      "breakpoints": true
+    }
+  ]
+}
