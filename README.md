@@ -44,7 +44,7 @@ I've been using LYTX in production for a while now across many of my client webs
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/your-username/lytx.git
+   git clone https://github.com/lytx-io/lytx.git
    cd lytx
    ```
 
