@@ -80,13 +80,28 @@ I've been using LYTX in production for a while now across many of my client webs
    BETTER_AUTH_URL=http://localhost:6123
    ```
 
-6. **Start development server**
+6. **Create a default user for testing**
+
+   ```bash
+   bun run db:init --email admin@example.com --password mypassword --name "Admin User"
+   ```
+
+   This creates a user account with:
+   - Secure password hashing using scrypt (better-auth compatible)
+   - Automatic team setup
+   - Ready-to-use login credentials
+
+7. **Start development server**
 
    ```bash
    bun run dev
    ```
 
    Your LYTX instance will be available at `http://localhost:6123`
+
+8. **Login and test**
+
+   Visit `http://localhost:6123` and login with the credentials you created in step 6.
 
 ## Deployment
 
@@ -112,7 +127,13 @@ I've been using LYTX in production for a while now across many of my client webs
    bun run db:migrate:prd
    ```
 
-4. **Deploy to Cloudflare Workers**
+4. **Create a production admin user**
+
+   ```bash
+   bun run db:init --email admin@yourdomain.com --password your-secure-password --remote
+   ```
+
+5. **Deploy to Cloudflare Workers**
    ```bash
    bun run deploy
    ```
@@ -149,6 +170,7 @@ Visit your deployed LYTX instance to:
 - `bun run build` - Build for production
 - `bun run clean` - Clean build artifacts
 - `bun run db:migrate:local` - Apply D1 migrations locally
+- `bun run db:init` - Initialize database with default user (see `--help` for options)
 - `bun run db:studio` - Open Drizzle Studio
 - `bun run cf-types` - Generate Cloudflare types
 - `bun run deploy` - Deploy to Cloudflare Workers
@@ -159,6 +181,30 @@ LYTX supports both D1 (SQLite) and PostgreSQL through Drizzle ORM:
 
 - **D1 (Primary)**: For edge deployment on Cloudflare
 - **PostgreSQL**: For high-volume analytics via Hyperdrive
+
+#### Creating Users
+
+Use the `db:init` script to create users for development or production:
+
+```bash
+# Create user for local development
+bun run db:init --email admin@example.com --password mypassword
+
+# Create user with custom name
+bun run db:init --email admin@example.com --password mypassword --name "John Doe"
+
+# Create user on remote database (production)
+bun run db:init --email admin@yourdomain.com --password secure-password --remote
+
+# See all available options
+bun run db:init --help
+```
+
+The script automatically:
+
+- Hashes passwords securely using scrypt (better-auth compatible)
+- Creates a team for the user
+- Sets up proper database relationships
 
 ### Project Structure
 
