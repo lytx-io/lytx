@@ -6,6 +6,7 @@
 - `bun run build` - Build for production
 - `bun run clean` - Clean build artifacts
 - `bun run db:migrate:local` - Apply D1 migrations locally
+- `bun run db:init` - Initialize database with default user (see options with --help)
 - `bun run db:studio` - Open Drizzle Studio
 - `bun run cf-types` - Generate Cloudflare types
 - `bun run deploy` - Deploy to Cloudflare Workers
@@ -29,6 +30,32 @@
 - Access context via `requestInfo` in server functions
 - Co-locate routes in `src/app/pages/<section>/routes.ts`
 - Use `prefix()` to organize route groups
+
+## Database Initialization
+
+The `db/init-db.ts` script creates a default user for development:
+
+```bash
+# Create default user with local database
+bun run db:init --email admin@example.com --password mypassword
+
+# Create user with custom name
+bun run db:init --email admin@example.com --password mypassword --name "John Doe"
+
+# Use remote database instead of local
+bun run db:init --email admin@example.com --password mypassword --remote
+
+# See all options
+bun run db:init --help
+```
+
+The script automatically:
+
+- Creates a user with email/password authentication
+- Sets up a team for the user
+- Adds the user to the team
+- Uses better-auth compatible credential provider
+- Hashes passwords using scrypt with better-auth compatible parameters (N=16384, r=16, p=1)
 
 ## Error Handling
 
