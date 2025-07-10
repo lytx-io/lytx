@@ -171,6 +171,7 @@ Visit your deployed LYTX instance to:
 - `bun run clean` - Clean build artifacts
 - `bun run db:migrate:local` - Apply D1 migrations locally
 - `bun run db:init` - Initialize database with default user (see `--help` for options)
+- `bun run db:seed` - Generate sample sites and analytics data (see `--help` for options)
 - `bun run db:studio` - Open Drizzle Studio
 - `bun run cf-types` - Generate Cloudflare types
 - `bun run deploy` - Deploy to Cloudflare Workers
@@ -205,6 +206,31 @@ The script automatically:
 - Hashes passwords securely using scrypt (better-auth compatible)
 - Creates a team for the user
 - Sets up proper database relationships
+
+#### Generating Sample Data
+
+Use the `db:seed` script to populate your database with realistic test data:
+
+```bash
+# Generate sample data for team ID 1 (use the team ID from your created user)
+bun run db:seed --team-id 1
+
+# Create 2 sites with 50 events each over the last 7 days
+bun run db:seed --team-id 1 --sites 2 --events 50 --days 7
+
+# Generate data on remote database (production)
+bun run db:seed --team-id 1 --remote
+
+# See all available options
+bun run db:seed --help
+```
+
+The script generates:
+
+- Multiple sample websites with realistic domains and names
+- Diverse analytics events (page views, form fills, phone calls)
+- Realistic visitor data (browsers, OS, devices, locations)
+- Time-distributed events over specified date range
 
 ### Project Structure
 

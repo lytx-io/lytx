@@ -14,6 +14,7 @@
     "db:migrate:local": "wrangler d1 migrations apply lytx_core_db --local",
     "db:migrate:prd": "wrangler d1 migrations apply lytx_core_db --remote",
     "db:init": "bun run db/init-db.ts",
+    "db:seed": "bun run db/seed-data.ts",
     "db:studio": "drizzle-kit studio --config=db/d1/drizzle.config.ts",
     "cf-types": "wrangler types",
     "deploy": "wrangler publish",

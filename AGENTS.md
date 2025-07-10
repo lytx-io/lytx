@@ -7,6 +7,7 @@
 - `bun run clean` - Clean build artifacts
 - `bun run db:migrate:local` - Apply D1 migrations locally
 - `bun run db:init` - Initialize database with default user (see options with --help)
+- `bun run db:seed` - Generate sample sites and analytics data (see options with --help)
 - `bun run db:studio` - Open Drizzle Studio
 - `bun run cf-types` - Generate Cloudflare types
 - `bun run deploy` - Deploy to Cloudflare Workers
@@ -56,6 +57,32 @@ The script automatically:
 - Adds the user to the team
 - Uses better-auth compatible credential provider
 - Hashes passwords using scrypt with better-auth compatible parameters (N=16384, r=16, p=1)
+
+## Sample Data Generation
+
+The `db/seed-data.ts` script generates realistic sample sites and analytics data for testing:
+
+```bash
+# Generate sample data for team ID 1
+bun run db:seed --team-id 1
+
+# Create 2 sites with 50 events each over the last 7 days
+bun run db:seed --team-id 1 --sites 2 --events 50 --days 7
+
+# Use remote database instead of local
+bun run db:seed --team-id 1 --remote
+
+# See all options
+bun run db:seed --help
+```
+
+The script automatically generates:
+
+- Multiple sample websites with realistic domains and names
+- Diverse analytics events (page views, form fills, phone calls)
+- Realistic visitor data (browsers, OS, devices, locations)
+- Time-distributed events over specified date range
+- Proper relationships between sites, teams, and events
 
 ## Error Handling
 
