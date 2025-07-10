@@ -45,6 +45,8 @@ export interface ChartComponentProps {
   chartId: string;
   chartData: NivoChartData | null | undefined;
   title: string;
+  isLoading: boolean;
+  type: "bar" | "pie" | "line";
   height?: string | number;
 }
 
@@ -311,6 +313,16 @@ export function getReferrersData(
     options: { chart: { type: "pie" as const } },
     data: data || defaultData,
   };
+}
+
+export type DashboardResponseData = {
+  PageViewsData: NivoLineChartData,
+  EventTypesData: ReturnType<typeof getEventTypesData>,
+  DeviceGeoData: ReturnType<typeof getDeviceGeoData>,
+  ReferrersData: NivoPieChartData,
+  TopPagesData: NivoBarChartData,
+  TopSourcesData: ReturnType<typeof getTopSourcesData>,
+  BrowserData: ReturnType<typeof getDeviceData>,
 }
 
 export type DeviceGeoData = ReturnType<typeof getDeviceGeoData>;

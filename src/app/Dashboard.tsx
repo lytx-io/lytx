@@ -25,6 +25,7 @@ import {
   type TableComponentProps,
   TopSourcesData,
   BrowserData,
+  DashboardResponseData,
 } from "@db/tranformReports";
 // import { useTheme } from "./ThemeProvider";
 import { createChartTheme, chartColors } from "./utils/chartThemes";
@@ -56,6 +57,24 @@ interface DashboardPageProps {
   DateRange?: {
     auto: "7 days";
   };
+}
+
+const SiteSelector: React.FC<{ name?: string, setSiteName: (e: string) => void, sites: Array<{ name: string, site_id: number }> }> = (props) => {
+  // const [siteName, setSiteName] = useState(props.name);
+
+  return (
+    <div>
+      Site : {props.name}
+      <select
+        onChange={(e) => props.setSiteName(e.target.value)}
+        className="bg-[var(--theme-input-bg)] text-sm text-[var(--theme-text-primary)] rounded-md border border-[var(--theme-input-border)] focus:border-[var(--theme-border-primary)] focus:outline-none" >
+        {props.sites.map((site) => (
+          <option key={site.site_id} value={site.name}>{site.name}</option>
+        ))}
+      </select>
+    </div>
+
+  )
 }
 
 // Props for Scorecard component
@@ -136,88 +155,26 @@ const Scorecard: React.FC<ScorecardProps> = ({
 };
 
 // --- ChartComponent for Nivo ---
-const ChartComponent: React.FC<ChartComponentProps> = ({
-  chartId,
-  chartData,
-  title,
-  height = "350px",
-}) => {
+const ChartComponent: React.FC<ChartComponentProps> = (props) => {
+  const { chartId, chartData, title, height = "350px" } = props;
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
-  // const { theme, isInitialized } = useTheme();
-
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [transformedData, setTransformedData] = useState<any>(null);
-  const [chartType, setChartType] = useState<"bar" | "pie" | "line" | null>(
-    null,
-  );
 
-  // const chartTheme = useMemo(() => createChartTheme(theme === "dark"), [theme]);
   const chartTheme = createChartTheme(true);
 
-  useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-    setTransformedData(null);
-    setChartType(null);
-
-    if (!chartData) {
-      setError(`No data provided for chart: ${title}`);
-      setIsLoading(false);
-      return;
-    }
-
-    // Determine chart type from options
-    const type = chartData.options?.chart?.type;
-    if (!type || (type !== "bar" && type !== "pie" && type !== "line")) {
-      setError(`Unsupported chart type: ${type} for chart: ${title}`);
-      setIsLoading(false);
-      return;
-    }
-    setChartType(type as "bar" | "pie" | "line");
-
-    // Data transformation logic will go here
-    // For now, let's assume data is already in a somewhat usable format or will be transformed
-    // This will be the most complex part.
-
-    // Data is now expected to be in Nivo format directly from props.
-    // The `options.chart.type` is still used to determine which chart to render.
-    try {
-      if (
-        !chartData.options ||
-        !chartData.options.chart ||
-        !chartData.options.chart.type
-      ) {
-        throw new Error(
-          "Chart type is not defined in chartData.options.chart.type",
-        );
-      }
-
-      // Directly use Nivo-formatted data.
-      // For bar charts, data, keys, indexBy are top-level in NivoBarChartData.
-      // For pie charts, data is top-level in NivoPieChartData.
-      // Common properties like axis and legends are also top-level.
-      setTransformedData(chartData); // The whole chartData is passed now
-      setIsLoading(false);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Data processing error";
-      console.error(`Data processing error for '${chartId}' (${title}):`, e);
-      setError(`Could not process data for chart: ${title}. ${message}`);
-      setIsLoading(false);
-    }
-  }, [chartId, chartData, title]);
 
   const renderChart = () => {
-    if (!transformedData || !chartType) return null; // chartType is set in useEffect
+    console.log("Rendering chart", chartData, props.type);
+    if (!chartData || !props.type) return null; // chartType is set in useEffect
 
     if (
-      chartType === "bar" &&
-      "keys" in transformedData &&
-      "indexBy" in transformedData
+      props.type === "bar" &&
+      "keys" in chartData &&
+      "indexBy" in chartData
     ) {
       // Type guard for bar chart data
-      const barData = transformedData as NivoBarChartData;
+      const barData = chartData as NivoBarChartData;
       return (
         <ResponsiveBar
           data={barData?.data || []}
@@ -278,8 +235,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
           theme={chartTheme}
         />
       );
-    } else if (chartType === "pie") {
-      const pieData = transformedData as NivoPieChartData;
+    } else if (props.type === "pie") {
+      const pieData = chartData as NivoPieChartData;
       return (
         <ResponsivePie
           data={pieData?.data || []}
@@ -318,71 +275,74 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
           theme={chartTheme}
         />
       );
-    } else if (chartType === "line") {
-      const lineData = transformedData as NivoLineChartData;
+    } else if (props.type === "line") {
+      const lineData = chartData as NivoLineChartData;
       return (
-        <ResponsiveLine
-          data={lineData?.data || []}
-          margin={{ top: 50, right: 20, bottom: 50, left: 20 }}
-          xScale={{ type: "point" }}
-          yScale={{
-            type: "linear",
-            min: "auto",
-            max: "auto",
-            stacked: false,
-            reverse: false,
-          }}
-          colors={["#666665"]}
-          curve="monotoneX"
-          enableArea={true}
-          areaOpacity={1}
-          defs={[
-            {
-              id: "accentGradient",
-              type: "linearGradient",
-              colors: [
-                { offset: 0, color: "#3B82F6", opacity: 0.4 },
-                { offset: 100, color: "#3B82F6", opacity: 0 },
-              ],
-            },
-          ]}
-          fill={[{ match: "*", id: "accentGradient" }]}
-          axisTop={null}
-          axisRight={null}
-          axisLeft={null}
-          axisBottom={{
-            // orient: 'bottom',
-            tickSize: 0,
-            tickPadding: 10,
-            tickRotation: 0,
-            legend: "",
-            legendOffset: 36,
-            legendPosition: "middle",
-            renderTick: (tick) => (
-              <g transform={`translate(${tick.x},${tick.y})`}>
-                <text
-                  x={0}
-                  y={15}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  style={{ fill: "#9CA3AF", fontSize: "11px" }}
-                >
-                  {String(tick.value)}
-                </text>
-              </g>
-            ),
-          }}
-          enableGridX={false}
-          enableGridY={true}
-          gridYValues={5}
-          theme={chartTheme}
-          pointSize={8}
-          pointColor={{ theme: "background" }}
-          pointBorderWidth={2}
-          pointBorderColor={{ from: "serieColor" }}
-          pointLabelYOffset={-12}
-          useMesh={true}
-        />
+        <>
+          <span>No data available for this chart</span>
+          <ResponsiveLine
+            data={lineData?.data || []}
+            margin={{ top: 50, right: 20, bottom: 50, left: 20 }}
+            xScale={{ type: "point" }}
+            yScale={{
+              type: "linear",
+              min: "auto",
+              max: "auto",
+              stacked: false,
+              reverse: false,
+            }}
+            colors={["#666665"]}
+            curve="monotoneX"
+            enableArea={true}
+            areaOpacity={1}
+            defs={[
+              {
+                id: "accentGradient",
+                type: "linearGradient",
+                colors: [
+                  { offset: 0, color: "#3B82F6", opacity: 0.4 },
+                  { offset: 100, color: "#3B82F6", opacity: 0 },
+                ],
+              },
+            ]}
+            fill={[{ match: "*", id: "accentGradient" }]}
+            axisTop={null}
+            axisRight={null}
+            axisLeft={null}
+            axisBottom={{
+              // orient: 'bottom',
+              tickSize: 0,
+              tickPadding: 10,
+              tickRotation: 0,
+              legend: "",
+              legendOffset: 36,
+              legendPosition: "middle",
+              renderTick: (tick) => (
+                <g transform={`translate(${tick.x},${tick.y})`}>
+                  <text
+                    x={0}
+                    y={15}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    style={{ fill: "#9CA3AF", fontSize: "11px" }}
+                  >
+                    {String(tick.value)}
+                  </text>
+                </g>
+              ),
+            }}
+            enableGridX={false}
+            enableGridY={true}
+            gridYValues={5}
+            theme={chartTheme}
+            pointSize={8}
+            pointColor={{ theme: "background" }}
+            pointBorderWidth={2}
+            pointBorderColor={{ from: "serieColor" }}
+            pointLabelYOffset={-12}
+            useMesh={true}
+          />
+        </>
       );
     }
     return null;
@@ -402,7 +362,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
           position: "relative",
         }}
       >
-        {isLoading && (
+        {props.isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-[var(--theme-card-bg)] bg-opacity-75 z-10">
             <div className="animate-pulse flex items-center">
               <svg
@@ -430,7 +390,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
             </div>
           </div>
         )}
-        {!isLoading && error && (
+        {!props.isLoading && error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--color-danger)] bg-opacity-20 p-4 text-center rounded-lg">
             <p className="text-[var(--color-danger)] font-semibold">Error!</p>
             <p className="text-[var(--color-danger)] text-sm opacity-80">
@@ -438,7 +398,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({
             </p>
           </div>
         )}
-        {!isLoading && !error && transformedData && renderChart()}
+        {!props.isLoading && !error && chartData && renderChart()}
       </div>
     </div>
   );
@@ -631,9 +591,10 @@ const FilterModal: React.FC<{
 }> = ({ filters, onFiltersChange, isOpen, onClose }) => {
   const [localFilters, setLocalFilters] = useState<DashboardFilters>(filters);
 
-  useEffect(() => {
-    setLocalFilters(filters);
-  }, [filters]);
+  //WARNING: This is dumb
+  // useEffect(() => {
+  //   setLocalFilters(filters);
+  // }, [filters]);
 
   const handleApplyFilters = () => {
     onFiltersChange(localFilters);
@@ -775,11 +736,22 @@ const FilterModal: React.FC<{
   );
 };
 
+type ScoreCards = "uniqueVisitors" | "totalPageViews" | "bounceRate" | "avgSessionDuration" | "conversionRate" | "newUsers"
+type ScoreCardStats = Record<ScoreCards, { value: number, change: number }>
 // --- DashboardPage (fetches its own data) ---
 export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
   const [worldMapFeatures, setWorldMapFeatures] = useState<any[] | null>(null);
   const { PageViewsData, EventTypesData, DeviceGeoData, ReferrersData } = props;
-  const [siteName, setSiteName] = useState('No Site Selected');
+  const [siteName, setSiteName] = useState<string | undefined>();
+  const [siteScoreCards, setSiteScoreCards] = useState<ScoreCardStats>({
+    uniqueVisitors: { value: 0, change: 0 },
+    totalPageViews: { value: 0, change: 0 },
+    bounceRate: { value: 0, change: 0 },
+    avgSessionDuration: { value: 0, change: 0 },
+    conversionRate: { value: 0, change: 0 },
+    newUsers: { value: 0, change: 0 }
+  });
+
   const { data: session, isPending: isSessionLoading } = useContext(
     AuthContext,
   ) || { data: null, isPending: true };
@@ -809,12 +781,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
+
   // React Query for dashboard data fetching
-  const { data: apiData, error: queryError } = useQuery({
+  const { data: apiData, error: queryError, isLoading } = useQuery({
     queryKey: ["dashboardData", filters, session?.userSites?.[0]?.site_id],
     queryFn: async ({ queryKey }) => {
       const [_key, dataFilters] = queryKey;
-      console.log("Query function", dataFilters);
+      // console.log("Query function", dataFilters);
 
       if (!session?.userSites?.[0]?.site_id) {
         throw new Error("No site ID available");
@@ -836,23 +809,33 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
       if (!response.ok) {
         throw new Error("Failed to fetch dashboard data");
       }
+      // console.log("We fetched the data", session);
+      if (session) {
 
-      return response.json();
+        // setSiteName(session.userSites[0].name ?? "Name not set");
+      }
+
+      return response.json() as Promise<DashboardResponseData>;
     },
     enabled: !isSessionLoading && !!session?.userSites?.[0]?.site_id,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
   });
 
+  //WARNING: Just using for debugging
+  useEffect(() => {
+    console.log("Api data", apiData, isLoading);
+  }, [isLoading]);
+
   // Dashboard data derived from React Query or props only (no dummy data fallbacks)
   const dashboardData = {
-    topPagesData: (apiData as any)?.TopPagesData || props.TopPagesData,
-    topSourcesData: (apiData as any)?.TopSourcesData || props.TopSourcesData,
-    browserData: (apiData as any)?.BrowserData || props.BrowserData,
-    pageViewsData: (apiData as any)?.PageViewsData || PageViewsData,
-    referrersData: (apiData as any)?.ReferrersData || ReferrersData,
-    eventTypesData: (apiData as any)?.EventTypesData || EventTypesData,
-    deviceGeoData: (apiData as any)?.DeviceGeoData || DeviceGeoData,
+    topPagesData: apiData?.TopPagesData || props.TopPagesData,
+    topSourcesData: apiData?.TopSourcesData || props.TopSourcesData,
+    browserData: apiData?.BrowserData || props.BrowserData,
+    pageViewsData: apiData?.PageViewsData || PageViewsData,
+    referrersData: apiData?.ReferrersData || ReferrersData,
+    eventTypesData: apiData?.EventTypesData || EventTypesData,
+    deviceGeoData: apiData?.DeviceGeoData || DeviceGeoData,
   };
 
   // Tab state management
@@ -906,12 +889,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
   //   const newFilters = { ...filters, dateRange: newDateRange };
   //   handleFiltersChange(newFilters);
   // }, [filters, handleFiltersChange]);
-  //WARNING: THIS IS TEMPORARY
-  // useEffect(() => {
-  //   console.log("Filters changed:", filters);
-  //   console.log("shouldSkipInitialFetch:", shouldSkipInitialFetch);
-  //   console.log("Query enabled:", !shouldSkipInitialFetch);
-  // }, [filters, shouldSkipInitialFetch]);
 
   async function handleDateRangeChange(newDateRange: DateRange) {
     console.log(newDateRange, "trigger refetch");
@@ -922,16 +899,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
     }));
   }
 
-  //WARNING: This was firing the query multiple times
-  // Update siteId when session loads
-  // useEffect(() => {
-  //   if (session?.userSites?.[0]?.site_id && !filters.siteId) {
-  //     setFilters((prev) => ({
-  //       ...prev,
-  //       siteId: session.userSites![0].site_id.toString(),
-  //     }));
-  //   }
-  // }, [session?.userSites, filters.siteId]);
 
   // Format date range display
   const getDateRangeDisplay = () => {
@@ -963,9 +930,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
       <div className="flex items-center justify-between w-full p-6 border-t border-b border-[var(--theme-border-primary)]">
         <div className="flex items-center space-x-3">
           <span
-            onClick={() => setSiteName("ww")}
             className="text-[var(--theme-text-primary)] font-semibold">
-            {siteName}
+            <SiteSelector
+              name={session && session.userSites ? siteName : ""}
+              setSiteName={setSiteName}
+              sites={(session && session.userSites) ? session.userSites.map((sites) => {
+                {
+                  return {
+                    name: sites.name ?? "Name not set",
+                    site_id: sites.site_id
+                  }
+                }
+              }
+              ) : []} />
           </span>
           <div className="flex items-center space-x-1">
             <svg
@@ -1022,43 +999,43 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
           <section className="flex flex-row flex-wrap lg:flex-nowrap justify-between gap-4 mb-8">
             <Scorecard
               title="UNIQUE VISITORS"
-              value="10,567"
-              change="5.2%"
+              value={siteScoreCards.uniqueVisitors.value.toString()}
+              change={siteScoreCards.uniqueVisitors.change.toString()}
               changeType="positive"
               changeLabel="vs last month"
             />
             <Scorecard
               title="TOTAL PAGEVIEWS"
-              value="250,930"
-              change="12.1%"
+              value={siteScoreCards.totalPageViews.value.toString()}
+              change={siteScoreCards.totalPageViews.change.toString()}
               changeType="positive"
               changeLabel="vs last month"
             />
             <Scorecard
               title="BOUNCE RATE"
-              value="47.5%"
-              change="-2.0%"
+              value={siteScoreCards.bounceRate.value.toString()}
+              change={siteScoreCards.bounceRate.change.toString()}
               changeType="negative"
               changeLabel="vs last month"
             />
             <Scorecard
               title="AVG. SESSION DURATION"
-              value="3m 45s"
-              change="+15s"
+              value={siteScoreCards.avgSessionDuration.value.toString()}
+              change={siteScoreCards.avgSessionDuration.change.toString()}
               changeType="positive"
               changeLabel="vs last month"
             />
             <Scorecard
               title="CONVERSION RATE"
-              value="5.7%"
-              change="+0.5%"
+              value={siteScoreCards.conversionRate.value.toString()}
+              change={siteScoreCards.conversionRate.change.toString()}
               changeType="positive"
               changeLabel="vs last month"
             />
             <Scorecard
               title="NEW USERS"
-              value="1,200"
-              change="0.0%"
+              value={siteScoreCards.newUsers.value.toString()}
+              change={siteScoreCards.newUsers.change.toString()}
               changeType="neutral"
               changeLabel="vs last month"
             />
@@ -1077,6 +1054,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                 <ChartComponent
                   chartId="pageViewsChart"
                   chartData={dashboardData.pageViewsData}
+                  isLoading={isLoading}
+                  type="line"
                   title="Page Views"
                 />
               </div>
@@ -1085,6 +1064,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                 chartId="referrersChart"
                 chartData={dashboardData.referrersData}
                 title="Referrers"
+                type="pie"
+                isLoading={isLoading}
+
               />
               {/* Device Types Chart - part of deviceGeoData */}
               {dashboardData.deviceGeoData && (
@@ -1092,6 +1074,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = (props) => {
                   chartId="deviceTypesChart"
                   chartData={dashboardData.deviceGeoData.deviceTypes}
                   title="Device Types"
+                  type="pie"
+                  isLoading={isLoading}
+
                 />
               )}
             </div>

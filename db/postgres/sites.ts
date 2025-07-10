@@ -5,8 +5,8 @@ import { and, count, eq, gte, inArray, lte } from 'drizzle-orm';
 
 
 export async function getDashboardData(options: DashboardOptions) {
-	const { date, site_id, team_id } = options;
-	const client = pg_client();
+	const { date, site_id, team_id, connectionString } = options;
+	const client = pg_client(connectionString!);
 	const query = client.select({
 		page_url: siteEvents.page_url,
 		client_page_url: siteEvents.client_page_url,
