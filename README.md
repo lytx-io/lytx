@@ -182,7 +182,7 @@ LYTX supports multiple database backends through Drizzle ORM:
 
 - **D1 (Primary)**: For edge deployment on Cloudflare
 - **PostgreSQL**: For high-volume analytics via Hyperdrive
-- **SingleStore**: For high-performance analytics and real-time processing
+- **SingleStore**: For high-performance analytics and real-time processing via Hyperdrive
 
 #### Creating Users
 
@@ -255,6 +255,7 @@ SingleStore provides:
 - Real-time data processing
 - Scalable architecture for large datasets
 - MySQL-compatible interface with enhanced performance
+- **Cloudflare Hyperdrive support**: Can be used via Cloudflare Hyperdrive for edge-optimized database connections
 
 ### Project Structure
 
