@@ -91,7 +91,7 @@ export const team = mysqlTable("team", {
   uuid: varchar("uuid", { length: 255 }).$defaultFn(() => createId()),
   db_adapter: varchar("db_adapter", {
     length: 50,
-    enum: ["postgres", "sqlite"],
+    enum: ["postgres", "sqlite", "singlestore"],
   })
     .default("sqlite")
     .notNull(),

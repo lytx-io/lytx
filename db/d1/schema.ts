@@ -63,7 +63,7 @@ export const team = sqliteTable('team', {
 	created_by: text('created_by').notNull(),
 	name: text('name').$defaultFn(() => randomName()),
 	uuid: text('uuid').$defaultFn(() => createId()),
-	db_adapter: text({ enum: ['postgres', 'sqlite'] }).default("sqlite").notNull(),
+	db_adapter: text({ enum: ['postgres', 'sqlite', 'singlestore'] }).default("sqlite").notNull(),
 });
 
 
