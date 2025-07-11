@@ -178,10 +178,11 @@ Visit your deployed LYTX instance to:
 
 ### Database Management
 
-LYTX supports both D1 (SQLite) and PostgreSQL through Drizzle ORM:
+LYTX supports multiple database backends through Drizzle ORM:
 
 - **D1 (Primary)**: For edge deployment on Cloudflare
 - **PostgreSQL**: For high-volume analytics via Hyperdrive
+- **SingleStore**: For high-performance analytics and real-time processing
 
 #### Creating Users
 
@@ -232,12 +233,36 @@ The script generates:
 - Realistic visitor data (browsers, OS, devices, locations)
 - Time-distributed events over specified date range
 
+#### SingleStore Configuration
+
+For high-performance analytics with SingleStore, configure the following environment variables:
+
+```bash
+# SingleStore connection details
+SINGLESTORE_HOST=your-singlestore-host
+SINGLESTORE_USER=your-username
+SINGLESTORE_PASSWORD=your-password
+SINGLESTORE_DATABASE=your-database
+SINGLESTORE_PORT=3306
+
+# Or use a connection string
+SINGLESTORE_CONNECTION_STRING=mysql://user:password@host:port/database
+```
+
+SingleStore provides:
+
+- High-performance analytics queries
+- Real-time data processing
+- Scalable architecture for large datasets
+- MySQL-compatible interface with enhanced performance
+
 ### Project Structure
 
 ```
 ├── db/                    # Database schemas and migrations
 │   ├── d1/               # D1 (SQLite) configuration
-│   └── postgres/         # PostgreSQL configuration
+│   ├── postgres/         # PostgreSQL configuration
+│   └── singlestore/      # SingleStore configuration
 ├── src/
 │   ├── app/              # React components and pages
 │   ├── session/          # Authentication and session management
