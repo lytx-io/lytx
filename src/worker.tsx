@@ -74,7 +74,7 @@ function onlyAllowGetPost({ request }: RequestInfo<any, AppContext>) {
     return new Response("Not Found.", { status: 404 });
 }
 
-
+//TODO:Export the routes for defineApp
 export default defineApp<RequestInfo<any, AppContext>>([
   ({ request }) => {
     console.log("🔥🔥🔥", request.method, request.url);
@@ -86,7 +86,7 @@ export default defineApp<RequestInfo<any, AppContext>>([
   eventsApi,
   route("/api/auth/*", (r) => authMiddleware(r)),
   render(Document, [
-    route("/", [onlyAllowGetPost, async ({ request }) => {
+    route("/", [onlyAllowGetPost, async () => {
       return <Home />;
     }]),
     route("/signup", [onlyAllowGetPost, () => {
@@ -101,28 +101,6 @@ export default defineApp<RequestInfo<any, AppContext>>([
       }]),
       route("/login", [onlyAllowGetPost, () => {
         return <Login />;
-      }]),
-      //WARNING: This works with interuptor
-      route("/dashboard-works", [checkIfTeamSetupSites, () => {
-        return <DashboardPage />;
-      }]),
-      //FIX: This does not work with ctx in route       
-      route("/dashboard-broken", [({ ctx }) => {
-        if (!ctx.initial_site_setup) {
-          return new Response("User needs to create a site", {
-            status: 303,
-            headers: { location: "/new-site" },
-          });
-        }
-
-        if (!ctx.sites) {
-          return new Response("User needs to create a site", {
-            status: 303,
-            headers: { location: "/new-site" },
-          });
-        }
-
-        return <DashboardPage />;
       }]),
       sessionMiddleware,
       prefix("/api", [
@@ -324,32 +302,13 @@ export default defineApp<RequestInfo<any, AppContext>>([
         newSiteSetup,
       ]),
       onlyAllowGetPost,
-      route("/admin/events", [checkIfTeamSetupSites, async ({ request }) => {
-        // const url = new URL(request.url);
-        // const account = url.searchParams.get("account");
-        // if (!account) {
-        //   return new Response("Account not provided", { status: 400 });
-        // }
+      route("/admin/events", [checkIfTeamSetupSites, async () => {
         return <EventsPage />;
       }]),
       route("/new-site", [() => {
         return <NewSiteSetup />;
       }]),
-      route("/dashboard", [({ ctx }) => {
-        if (!ctx.initial_site_setup) {
-          return new Response("User needs to create a site", {
-            status: 303,
-            headers: { location: "/new-site" },
-          });
-        }
-
-        if (!ctx.sites) {
-          return new Response("User needs to create a site", {
-            status: 303,
-            headers: { location: "/new-site" },
-          });
-        }
-
+      route("/dashboard", [checkIfTeamSetupSites, () => {
         return <DashboardPage />;
       }]),
     ]),
