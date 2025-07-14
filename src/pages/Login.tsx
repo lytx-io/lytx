@@ -1,6 +1,5 @@
 "use client";
-import { signIn } from "@/app/AuthProvider";
-
+import { signIn } from "@/app/providers/AuthProvider";
 export function Login() {
   return (
     <div className="flex flex-col justify-center items-center py-12 font-['Montserrat']">
