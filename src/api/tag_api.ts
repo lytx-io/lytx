@@ -3,7 +3,6 @@ import { RequestInfo } from "rwsdk/worker";
 import { env } from "cloudflare:workers";
 import { parseBrowser, parseOs, parseDeviceType, parseUserAgent } from "@/utilities/detector";
 import type { AppContext } from "@/worker";
-import { getEventsFromKV, saveEventsToKV } from "@/app/eventsApi";
 import { getClient } from "@db/client";
 //Load these into more general function that reads from adapter type
 import { getSiteForTag, insertSiteEvent } from "@db/d1/sites";
@@ -376,69 +375,6 @@ export const trackWebEvent = (adapter: DBAdapter) => route("/trackWebEvent", [co
 
 }]);
 
-
-// New GET route for fetching events
-
-/**
- * GET/POST /api/events/:tagId
- *
- * This is the events API endpoint
- */
-export const eventsApi = route<RequestInfo<{ tagId: string | null }, AppContext>>("/api/events/:tagId", async ({ params, request }) => {
-    if (!["GET", "POST"].includes(request.method)) {
-        return new Response("Method Not Allowed", { status: 405 });
-    }
-
-    const tagId = params.tagId;
-    if (!tagId) {
-        return new Response("Tag ID is required", { status: 400 });
-    }
-
-    //PERF: GET
-    if (request.method === "GET") {
-        try {
-            const events = await getEventsFromKV(tagId);
-            if (!events) {
-                return new Response("Events not found or error fetching", { status: 404 });
-            }
-            return new Response(JSON.stringify(events), {
-                status: 200,
-                headers: { "Content-Type": "application/json" },
-            });
-        } catch (error) {
-            console.error("Error in GET /api/events/:tagId route:", error);
-            return new Response(error instanceof Error ? error.message : "Failed to fetch events", { status: 500 });
-        }
-    }
-    //PERF: POST
-    if (request.method === "POST") { // Changed from !== to === (or ==, but === is stricter)
-        try {
-            const eventsData = await request.json() as pageEvent[];
-            if (!Array.isArray(eventsData)) {
-                return new Response("Invalid events data format: expected an array.", { status: 400 });
-            }
-
-            //FIX: TYPE ERROR    
-            const success = await saveEventsToKV(tagId, eventsData);
-            if (success) {
-                return new Response(JSON.stringify({ message: "Events saved successfully" }), {
-                    status: 200,
-                    headers: { "Content-Type": "application/json" },
-                });
-            } else {
-                return new Response("Failed to save events", { status: 500 });
-            }
-        } catch (error) {
-            console.error("Error in POST /api/events/:tagId route:", error);
-            const message = error instanceof Error ? error.message : "Failed to save events";
-            if (message.includes("Unexpected token") || message.includes("JSON at position")) {
-                return new Response("Invalid JSON format in request body.", { status: 400 });
-            }
-            return new Response(message, { status: 500 });
-        }
-    }
-    return new Response("Method Not Allowed", { status: 405 });
-});
 
 /**
  * POST /api/sites
