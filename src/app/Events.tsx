@@ -17,8 +17,8 @@ import {
 } from "@tanstack/react-table";
 
 import type { pageEvent } from "@/templates/lytxpixel";
-import { EventForm, type EventFieldDefinition } from "./EventForm";
-import { EditableCell } from "./EditableCell";
+import { EventForm, type EventFieldDefinition } from "@components/EventForm";
+import { EditableCell } from "@components/EditableCell";
 
 const debug = false;
 
@@ -331,54 +331,54 @@ export function EventsPage({ initialTagId = "test-tag-id" }) {
     // Updated createEditableCellRenderer to use meta and correct types
     const createEditableCellRenderer =
       (columnIdAsKeyOfPageEvent: keyof pageEvent) =>
-      (props: CellContext<UIEvent, any>) => {
-        const { table, row } = props;
-        const meta = table.options.meta as TableMeta;
+        (props: CellContext<UIEvent, any>) => {
+          const { table, row } = props;
+          const meta = table.options.meta as TableMeta;
 
-        const event = row.original;
-        // Use columnIdAsKeyOfPageEvent for checking editingCell state
-        const isCurrentlyEditing =
-          meta.editingCell?.eventId === event.local_id &&
-          meta.editingCell?.columnId === columnIdAsKeyOfPageEvent;
-        const fieldDef = meta.eventFields.find(
-          (f) => f.name === columnIdAsKeyOfPageEvent,
-        );
-
-        if (!fieldDef)
-          return (
-            <div>
-              Error: Field definition not found for {columnIdAsKeyOfPageEvent}
-            </div>
+          const event = row.original;
+          // Use columnIdAsKeyOfPageEvent for checking editingCell state
+          const isCurrentlyEditing =
+            meta.editingCell?.eventId === event.local_id &&
+            meta.editingCell?.columnId === columnIdAsKeyOfPageEvent;
+          const fieldDef = meta.eventFields.find(
+            (f) => f.name === columnIdAsKeyOfPageEvent,
           );
 
-        return (
-          <div
-            onClick={() => {
-              console.log("clicking a cell");
-              if (!isCurrentlyEditing && !meta.editingEventId) {
-                meta.startCellEdit(event.local_id, columnIdAsKeyOfPageEvent); // Pass keyof pageEvent
+          if (!fieldDef)
+            return (
+              <div>
+                Error: Field definition not found for {columnIdAsKeyOfPageEvent}
+              </div>
+            );
+
+          return (
+            <div
+              onClick={() => {
+                console.log("clicking a cell");
+                if (!isCurrentlyEditing && !meta.editingEventId) {
+                  meta.startCellEdit(event.local_id, columnIdAsKeyOfPageEvent); // Pass keyof pageEvent
+                }
+              }}
+              className={
+                isCurrentlyEditing
+                  ? ""
+                  : "cursor-pointer hover:bg-[var(--theme-bg-secondary)] p-1 rounded"
               }
-            }}
-            className={
-              isCurrentlyEditing
-                ? ""
-                : "cursor-pointer hover:bg-[var(--theme-bg-secondary)] p-1 rounded"
-            }
-            style={{ minHeight: "2.5rem", width: "100%" }}
-          >
-            <EditableCell
-              key={`${event.local_id}-${String(columnIdAsKeyOfPageEvent)}-${isCurrentlyEditing}`}
-              initialValue={props.getValue()}
-              isEditing={isCurrentlyEditing}
-              fieldDefinition={fieldDef}
-              eventId={event.local_id}
-              columnId={columnIdAsKeyOfPageEvent} // Pass as keyof pageEvent
-              updateData={meta.updateCellData}
-              exitEditMode={meta.commitCellEdit}
-            />
-          </div>
-        );
-      };
+              style={{ minHeight: "2.5rem", width: "100%" }}
+            >
+              <EditableCell
+                key={`${event.local_id}-${String(columnIdAsKeyOfPageEvent)}-${isCurrentlyEditing}`}
+                initialValue={props.getValue()}
+                isEditing={isCurrentlyEditing}
+                fieldDefinition={fieldDef}
+                eventId={event.local_id}
+                columnId={columnIdAsKeyOfPageEvent} // Pass as keyof pageEvent
+                updateData={meta.updateCellData}
+                exitEditMode={meta.commitCellEdit}
+              />
+            </div>
+          );
+        };
 
     return [
       columnHelper.accessor("event_name", {
@@ -674,9 +674,9 @@ export function EventsPage({ initialTagId = "test-tag-id" }) {
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                         {{
                           asc: " 🔼",
                           desc: " 🔽",
