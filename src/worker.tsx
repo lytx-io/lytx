@@ -10,10 +10,15 @@ import { eventsApi } from "@api/events_api";
 import { authMiddleware, sessionMiddleware } from "@api/authMiddleware";
 import { Signup } from "@/pages/Signup";
 import { Login } from "@/pages/Login";
+import { SettingsPage } from "@/app/Settings";
 import { NewSiteSetup } from "@/app/components/NewSiteSetup";
 import type { DBAdapter } from "@db/d1/schema";
 import { getDashboardData } from "@db/d1/sites";
 import type { AuthUserSession } from "@lib/auth";
+import { world_countries } from "@api/sites_api";
+import { team_dashboard_endpoints } from "@api/team_api";
+
+
 import {
   getDeviceData,
   getDeviceGeoData,
@@ -105,23 +110,7 @@ export default defineApp<RequestInfo<any, AppContext>>([
       }]),
       sessionMiddleware,
       prefix("/api", [
-        route("/world_countries", async ({ request }) => {
-          if (request.method != "POST")
-            return new Response("Not Found.", { status: 404 });
-          const include = (await request.json()) as { include: string[] };
-          const world_countries = await import(
-            "@lib/geojson/world_countries.json"
-          );
-
-          if (include.include.length > 0) {
-            const filtered = world_countries.features.filter((feature) => {
-              return include.include.includes(feature.properties.name);
-            });
-            return new Response(JSON.stringify(filtered));
-          }
-          //consider r2 bucket?
-          return new Response(JSON.stringify(world_countries));
-        }),
+        world_countries,
         //TODO: re-work this to much data transformation on server do more in db indexed tables
         route("/dashboard/data", async ({ request, ctx, cf }) => {
           if (request.method !== "POST") {
@@ -309,6 +298,11 @@ export default defineApp<RequestInfo<any, AppContext>>([
       route("/new-site", [() => {
         return <NewSiteSetup />;
       }]),
+      route("/settings", [
+        () => {
+          return <SettingsPage />;
+        },
+      ]),
       route("/dashboard", [checkIfTeamSetupSites, () => {
         return <DashboardPage />;
       }]),
