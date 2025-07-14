@@ -7,7 +7,7 @@ import { Home } from "@/pages/Home";
 import { AppLayout } from "@/app/Layout";
 import { lytxTag, trackWebEvent, newSiteSetup } from "@api/tag_api";
 import { eventsApi } from "@api/events_api";
-import { authMiddleware, sessionMiddleware } from "@/session/auth";
+import { authMiddleware, sessionMiddleware } from "@api/authMiddleware";
 import { Signup } from "@/pages/Signup";
 import { Login } from "@/pages/Login";
 import { NewSiteSetup } from "@/app/components/NewSiteSetup";
