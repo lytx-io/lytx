@@ -29,6 +29,7 @@ Usage: bun run db/seed-data.ts [options]
 Options:
   -t, --team-id <id>        Team ID to create sites for (required)
   -s, --sites <number>      Number of sites to create (default: 3)
+  --site-id <id>            Populate existing site ID with events (skips site creation)
   -e, --events <number>     Number of events per site (default: 100)
   -d, --database <name>     Database name (default: "lytx_core_db")
   --local                   Use local database (default: true)
@@ -39,6 +40,7 @@ Options:
 Example:
   bun run db/seed-data.ts --team-id 1 --sites 2 --events 50
   bun run db/seed-data.ts --team-id 1 --remote --days 7
+  bun run db/seed-data.ts --team-id 1 --site-id 3 --events 100
 `);
   process.exit(0);
 }
@@ -96,11 +98,20 @@ const getDatabaseArg = () => {
   }
 };
 
+const getSiteIdArg = () => {
+  try {
+    return parseInt(getArg("--site-id"));
+  } catch {
+    return null; // Optional parameter
+  }
+};
+
 const teamId = getTeamIdArg();
 const numSites = getSitesArg();
 const numEvents = getEventsArg();
 const numDays = getDaysArg();
 const database = getDatabaseArg();
+const siteId = getSiteIdArg();
 const isRemote = hasFlag("--remote");
 const isLocal = hasFlag("--local") || !isRemote;
 
@@ -253,8 +264,14 @@ async function seedData() {
     console.log("🌱 Seeding database with sample data...");
     console.log(`📊 Target: ${database} (${isLocal ? "local" : "remote"})`);
     console.log(`🏢 Team ID: ${teamId}`);
-    console.log(`🌐 Sites to create: ${numSites}`);
-    console.log(`📈 Events per site: ${numEvents}`);
+
+    if (siteId) {
+      console.log(`🎯 Using existing site ID: ${siteId}`);
+      console.log(`📈 Events to generate: ${numEvents}`);
+    } else {
+      console.log(`🌐 Sites to create: ${numSites}`);
+      console.log(`📈 Events per site: ${numEvents}`);
+    }
     console.log(`📅 Days back: ${numDays}`);
 
     const createdSites: Array<{
@@ -264,36 +281,34 @@ async function seedData() {
       domain: string;
     }> = [];
 
-    // 1. Create sample sites
-    for (let i = 0; i < numSites; i++) {
-      const tagId = createId();
-      const ridSalt = createId();
-      const name = sampleSiteNames[i % sampleSiteNames.length];
-      const domain = sampleDomains[i % sampleDomains.length];
-      const now = Math.floor(Date.now() / 1000); // Convert to Unix timestamp (seconds)
-      const ridSaltExpire = now + 30 * 24 * 60 * 60; // 30 days from now (in seconds)
-
-      const siteSQL = `
-INSERT INTO sites (tag_id, track_web_events, team_id, name, domain, gdpr, rid_salt, rid_salt_expire, created_at, updated_at)
-VALUES ('${tagId}', 1, ${teamId}, '${name}', '${domain}', 0, '${ridSalt}', ${ridSaltExpire}, ${now}, ${now});
-`;
-      executeSQL(siteSQL, `Creating site: ${name}`);
-
-      // Get the site ID
-      const getSiteIdSQL = `SELECT site_id FROM sites WHERE tag_id = '${tagId}';`;
+    if (siteId) {
+      // Use existing site - fetch its details
+      const getSiteSQL = `SELECT site_id, tag_id, name, domain FROM sites WHERE site_id = ${siteId} AND team_id = ${teamId};`;
       const tempFile = join(process.cwd(), `temp_query_${Date.now()}.sql`);
-      writeFileSync(tempFile, getSiteIdSQL);
+      writeFileSync(tempFile, getSiteSQL);
 
       try {
         const command = `bunx wrangler d1 execute ${database} --file ${tempFile} ${isLocal ? "--local" : "--remote"} --json --yes`;
         const result = execSync(command, { encoding: "utf8", stdio: "pipe" });
         const jsonResult = JSON.parse(result);
-        const siteId = jsonResult[0].results[0].site_id;
 
-        createdSites.push({ siteId, tagId, name, domain });
-        console.log(`🔍 Created site ID: ${siteId} for ${name}`);
+        if (jsonResult[0].results.length === 0) {
+          throw new Error(
+            `Site ID ${siteId} not found or doesn't belong to team ${teamId}`,
+          );
+        }
+
+        const site = jsonResult[0].results[0];
+        createdSites.push({
+          siteId: site.site_id,
+          tagId: site.tag_id,
+          name: site.name || "Unknown Site",
+          domain: site.domain || "unknown.com",
+        });
+
+        console.log(`✅ Found existing site: ${site.name} (${site.domain})`);
       } catch (error: any) {
-        console.error("❌ Error getting site ID:", error.message);
+        console.error("❌ Error fetching existing site:", error.message);
         throw error;
       } finally {
         try {
@@ -302,7 +317,47 @@ VALUES ('${tagId}', 1, ${teamId}, '${name}', '${domain}', 0, '${ridSalt}', ${rid
           // Ignore cleanup errors
         }
       }
-    }
+    } else {
+      // 1. Create sample sites
+      for (let i = 0; i < numSites; i++) {
+        const tagId = createId();
+        const ridSalt = createId();
+        const name = sampleSiteNames[i % sampleSiteNames.length];
+        const domain = sampleDomains[i % sampleDomains.length];
+        const now = Math.floor(Date.now() / 1000); // Convert to Unix timestamp (seconds)
+        const ridSaltExpire = now + 30 * 24 * 60 * 60; // 30 days from now (in seconds)
+
+        const siteSQL = `
+INSERT INTO sites (tag_id, track_web_events, team_id, name, domain, gdpr, rid_salt, rid_salt_expire, created_at, updated_at)
+VALUES ('${tagId}', 1, ${teamId}, '${name}', '${domain}', 0, '${ridSalt}', ${ridSaltExpire}, ${now}, ${now});
+`;
+        executeSQL(siteSQL, `Creating site: ${name}`);
+
+        // Get the site ID
+        const getSiteIdSQL = `SELECT site_id FROM sites WHERE tag_id = '${tagId}';`;
+        const tempFile = join(process.cwd(), `temp_query_${Date.now()}.sql`);
+        writeFileSync(tempFile, getSiteIdSQL);
+
+        try {
+          const command = `bunx wrangler d1 execute ${database} --file ${tempFile} ${isLocal ? "--local" : "--remote"} --json --yes`;
+          const result = execSync(command, { encoding: "utf8", stdio: "pipe" });
+          const jsonResult = JSON.parse(result);
+          const siteId = jsonResult[0].results[0].site_id;
+
+          createdSites.push({ siteId, tagId, name, domain });
+          console.log(`🔍 Created site ID: ${siteId} for ${name}`);
+        } catch (error: any) {
+          console.error("❌ Error getting site ID:", error.message);
+          throw error;
+        } finally {
+          try {
+            unlinkSync(tempFile);
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        }
+      } // End of for loop
+    } // End of else block for creating new sites
 
     // 2. Generate sample events for each site
     for (const site of createdSites) {
@@ -379,11 +434,20 @@ if (!teamId || isNaN(teamId)) {
   process.exit(1);
 }
 
-if (numSites <= 0 || numEvents <= 0 || numDays <= 0) {
+if (siteId && (isNaN(siteId) || siteId <= 0)) {
+  console.error("❌ Error: --site-id must be a positive number");
+  process.exit(1);
+}
+
+if ((!siteId && numSites <= 0) || numEvents <= 0 || numDays <= 0) {
   console.error(
-    "❌ Error: --sites, --events, and --days must be positive numbers",
+    "❌ Error: --sites (when not using --site-id), --events, and --days must be positive numbers",
   );
   process.exit(1);
+}
+
+if (siteId && numSites !== 3) {
+  console.log("ℹ️  Note: --sites parameter is ignored when using --site-id");
 }
 
 // Run the seeding

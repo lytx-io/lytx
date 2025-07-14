@@ -219,6 +219,9 @@ bun run db:seed --team-id 1
 # Create 2 sites with 50 events each over the last 7 days
 bun run db:seed --team-id 1 --sites 2 --events 50 --days 7
 
+# Populate existing site with events (skips site creation)
+bun run db:seed --team-id 1 --site-id 3 --events 100
+
 # Generate data on remote database (production)
 bun run db:seed --team-id 1 --remote
 
