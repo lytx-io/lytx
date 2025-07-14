@@ -1,7 +1,6 @@
 import type { LayoutProps } from "rwsdk/router";
-import type { ContentItem } from "blinkx.io-sveltekit/dist/src/types/content";
 import { Nav } from "@/app/components/Nav";
-import { ClientProviders } from "./ClientProviders";
+import { ClientProviders } from "@/app/providers/ClientProviders";
 import type { RequestInfo } from "rwsdk/worker";
 import type { AppContext } from "@/worker";
 

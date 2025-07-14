@@ -14,7 +14,7 @@ import { ResponsiveBar } from "@nivo/bar";
 import { ResponsivePie } from "@nivo/pie";
 import { ResponsiveLine } from "@nivo/line";
 
-import { AuthContext } from "@/app/AuthProvider";
+import { AuthContext } from "@/app/providers/AuthProvider";
 import {
   type DeviceGeoData,
   type ChartComponentProps,
