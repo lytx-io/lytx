@@ -227,11 +227,11 @@ function randomItem<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
 }
 
-// Helper function to generate random timestamp within last N days
+// Helper function to generate random timestamp within last N days (returns Unix timestamp in seconds)
 function randomTimestamp(daysBack: number): number {
-  const now = Date.now();
-  const daysInMs = daysBack * 24 * 60 * 60 * 1000;
-  return now - Math.floor(Math.random() * daysInMs);
+  const now = Math.floor(Date.now() / 1000); // Convert to seconds
+  const daysInSeconds = daysBack * 24 * 60 * 60;
+  return now - Math.floor(Math.random() * daysInSeconds);
 }
 
 // Helper function to generate screen dimensions
@@ -270,8 +270,8 @@ async function seedData() {
       const ridSalt = createId();
       const name = sampleSiteNames[i % sampleSiteNames.length];
       const domain = sampleDomains[i % sampleDomains.length];
-      const now = Date.now();
-      const ridSaltExpire = now + 30 * 24 * 60 * 60 * 1000; // 30 days from now
+      const now = Math.floor(Date.now() / 1000); // Convert to Unix timestamp (seconds)
+      const ridSaltExpire = now + 30 * 24 * 60 * 60; // 30 days from now (in seconds)
 
       const siteSQL = `
 INSERT INTO sites (tag_id, track_web_events, team_id, name, domain, gdpr, rid_salt, rid_salt_expire, created_at, updated_at)

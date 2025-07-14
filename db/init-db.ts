@@ -163,7 +163,7 @@ async function initDatabase() {
     const teamUuid = createId();
     const accountId = createId();
     const now = new Date();
-    const timestamp = Math.floor(now.getTime());
+    const timestamp = Math.floor(now.getTime() / 1000); // Convert to Unix timestamp (seconds)
 
     // Hash the password using scrypt (same as better-auth)
     console.log("🔐 Hashing password...");
