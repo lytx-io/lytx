@@ -6,27 +6,6 @@ import { route } from 'rwsdk/router';
 import { RequestInfo } from 'rwsdk/worker';
 import { AppContext } from '@/worker';
 
-// Local pageEvent definition removed:
-// export type pageEvent = {
-//     event_name: string;
-//     condition: "page_load" | "click" | "custom_event" | "scroll" | "form_submission" | "element_visibility";
-//     QuantcastPixelId?: string;
-//     QuantCastPixelLabel?: string;
-//     SimplfiPixelid?: string;
-//     googleanalytics?: string;
-//     googleadsscript?: string;
-//     googleadsconversion?: string;
-//     metaEvent?: string;
-//     linkedinEvent?: string;
-//     clickCease?: string;
-//     data_passback?: string;
-//     parameters?: string;
-//     paramConfig?: string;
-//     query_parameters?: string;
-//     customScript?: string;
-//     rules?: string;
-//     Notes?: string;
-// };
 
 const KV_NAMESPACE = env.LYTX_EVENTS;
 
