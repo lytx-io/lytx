@@ -1,6 +1,6 @@
 import { defineApp, type RequestInfo } from "rwsdk/worker";
 import { route, render, prefix, layout } from "rwsdk/router";
-import { Document } from "@/app/Document";
+import { Document } from "@/Document";
 import { DashboardPage } from "@/app/Dashboard";
 import { EventsPage } from "@/app/Events";
 import { Home } from "@/pages/Home";
