@@ -13,22 +13,12 @@ import { Login } from "@/pages/Login";
 import { SettingsPage } from "@/app/Settings";
 import { NewSiteSetup } from "@/app/components/NewSiteSetup";
 import type { DBAdapter } from "@db/d1/schema";
-import { getDashboardData } from "@db/d1/sites";
 import type { AuthUserSession } from "@lib/auth";
-import { world_countries } from "@api/sites_api";
+import { world_countries, getDashboardDataRoute } from "@api/sites_api";
 import { team_dashboard_endpoints } from "@api/team_api";
+import { checkIfTeamSetupSites, onlyAllowGetPost } from "@utilities/route_interuptors";
+import { IS_DEV } from "rwsdk/constants";
 
-
-import {
-  getDeviceData,
-  getDeviceGeoData,
-  getEventTypesData,
-  getPageViewsData,
-  getReferrersData,
-  getTopPagesData,
-  getTopSourcesData,
-  transformToChartData,
-} from "@db/tranformReports";
 
 export { SyncDurableObject } from "@/session/durableObject";
 
@@ -41,49 +31,12 @@ export type AppContext = {
   db_adapter: DBAdapter;
 };
 
-// Helper function to ensure data is serializable for client components
-// function serializeForClient<T>(data: T): T {
-//   return JSON.parse(
-//     JSON.stringify(data, (_, value) => {
-//       // Handle Date objects
-//       if (value instanceof Date) {
-//         return value.toISOString();
-//       }
-//       // Handle undefined values
-//       if (value === undefined) {
-//         return null;
-//       }
-//       return value;
-//     }),
-//   );
-// }
 
-function checkIfTeamSetupSites({ ctx }: RequestInfo<any, AppContext>) {
-
-  if (!ctx.initial_site_setup) {
-    return new Response("User needs to create a site", {
-      status: 303,
-      headers: { location: "/new-site" },
-    });
-  }
-
-  if (!ctx.sites) {
-    return new Response("User needs to create a site", {
-      status: 303,
-      headers: { location: "/new-site" },
-    });
-  }
-}
-
-function onlyAllowGetPost({ request }: RequestInfo<any, AppContext>) {
-  if (!["GET", "POST"].includes(request.method))
-    return new Response("Not Found.", { status: 404 });
-}
 
 //TODO:Export the routes for defineApp
 export default defineApp<RequestInfo<any, AppContext>>([
   ({ request }) => {
-    console.log("🔥🔥🔥", request.method, request.url);
+    if (IS_DEV) console.log("🔥🔥🔥", request.method, request.url);
   },
   //NOTE: API ROUTES / no component or html rendering
   //TODO: pass db provider as prop from ctx? or initial config
@@ -111,183 +64,7 @@ export default defineApp<RequestInfo<any, AppContext>>([
       sessionMiddleware,
       prefix("/api", [
         world_countries,
-        //TODO: re-work this to much data transformation on server do more in db indexed tables
-        route("/dashboard/data", async ({ request, ctx, cf }) => {
-          if (request.method !== "POST") {
-            return new Response("Method not allowed", { status: 405 });
-          }
-
-          if (!ctx.session || !ctx.session.user) {
-            return new Response(
-              JSON.stringify({ error: "Authentication required" }),
-              {
-                status: 401,
-                headers: { "Content-Type": "application/json" },
-              },
-            );
-          }
-
-          if (!ctx.team) {
-            return new Response(
-              JSON.stringify({ error: "Team access required" }),
-              {
-                status: 403,
-                headers: { "Content-Type": "application/json" },
-              },
-            );
-          }
-
-          try {
-            const url = new URL(request.url);
-            let params: any = {};
-
-            if (request.method === "POST") {
-              try {
-                params = await request.json();
-              } catch (e) {
-                return new Response(
-                  JSON.stringify({ error: "Invalid JSON body" }),
-                  {
-                    status: 400,
-                    headers: { "Content-Type": "application/json" },
-                  },
-                );
-              }
-            } else {
-              params = {
-                site_id: url.searchParams.get("site_id"),
-                date_start: url.searchParams.get("date_start"),
-                date_end: url.searchParams.get("date_end"),
-                device_type: url.searchParams.get("device_type"),
-                country: url.searchParams.get("country"),
-                source: url.searchParams.get("source"),
-              };
-            }
-
-            const {
-              site_id,
-              date_start,
-              date_end,
-              device_type,
-              country,
-              source,
-            } = params;
-
-            if (!site_id) {
-              return new Response(
-                JSON.stringify({ error: "site_id is required" }),
-                {
-                  status: 400,
-                  headers: { "Content-Type": "application/json" },
-                },
-              );
-            }
-
-            let siteIdValue: number | string;
-            if (typeof site_id === "string" && isNaN(parseInt(site_id))) {
-              siteIdValue = site_id;
-            } else {
-              siteIdValue = parseInt(site_id);
-              if (isNaN(siteIdValue)) {
-                return new Response(
-                  JSON.stringify({
-                    error: "site_id must be a valid number or string",
-                  }),
-                  {
-                    status: 400,
-                    headers: { "Content-Type": "application/json" },
-                  },
-                );
-              }
-            }
-
-            const dashboardOptions: any = {
-              site_id: siteIdValue,
-              // site_id: 82,
-              team_id: ctx.team,
-            };
-
-            if (date_start || date_end) {
-              dashboardOptions.date = {};
-              if (date_start) {
-                dashboardOptions.date.start = new Date(date_start);
-              }
-              if (date_end) {
-                dashboardOptions.date.end = new Date(date_end);
-              }
-            }
-
-            const query = getDashboardData(dashboardOptions);
-            let dashboardData = await query;
-
-            if (device_type || country || source) {
-              dashboardData = dashboardData.filter((item: any) => {
-                if (device_type && item.device_type !== device_type)
-                  return false;
-                if (country && item.country !== country) return false;
-                if (source && item.referer !== source) return false;
-                return true;
-              });
-            }
-
-            const {
-              pageViews,
-              events,
-              cities,
-              referers,
-              devices,
-              topPages,
-              browsers,
-            } = transformToChartData(dashboardData);
-
-            const pageViewsData = getPageViewsData(pageViews);
-            const topSourcesData = getTopSourcesData(
-              referers
-                .slice(0, 10)
-                .map((a) => ({ name: a.id, visitors: a.value })),
-            );
-            const referrersData = getReferrersData(referers.slice(0, 10));
-            const eventTypesData = getEventTypesData(events);
-            const geoData = cities
-              .map(([city, details]) => [details.country, city, details.count])
-              .slice(0, 10) as Array<[string, string, number]>;
-            const deviceGeoData = getDeviceGeoData({
-              geoData,
-              deviceData: devices,
-            });
-            const topPagesData = getTopPagesData(topPages.slice(0, 10));
-            const browserData = getDeviceData(
-              browsers.map((a) => ({
-                name: a.id,
-                visitors: a.value,
-                percentage: "",
-              })),
-            );
-
-            const responseData = {
-              PageViewsData: pageViewsData,
-              EventTypesData: eventTypesData,
-              DeviceGeoData: deviceGeoData,
-              ReferrersData: referrersData,
-              TopPagesData: topPagesData,
-              TopSourcesData: topSourcesData,
-              BrowserData: browserData.slice(0, 10),
-            };
-
-            return new Response(JSON.stringify(responseData), {
-              headers: { "Content-Type": "application/json" },
-            });
-          } catch (error) {
-            console.error("Dashboard API error:", error);
-            return new Response(
-              JSON.stringify({ error: "Internal server error" }),
-              {
-                status: 500,
-                headers: { "Content-Type": "application/json" },
-              },
-            );
-          }
-        }),
+        getDashboardDataRoute,
         ///api/sites
         newSiteSetup,
       ]),
