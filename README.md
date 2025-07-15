@@ -146,9 +146,9 @@ Once deployed, add the LYTX tracking script to your website:
 
 ```html
 <script
-  async
-  src="https://your-lytx-domain.workers.dev/script.js"
-  data-site-id="your-site-id"
+  defer 
+  data-domain="your-site-domain.com"
+  src="https://your-lytx-domain.workers.dev/lytx.js?account=your-site-id"
 ></script>
 ```
 
