@@ -1,5 +1,5 @@
 "use client";
-import { signOut } from "@/app/AuthProvider";
+import { signOut } from "@/app/providers/AuthProvider";
 import { ThemeToggle } from "./ui/ThemeToggle";
 // import { ClientOnly } from "./ui/ClientOnly";
 
@@ -17,14 +17,6 @@ export function Nav() {
         </div>
         <div className="flex items-center gap-4">
           <ul className="flex gap-6">
-            <li className="cursor-pointer">
-              <a
-                href="/"
-                className="text-[var(--theme-text-primary)] hover:text-[var(--color-primary)] transition-colors"
-              >
-                Home
-              </a>
-            </li>
             <li className="cursor-pointer">
               <a
                 href="/dashboard"
