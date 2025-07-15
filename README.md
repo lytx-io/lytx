@@ -65,13 +65,42 @@ I've been using LYTX in production for a while now across many of my client webs
    - Generate Cloudflare types
    - Apply database migrations locally
 
-4. **Configure Cloudflare resources**
+4. **Set up environment variables**
 
-   Edit `wrangler.jsonc` and replace the placeholder values:
-   - `database_id`: Your D1 database ID
-   - KV namespace IDs for `LYTX_EVENTS`, `lytx_config`, and `lytx_sessions`
+   Copy `.env.example` to `.env` and configure:
 
-5. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   ```
+
+   Edit `.env` with your configuration:
+
+   ```bash
+   # Required for Alchemy infrastructure deployment
+   ALCHEMY_PASSWORD=your-secure-password-for-state-encryption
+
+   # Optional: Custom domains for staging/production
+   PRODUCTION_DOMAIN=app.yourdomain.com
+   PRODUCTION_ZONE=yourdomain.com
+   STAGING_DOMAIN=staging.yourdomain.com
+   STAGING_ZONE=yourdomain.com
+   ```
+
+5. **Deploy Cloudflare infrastructure**
+
+   Use Alchemy to automatically create all required Cloudflare resources:
+
+   ```bash
+   bun ./alchemy.run.ts
+   ```
+
+   This automatically creates:
+   - D1 database (`lytx-core-db-dev`)
+   - KV namespaces (`LYTX_EVENTS-dev`, `lytx_config-dev`, `lytx_sessions-dev`)
+   - Worker with all bindings configured
+   - Runs database migrations automatically
+
+6. **Configure local development variables**
 
    Edit `.dev.vars` with your configuration:
 
@@ -80,7 +109,7 @@ I've been using LYTX in production for a while now across many of my client webs
    BETTER_AUTH_URL=http://localhost:6123
    ```
 
-6. **Create a default user for testing**
+7. **Create a default user for testing**
 
    ```bash
    bun run db:init --email admin@example.com --password mypassword --name "Admin User"
@@ -91,7 +120,7 @@ I've been using LYTX in production for a while now across many of my client webs
    - Automatic team setup
    - Ready-to-use login credentials
 
-7. **Start development server**
+8. **Start development server**
 
    ```bash
    bun run dev
@@ -99,13 +128,83 @@ I've been using LYTX in production for a while now across many of my client webs
 
    Your LYTX instance will be available at `http://localhost:6123`
 
-8. **Login and test**
+9. **Login and test**
 
    Visit `http://localhost:6123` and login with the credentials you created in step 6.
 
 ## Deployment
 
-### Production Deployment
+### Automated Infrastructure Deployment with Alchemy
+
+LYTX uses [Alchemy](https://alchemy.sh) for Infrastructure-as-Code deployment to Cloudflare. This provides a seamless, automated way to deploy across multiple environments.
+
+#### Environment Support
+
+- **Development**: Uses `.workers.dev` domain, resources get `-dev` suffix
+- **Staging**: Custom domain support, resources get `-staging` suffix
+- **Production**: Custom domain support, clean resource names
+
+#### Deployment Commands
+
+```bash
+# Development deployment (default)
+bun ./alchemy.run.ts
+
+# Staging deployment
+NODE_ENV=staging bun ./alchemy.run.ts
+
+# Production deployment
+NODE_ENV=production bun ./alchemy.run.ts
+
+# Clean up resources
+bun ./alchemy.run.ts --destroy
+```
+
+#### What Gets Created Automatically
+
+The Alchemy script automatically creates and configures:
+
+- **D1 Database**: `lytx-core-db` (with environment suffix)
+- **KV Namespaces**: `LYTX_EVENTS`, `lytx_config`, `lytx_sessions` (with environment suffix)
+- **Worker**: With all bindings configured and optional custom domain routes
+- **Database Migrations**: Automatically runs migrations in non-production environments
+- **Custom Domains**: Configures routes when domain environment variables are set
+
+#### Production Deployment Steps
+
+1. **Configure production environment variables**
+
+   Set up your production domains in `.env`:
+
+   ```bash
+   PRODUCTION_DOMAIN=app.yourdomain.com
+   PRODUCTION_ZONE=yourdomain.com
+   ```
+
+2. **Deploy production infrastructure**
+
+   ```bash
+   NODE_ENV=production bun ./alchemy.run.ts
+   ```
+
+3. **Run production database migrations**
+
+   ```bash
+   bun run db:migrate:prd
+   ```
+
+4. **Create a production admin user**
+
+   ```bash
+   bun run db:init --email admin@yourdomain.com --password your-secure-password --remote
+   ```
+
+#### Legacy Manual Deployment
+
+If you prefer manual resource creation, you can still use the traditional wrangler commands:
+
+<details>
+<summary>Click to expand manual deployment steps</summary>
 
 1. **Create Cloudflare resources**
 
@@ -127,16 +226,12 @@ I've been using LYTX in production for a while now across many of my client webs
    bun run db:migrate:prd
    ```
 
-4. **Create a production admin user**
-
-   ```bash
-   bun run db:init --email admin@yourdomain.com --password your-secure-password --remote
-   ```
-
-5. **Deploy to Cloudflare Workers**
+4. **Deploy to Cloudflare Workers**
    ```bash
    bun run deploy
    ```
+
+</details>
 
 ## Usage
 
@@ -146,7 +241,7 @@ Once deployed, add the LYTX tracking script to your website:
 
 ```html
 <script
-  defer 
+  defer
   data-domain="your-site-domain.com"
   src="https://your-lytx-domain.workers.dev/lytx.js?account=your-site-id"
 ></script>
@@ -166,15 +261,30 @@ Visit your deployed LYTX instance to:
 
 ### Available Scripts
 
+#### Development Commands
+
 - `bun run dev` - Start development server (port 6123)
 - `bun run build` - Build for production
 - `bun run clean` - Clean build artifacts
+- `bun run cf-types` - Generate Cloudflare types
+
+#### Database Commands
+
 - `bun run db:migrate:local` - Apply D1 migrations locally
 - `bun run db:init` - Initialize database with default user (see `--help` for options)
 - `bun run db:seed` - Generate sample sites and analytics data (see `--help` for options)
 - `bun run db:studio` - Open Drizzle Studio
-- `bun run cf-types` - Generate Cloudflare types
-- `bun run deploy` - Deploy to Cloudflare Workers
+
+#### Infrastructure Deployment (Alchemy)
+
+- `bun ./alchemy.run.ts` - Deploy all Cloudflare resources (D1, KV, Worker)
+- `bun ./alchemy.run.ts --destroy` - Destroy all Cloudflare resources
+- `NODE_ENV=staging bun ./alchemy.run.ts` - Deploy to staging environment
+- `NODE_ENV=production bun ./alchemy.run.ts` - Deploy to production environment
+
+#### Legacy Deployment
+
+- `bun run deploy` - Deploy to Cloudflare Workers (requires manual resource setup)
 
 ### Database Management
 

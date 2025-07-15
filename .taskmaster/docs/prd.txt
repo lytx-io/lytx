@@ -1,0 +1,256 @@
+# Product Requirements Document: Enhanced Alchemy Infrastructure Features
+
+## Project Overview
+
+**Project Name**: Enhanced Alchemy Infrastructure Features for LYTX
+**Version**: 1.0
+**Date**: July 15, 2025
+**Status**: Planning
+
+## Executive Summary
+
+This PRD outlines the development of three additional infrastructure features for the LYTX analytics platform using Alchemy Infrastructure-as-Code. These features will enhance the platform's capabilities for file storage, background processing, and monitoring/analytics.
+
+## Background & Context
+
+LYTX currently uses Alchemy to automate the deployment of core Cloudflare resources (D1 database, KV namespaces, and Workers). To support advanced features and scalability, we need to extend the infrastructure to include:
+
+1. **R2 Bucket Creation** - For file storage capabilities
+2. **Queue Setup** - For background job processing  
+3. **Analytics/Monitoring Integration** - For observability and performance tracking
+
+These features will be integrated into the existing `alchemy.run.ts` infrastructure deployment script, maintaining the same environment-specific configuration patterns already established.
+
+## Goals & Objectives
+
+### Primary Goals
+- Extend LYTX infrastructure capabilities with file storage, background processing, and monitoring
+- Maintain consistency with existing Alchemy deployment patterns
+- Support multi-environment deployments (dev/staging/production)
+- Provide type-safe integrations with the existing codebase
+
+### Success Metrics
+- All three features successfully deploy across all environments
+- Zero breaking changes to existing infrastructure deployment
+- Complete TypeScript type safety for new resource bindings
+- Documentation and examples for each new feature
+
+## Target Users
+
+### Primary Users
+- **LYTX Developers**: Need enhanced infrastructure capabilities for feature development
+- **DevOps Engineers**: Require reliable, automated infrastructure deployment
+- **Site Administrators**: Benefit from improved monitoring and file handling capabilities
+
+### User Personas
+- **Backend Developer**: Needs file storage for user uploads, exports, and backups
+- **Analytics Engineer**: Requires background processing for data aggregation and reporting
+- **Platform Engineer**: Needs monitoring and observability for system health
+
+## Features & Requirements
+
+### Feature 1: R2 Bucket Creation for File Storage
+
+#### Description
+Implement R2 bucket creation in the Alchemy deployment script to support file storage capabilities.
+
+#### Functional Requirements
+- Create environment-specific R2 buckets (with appropriate suffixes)
+- Configure bucket permissions and access controls
+- Integrate bucket bindings with the main worker
+- Support both public and private bucket configurations
+- Enable CORS configuration for web uploads
+
+#### Technical Requirements
+- Use Alchemy's R2Bucket resource type
+- Follow existing naming conventions with environment suffixes
+- Provide TypeScript bindings for worker access
+- Support bucket lifecycle policies
+- Enable versioning for production environments
+
+#### Use Cases
+- **User File Uploads**: Store user-uploaded analytics exports, custom dashboards
+- **Static Asset Storage**: Host tracking pixel images, custom scripts
+- **Backup Storage**: Store database backups and configuration exports
+- **Report Generation**: Store generated PDF reports and CSV exports
+
+### Feature 2: Queue Setup for Background Processing
+
+#### Description
+Implement Cloudflare Queue creation and configuration for background job processing.
+
+#### Functional Requirements
+- Create typed queues for different job types
+- Configure producer and consumer workers
+- Implement retry logic and dead letter queues
+- Support batch processing for efficiency
+- Enable queue monitoring and metrics
+
+#### Technical Requirements
+- Use Alchemy's Queue resource type with TypeScript generics
+- Create separate queues for different job categories
+- Configure appropriate batch sizes and timeouts
+- Implement proper error handling and logging
+- Support queue scaling based on load
+
+#### Use Cases
+- **Analytics Processing**: Background aggregation of analytics data
+- **Email Notifications**: Async sending of user notifications and reports
+- **Data Export**: Background generation of large data exports
+- **Webhook Processing**: Async processing of incoming webhook data
+- **Cleanup Tasks**: Scheduled cleanup of old data and temporary files
+
+### Feature 3: Analytics/Monitoring Integration
+
+#### Description
+Integrate monitoring and observability tools into the Alchemy infrastructure deployment.
+
+#### Functional Requirements
+- Deploy monitoring dashboards and alerting
+- Configure performance tracking and metrics collection
+- Set up error tracking and logging aggregation
+- Enable real-time system health monitoring
+- Create automated alerting for critical issues
+
+#### Technical Requirements
+- Integrate with Cloudflare Analytics Engine
+- Configure custom metrics and dashboards
+- Set up log aggregation and search
+- Implement performance monitoring
+- Create alerting rules and notification channels
+
+#### Use Cases
+- **System Health Monitoring**: Track worker performance, error rates, database health
+- **User Analytics**: Monitor user engagement, feature usage, performance metrics
+- **Infrastructure Monitoring**: Track resource usage, costs, scaling needs
+- **Security Monitoring**: Detect anomalies, track access patterns, monitor threats
+- **Business Intelligence**: Generate insights on platform usage and growth
+
+## Technical Specifications
+
+### Architecture Requirements
+- Maintain existing Alchemy deployment patterns
+- Use environment-specific resource naming
+- Ensure type safety across all new bindings
+- Support both development and production configurations
+
+### Integration Requirements
+- Seamless integration with existing `alchemy.run.ts` script
+- Backward compatibility with current deployment process
+- Consistent environment variable configuration
+- Proper resource cleanup and management
+
+### Performance Requirements
+- Queue processing should handle 1000+ jobs per minute
+- R2 storage should support concurrent uploads/downloads
+- Monitoring should have minimal performance impact
+- All resources should scale automatically with load
+
+### Security Requirements
+- Proper access controls for all new resources
+- Encrypted storage for sensitive data
+- Secure queue message handling
+- Monitoring data privacy compliance
+
+## Implementation Approach
+
+### Phase 1: R2 Bucket Implementation
+1. Add R2 bucket configuration to `alchemy.run.ts`
+2. Create TypeScript bindings for worker access
+3. Implement basic file upload/download functionality
+4. Add environment-specific bucket policies
+5. Create documentation and usage examples
+
+### Phase 2: Queue System Implementation
+1. Define queue types and message schemas
+2. Add queue creation to Alchemy deployment
+3. Implement producer and consumer patterns
+4. Add error handling and retry logic
+5. Create queue monitoring and metrics
+
+### Phase 3: Analytics/Monitoring Integration
+1. Configure Cloudflare Analytics Engine
+2. Set up custom metrics collection
+3. Create monitoring dashboards
+4. Implement alerting and notifications
+5. Add performance tracking and reporting
+
+## Dependencies & Constraints
+
+### Dependencies
+- Existing Alchemy infrastructure deployment
+- Cloudflare Workers platform capabilities
+- TypeScript type system for bindings
+- Current LYTX codebase architecture
+
+### Constraints
+- Must maintain backward compatibility
+- Limited by Cloudflare platform capabilities
+- Budget considerations for additional resources
+- Development team capacity and timeline
+
+### Risks & Mitigation
+- **Risk**: Breaking existing deployments
+  **Mitigation**: Thorough testing and gradual rollout
+- **Risk**: Resource cost increases
+  **Mitigation**: Implement usage monitoring and limits
+- **Risk**: Complexity in multi-environment management
+  **Mitigation**: Consistent patterns and automation
+
+## Success Criteria
+
+### Acceptance Criteria
+- [ ] All three features deploy successfully in all environments
+- [ ] TypeScript bindings work correctly for all new resources
+- [ ] No breaking changes to existing functionality
+- [ ] Complete documentation for each feature
+- [ ] Performance benchmarks meet requirements
+
+### Definition of Done
+- Code implemented and tested
+- Documentation updated
+- Type safety verified
+- Multi-environment deployment tested
+- Performance validated
+- Security review completed
+
+## Timeline & Milestones
+
+### Estimated Timeline: 3-4 weeks
+
+**Week 1**: R2 Bucket Implementation
+- Days 1-2: Alchemy configuration and basic setup
+- Days 3-4: Worker bindings and basic functionality
+- Day 5: Testing and documentation
+
+**Week 2**: Queue System Implementation  
+- Days 1-2: Queue configuration and message schemas
+- Days 3-4: Producer/consumer implementation
+- Day 5: Error handling and monitoring
+
+**Week 3**: Analytics/Monitoring Integration
+- Days 1-2: Analytics Engine configuration
+- Days 3-4: Dashboard and alerting setup
+- Day 5: Integration testing
+
+**Week 4**: Integration & Testing
+- Days 1-2: End-to-end testing across environments
+- Days 3-4: Performance optimization and security review
+- Day 5: Final documentation and deployment
+
+## Future Considerations
+
+### Potential Enhancements
+- Advanced queue routing and filtering
+- Multi-region R2 bucket replication
+- Custom analytics dashboards
+- Integration with external monitoring tools
+- Automated scaling policies
+
+### Scalability Planning
+- Queue auto-scaling based on load
+- R2 bucket lifecycle management
+- Monitoring data retention policies
+- Cost optimization strategies
+
+This PRD provides a comprehensive roadmap for enhancing LYTX's infrastructure capabilities while maintaining the existing deployment patterns and ensuring scalability for future growth.

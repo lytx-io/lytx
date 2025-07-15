@@ -12,6 +12,43 @@
 - `bun run cf-types` - Generate Cloudflare types
 - `bun run deploy` - Deploy to Cloudflare Workers
 
+## Infrastructure Deployment (Alchemy)
+
+- `bun ./alchemy.run.ts` - Deploy all Cloudflare resources (D1, KV, Worker)
+- `bun ./alchemy.run.ts --destroy` - Destroy all Cloudflare resources
+- `NODE_ENV=staging bun ./alchemy.run.ts` - Deploy to staging environment
+- `NODE_ENV=production bun ./alchemy.run.ts` - Deploy to production environment
+
+### Environment Configuration
+
+The `alchemy.run.ts` script supports multiple environments with different configurations:
+
+- **Development**: Uses `.workers.dev` domain, `-dev` suffix for resources
+- **Staging**: Uses custom domain if configured, `-staging` suffix for resources
+- **Production**: Uses custom domain if configured, no suffix for resources
+
+Set environment variables in `.env`:
+
+```bash
+# Required for Alchemy
+ALCHEMY_PASSWORD=your-secure-password
+
+# Custom domains (optional)
+PRODUCTION_DOMAIN=app.yourdomain.com
+PRODUCTION_ZONE=yourdomain.com
+STAGING_DOMAIN=staging.yourdomain.com
+STAGING_ZONE=yourdomain.com
+```
+
+### Automated Resource Creation
+
+The Alchemy script automatically creates:
+
+- **D1 Database**: `lytx-core-db` (with environment suffix)
+- **KV Namespaces**: `LYTX_EVENTS`, `lytx_config`, `lytx_sessions` (with environment suffix)
+- **Worker**: With all bindings configured and optional custom domain routes
+- **Database Migrations**: Automatically runs migrations in non-production environments
+
 ## Code Style Guidelines
 
 - **Framework**: RedwoodSDK with Cloudflare Workers, React Server Components

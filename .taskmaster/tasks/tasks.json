@@ -1,0 +1,218 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Extend Alchemy Configuration for New Resources",
+        "description": "Update the existing Alchemy configuration to support the three new infrastructure features: R2 buckets, Queues, and Analytics/Monitoring.",
+        "details": "Modify the `alchemy.run.ts` file to include support for the new resource types while maintaining backward compatibility. Add type definitions for R2Bucket, Queue, and Analytics resources. Ensure environment-specific configuration patterns are preserved. Create interfaces for the new resource configurations that follow existing patterns. Update any utility functions to handle the new resource types.\n\n```typescript\n// Example extension to alchemy.run.ts\nimport { R2Bucket, Queue, AnalyticsEngine } from '@cloudflare/workers-types';\n\ninterface AlchemyConfig {\n  // Existing config properties\n  r2Buckets?: R2BucketConfig[];\n  queues?: QueueConfig[];\n  analytics?: AnalyticsConfig[];\n}\n\ninterface R2BucketConfig {\n  name: string;\n  environmentSuffix?: boolean;\n  public?: boolean;\n  cors?: CorsConfig;\n  lifecycleRules?: LifecycleRule[];\n  versioning?: boolean;\n}\n\n// Add similar interfaces for Queue and Analytics\n```",
+        "testStrategy": "Create unit tests to verify the configuration parser accepts the new resource types. Test with mock configurations for each environment (dev/staging/production). Verify backward compatibility by ensuring existing configurations still work without changes.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Implement R2 Bucket Creation Logic",
+        "description": "Develop the core functionality to create and configure R2 buckets through the Alchemy deployment script.",
+        "details": "Create a new module for R2 bucket deployment that handles creation, configuration, and binding to workers. Implement environment-specific naming with appropriate suffixes. Support both public and private bucket configurations. Enable CORS configuration for web uploads. Implement versioning for production environments.\n\n```typescript\nasync function deployR2Buckets(config: AlchemyConfig, env: Environment) {\n  const buckets = config.r2Buckets || [];\n  \n  for (const bucket of buckets) {\n    const bucketName = bucket.environmentSuffix \n      ? `${bucket.name}-${env}` \n      : bucket.name;\n      \n    console.log(`Creating R2 bucket: ${bucketName}`);\n    \n    // Create bucket if it doesn't exist\n    const bucketExists = await checkIfBucketExists(bucketName);\n    if (!bucketExists) {\n      await createR2Bucket(bucketName, {\n        public: bucket.public || false,\n        cors: bucket.cors,\n        lifecycleRules: env === 'production' ? bucket.lifecycleRules : undefined,\n        versioning: env === 'production' ? bucket.versioning : false\n      });\n    }\n    \n    // Configure bucket bindings for workers\n    await configureBucketBindings(bucketName, config.workers);\n  }\n}\n```",
+        "testStrategy": "Create integration tests that verify bucket creation, configuration, and binding. Test both public and private bucket configurations. Verify CORS settings are applied correctly. Test bucket creation across different environments. Verify proper cleanup of test buckets after testing.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Implement Queue Creation and Configuration",
+        "description": "Develop functionality to create and configure Cloudflare Queues for background job processing.",
+        "details": "Create a module for Queue deployment that handles creation, configuration, and binding to producer/consumer workers. Implement typed queues for different job types using TypeScript generics. Configure dead letter queues and retry logic. Set up appropriate batch sizes and timeouts based on environment.\n\n```typescript\nasync function deployQueues(config: AlchemyConfig, env: Environment) {\n  const queues = config.queues || [];\n  \n  for (const queue of queues) {\n    const queueName = queue.environmentSuffix \n      ? `${queue.name}-${env}` \n      : queue.name;\n      \n    console.log(`Creating Queue: ${queueName}`);\n    \n    // Create queue if it doesn't exist\n    const queueExists = await checkIfQueueExists(queueName);\n    if (!queueExists) {\n      await createQueue(queueName, {\n        deadLetterQueue: queue.deadLetterQueue,\n        retries: queue.retries || 3,\n        batchSize: queue.batchSize || 10,\n        timeout: queue.timeout || 30\n      });\n    }\n    \n    // Configure producer and consumer bindings\n    if (queue.producers) {\n      await configureProducerBindings(queueName, queue.producers, config.workers);\n    }\n    \n    if (queue.consumers) {\n      await configureConsumerBindings(queueName, queue.consumers, config.workers);\n    }\n  }\n}\n```",
+        "testStrategy": "Create integration tests for queue creation and configuration. Test producer and consumer bindings. Verify message passing between producers and consumers. Test retry logic and dead letter queue functionality. Verify proper cleanup of test queues after testing.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Implement Analytics/Monitoring Integration",
+        "description": "Develop functionality to configure and deploy Cloudflare Analytics Engine and monitoring tools.",
+        "details": "Create a module for Analytics/Monitoring deployment that configures metrics collection, dashboards, and alerting. Integrate with Cloudflare Analytics Engine. Set up custom metrics and dashboards. Configure log aggregation and search. Implement performance monitoring and alerting rules.\n\n```typescript\nasync function deployAnalytics(config: AlchemyConfig, env: Environment) {\n  const analytics = config.analytics || [];\n  \n  for (const analytic of analytics) {\n    const analyticName = analytic.environmentSuffix \n      ? `${analytic.name}-${env}` \n      : analytic.name;\n      \n    console.log(`Configuring Analytics: ${analyticName}`);\n    \n    // Configure Analytics Engine dataset\n    await configureAnalyticsDataset(analyticName, {\n      schema: analytic.schema,\n      retentionPeriod: analytic.retentionPeriod || 30\n    });\n    \n    // Set up dashboards if configured\n    if (analytic.dashboards) {\n      for (const dashboard of analytic.dashboards) {\n        await createDashboard(dashboard.name, dashboard.metrics, dashboard.layout);\n      }\n    }\n    \n    // Configure alerts if specified\n    if (analytic.alerts) {\n      for (const alert of analytic.alerts) {\n        await createAlert(alert.name, alert.condition, alert.channels);\n      }\n    }\n    \n    // Bind analytics to workers\n    if (analytic.bindings) {\n      await configureAnalyticsBindings(analyticName, analytic.bindings, config.workers);\n    }\n  }\n}\n```",
+        "testStrategy": "Create integration tests for analytics configuration and deployment. Test metrics collection and dashboard creation. Verify alerting rules are properly configured. Test log aggregation and search functionality. Verify proper cleanup of test analytics resources after testing.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Create TypeScript Bindings for R2 Buckets",
+        "description": "Develop TypeScript type definitions and bindings for R2 buckets to ensure type safety when accessing buckets from workers.",
+        "details": "Create TypeScript interfaces and type definitions for R2 bucket bindings. Generate environment-specific type declarations. Ensure proper integration with existing worker types. Support both read and write operations with type safety.\n\n```typescript\n// Example R2 bucket bindings\nexport interface Env {\n  // Existing environment bindings\n  \n  // R2 bucket bindings\n  USER_UPLOADS: R2Bucket;\n  STATIC_ASSETS: R2Bucket;\n  BACKUPS: R2Bucket;\n  REPORTS: R2Bucket;\n}\n\n// Example type-safe bucket operations\nexport async function handleFileUpload(request: Request, env: Env): Promise<Response> {\n  const formData = await request.formData();\n  const file = formData.get('file') as File;\n  \n  if (!file) {\n    return new Response('No file uploaded', { status: 400 });\n  }\n  \n  const key = crypto.randomUUID();\n  await env.USER_UPLOADS.put(key, await file.arrayBuffer(), {\n    httpMetadata: {\n      contentType: file.type,\n    },\n    customMetadata: {\n      fileName: file.name,\n      uploadedAt: new Date().toISOString()\n    }\n  });\n  \n  return new Response(JSON.stringify({ key }), {\n    headers: { 'Content-Type': 'application/json' }\n  });\n}\n```",
+        "testStrategy": "Create unit tests for type safety of R2 bucket bindings. Test with mock R2 bucket implementations. Verify type errors are caught at compile time for incorrect usage. Test both read and write operations with various content types.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Create TypeScript Bindings for Queues",
+        "description": "Develop TypeScript type definitions and bindings for Queues to ensure type safety when sending and receiving messages.",
+        "details": "Create TypeScript interfaces and type definitions for Queue bindings. Use generics to ensure type safety for different message types. Generate environment-specific type declarations. Support both producer and consumer patterns with type checking.\n\n```typescript\n// Define message types for different queues\nexport interface EmailNotificationMessage {\n  type: 'email';\n  recipient: string;\n  subject: string;\n  body: string;\n  attachments?: Array<{ name: string, data: string }>;\n}\n\nexport interface DataExportMessage {\n  type: 'export';\n  userId: string;\n  exportType: 'csv' | 'pdf' | 'json';\n  filters: Record<string, any>;\n  callbackUrl?: string;\n}\n\n// Define queue bindings with proper types\nexport interface Env {\n  // Existing environment bindings\n  \n  // Queue bindings\n  NOTIFICATION_QUEUE: Queue<EmailNotificationMessage>;\n  EXPORT_QUEUE: Queue<DataExportMessage>;\n  ANALYTICS_QUEUE: Queue<AnalyticsProcessingMessage>;\n  WEBHOOK_QUEUE: Queue<WebhookProcessingMessage>;\n  CLEANUP_QUEUE: Queue<CleanupTaskMessage>;\n}\n\n// Example producer usage\nexport async function scheduleEmailNotification(\n  recipient: string,\n  subject: string,\n  body: string,\n  env: Env\n): Promise<void> {\n  await env.NOTIFICATION_QUEUE.send({\n    type: 'email',\n    recipient,\n    subject,\n    body\n  });\n}\n```",
+        "testStrategy": "Create unit tests for type safety of Queue bindings. Test with mock Queue implementations. Verify type errors are caught at compile time for incorrect message formats. Test both producer and consumer patterns with various message types.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Create TypeScript Bindings for Analytics",
+        "description": "Develop TypeScript type definitions and bindings for Analytics Engine to ensure type safety when logging metrics and events.",
+        "details": "Create TypeScript interfaces and type definitions for Analytics Engine bindings. Define schema types for different analytics datasets. Generate environment-specific type declarations. Support type-safe logging of metrics and events.\n\n```typescript\n// Define analytics schema types\nexport interface SystemMetric {\n  timestamp: number;\n  resource: string;\n  metricName: string;\n  value: number;\n  tags?: Record<string, string>;\n}\n\nexport interface UserEvent {\n  timestamp: number;\n  userId: string;\n  eventType: string;\n  properties: Record<string, any>;\n  sessionId?: string;\n}\n\n// Define analytics bindings with proper types\nexport interface Env {\n  // Existing environment bindings\n  \n  // Analytics bindings\n  SYSTEM_METRICS: AnalyticsEngine<SystemMetric>;\n  USER_EVENTS: AnalyticsEngine<UserEvent>;\n  SECURITY_EVENTS: AnalyticsEngine<SecurityEvent>;\n}\n\n// Example analytics logging\nexport async function logUserEvent(\n  userId: string,\n  eventType: string,\n  properties: Record<string, any>,\n  env: Env\n): Promise<void> {\n  await env.USER_EVENTS.writeDataPoint({\n    timestamp: Date.now(),\n    userId,\n    eventType,\n    properties,\n    sessionId: getCookieValue('session_id')\n  });\n}\n```",
+        "testStrategy": "Create unit tests for type safety of Analytics Engine bindings. Test with mock Analytics Engine implementations. Verify type errors are caught at compile time for incorrect metric formats. Test logging of various event types and metrics.",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Implement R2 Bucket Lifecycle Policies",
+        "description": "Develop functionality to configure lifecycle policies for R2 buckets to manage object expiration and transitions.",
+        "details": "Create a module to configure lifecycle policies for R2 buckets. Support object expiration rules based on age or date. Implement transition rules for different storage classes. Configure versioning and deletion markers for production environments.\n\n```typescript\ninterface LifecycleRule {\n  id: string;\n  status: 'Enabled' | 'Disabled';\n  filter?: {\n    prefix?: string;\n    tags?: Record<string, string>[];\n  };\n  expiration?: {\n    days?: number;\n    date?: string;\n  };\n  transitions?: Array<{\n    days: number;\n    storageClass: string;\n  }>;\n  noncurrentVersionExpiration?: {\n    noncurrentDays: number;\n  };\n}\n\nasync function configureBucketLifecycle(\n  bucketName: string,\n  lifecycleRules: LifecycleRule[]\n): Promise<void> {\n  console.log(`Configuring lifecycle rules for bucket: ${bucketName}`);\n  \n  // Format lifecycle configuration\n  const lifecycleConfig = {\n    Rules: lifecycleRules.map(rule => ({\n      ID: rule.id,\n      Status: rule.status,\n      Filter: rule.filter || {},\n      Expiration: rule.expiration,\n      Transitions: rule.transitions,\n      NoncurrentVersionExpiration: rule.noncurrentVersionExpiration\n    }))\n  };\n  \n  // Apply lifecycle configuration to bucket\n  await applyBucketLifecycleConfig(bucketName, lifecycleConfig);\n}\n```",
+        "testStrategy": "Create integration tests for lifecycle policy configuration. Test expiration rules with different time periods. Verify objects are properly expired or transitioned according to rules. Test versioning and noncurrent version expiration. Verify proper cleanup of test objects after testing.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Implement CORS Configuration for R2 Buckets",
+        "description": "Develop functionality to configure Cross-Origin Resource Sharing (CORS) for R2 buckets to enable web uploads and downloads.",
+        "details": "Create a module to configure CORS policies for R2 buckets. Support configuration of allowed origins, methods, headers, and credentials. Implement environment-specific CORS settings. Configure appropriate cache control and expose headers.\n\n```typescript\ninterface CorsConfig {\n  allowedOrigins: string[];\n  allowedMethods: Array<'GET' | 'PUT' | 'POST' | 'DELETE' | 'HEAD'>;\n  allowedHeaders?: string[];\n  exposeHeaders?: string[];\n  maxAgeSeconds?: number;\n  allowCredentials?: boolean;\n}\n\nasync function configureBucketCors(\n  bucketName: string,\n  corsConfig: CorsConfig\n): Promise<void> {\n  console.log(`Configuring CORS for bucket: ${bucketName}`);\n  \n  // Format CORS configuration\n  const corsRules = [{\n    AllowedOrigins: corsConfig.allowedOrigins,\n    AllowedMethods: corsConfig.allowedMethods,\n    AllowedHeaders: corsConfig.allowedHeaders || ['*'],\n    ExposeHeaders: corsConfig.exposeHeaders || [],\n    MaxAgeSeconds: corsConfig.maxAgeSeconds || 3600,\n    AllowCredentials: corsConfig.allowCredentials || false\n  }];\n  \n  // Apply CORS configuration to bucket\n  await applyBucketCorsConfig(bucketName, corsRules);\n}\n```",
+        "testStrategy": "Create integration tests for CORS configuration. Test with different origin configurations. Verify CORS headers are properly returned in responses. Test preflight requests and actual cross-origin requests. Verify proper cleanup of test configurations after testing.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Implement Queue Retry Logic and Dead Letter Queues",
+        "description": "Develop functionality to configure retry policies and dead letter queues for failed message processing.",
+        "details": "Create a module to configure retry policies and dead letter queues. Implement configurable retry attempts, backoff strategies, and failure handling. Set up dead letter queues for persistent failures. Configure monitoring and alerting for queue failures.\n\n```typescript\ninterface RetryConfig {\n  maxAttempts: number;\n  backoff?: 'fixed' | 'exponential';\n  backoffSeconds?: number;\n  maxBackoffSeconds?: number;\n  deadLetterQueue?: string;\n}\n\nasync function configureQueueRetryPolicy(\n  queueName: string,\n  retryConfig: RetryConfig\n): Promise<void> {\n  console.log(`Configuring retry policy for queue: ${queueName}`);\n  \n  // Format retry configuration\n  const retryPolicy = {\n    maxAttempts: retryConfig.maxAttempts,\n    backoff: retryConfig.backoff || 'exponential',\n    backoffSeconds: retryConfig.backoffSeconds || 5,\n    maxBackoffSeconds: retryConfig.maxBackoffSeconds || 300\n  };\n  \n  // Apply retry policy to queue\n  await applyQueueRetryPolicy(queueName, retryPolicy);\n  \n  // Configure dead letter queue if specified\n  if (retryConfig.deadLetterQueue) {\n    await configureDeadLetterQueue(queueName, retryConfig.deadLetterQueue);\n  }\n}\n```",
+        "testStrategy": "Create integration tests for retry policy and dead letter queue configuration. Test with simulated failures to verify retry behavior. Verify messages are properly moved to dead letter queue after maximum retries. Test different backoff strategies. Verify proper cleanup of test queues after testing.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Implement Queue Batch Processing",
+        "description": "Develop functionality to configure batch processing for queues to improve efficiency for high-volume workloads.",
+        "details": "Create a module to configure batch processing for queues. Implement configurable batch sizes and processing timeouts. Support ordered and unordered batch processing. Configure concurrency limits and rate limiting. Implement batch failure handling.\n\n```typescript\ninterface BatchConfig {\n  batchSize: number;\n  timeoutSeconds: number;\n  ordered?: boolean;\n  maxConcurrency?: number;\n  rateLimit?: number;\n}\n\nasync function configureQueueBatchProcessing(\n  queueName: string,\n  batchConfig: BatchConfig\n): Promise<void> {\n  console.log(`Configuring batch processing for queue: ${queueName}`);\n  \n  // Format batch configuration\n  const batchSettings = {\n    batchSize: batchConfig.batchSize,\n    timeoutSeconds: batchConfig.timeoutSeconds,\n    ordered: batchConfig.ordered || false,\n    maxConcurrency: batchConfig.maxConcurrency || 5,\n    rateLimit: batchConfig.rateLimit\n  };\n  \n  // Apply batch settings to queue\n  await applyQueueBatchSettings(queueName, batchSettings);\n}\n\n// Example batch message handler\nexport async function handleBatchMessages(\n  batch: MessageBatch<DataExportMessage>,\n  env: Env\n): Promise<void> {\n  console.log(`Processing batch of ${batch.messages.length} messages`);\n  \n  const results = await Promise.allSettled(\n    batch.messages.map(async message => {\n      try {\n        await processExport(message.body, env);\n        return message.ack();\n      } catch (error) {\n        console.error(`Error processing message: ${error}`);\n        return message.retry();\n      }\n    })\n  );\n  \n  // Log batch processing results\n  const successful = results.filter(r => r.status === 'fulfilled').length;\n  console.log(`Batch processing complete: ${successful}/${batch.messages.length} successful`);\n}\n```",
+        "testStrategy": "Create integration tests for batch processing configuration. Test with different batch sizes and timeouts. Verify messages are properly processed in batches. Test ordered and unordered batch processing. Test batch failure handling and retries. Verify proper cleanup of test queues after testing.",
+        "priority": "medium",
+        "dependencies": [
+          3,
+          10
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Implement Custom Metrics and Dashboards",
+        "description": "Develop functionality to configure custom metrics collection and create monitoring dashboards.",
+        "details": "Create a module to configure custom metrics collection and dashboard creation. Define metric schemas and collection intervals. Implement dashboard layouts and visualizations. Configure metric aggregation and filtering. Set up dashboard sharing and access controls.\n\n```typescript\ninterface MetricConfig {\n  name: string;\n  description: string;\n  type: 'counter' | 'gauge' | 'histogram';\n  unit?: string;\n  tags?: string[];\n  aggregation?: 'sum' | 'avg' | 'min' | 'max' | 'count';\n}\n\ninterface DashboardConfig {\n  name: string;\n  description?: string;\n  metrics: MetricConfig[];\n  layout: Array<{\n    title: string;\n    type: 'line' | 'bar' | 'pie' | 'table' | 'stat';\n    metrics: string[];\n    timeRange?: string;\n    refreshInterval?: number;\n  }>;\n  access?: Array<{\n    role: string;\n    permissions: Array<'view' | 'edit' | 'share'>;\n  }>;\n}\n\nasync function createCustomDashboard(\n  dashboardConfig: DashboardConfig\n): Promise<void> {\n  console.log(`Creating dashboard: ${dashboardConfig.name}`);\n  \n  // Register metrics if they don't exist\n  for (const metric of dashboardConfig.metrics) {\n    const metricExists = await checkIfMetricExists(metric.name);\n    if (!metricExists) {\n      await registerMetric(metric);\n    }\n  }\n  \n  // Create dashboard with layout\n  const dashboardId = await createDashboard({\n    name: dashboardConfig.name,\n    description: dashboardConfig.description,\n    layout: dashboardConfig.layout\n  });\n  \n  // Configure dashboard access if specified\n  if (dashboardConfig.access) {\n    await configureDashboardAccess(dashboardId, dashboardConfig.access);\n  }\n}\n```",
+        "testStrategy": "Create integration tests for custom metrics and dashboard configuration. Test metric registration and collection. Verify dashboard creation with different layouts. Test metric aggregation and filtering. Verify dashboard access controls. Verify proper cleanup of test dashboards after testing.",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Implement Alerting and Notification Channels",
+        "description": "Develop functionality to configure alerting rules and notification channels for monitoring and analytics.",
+        "details": "Create a module to configure alerting rules and notification channels. Implement threshold-based and anomaly detection alerts. Configure notification channels (email, Slack, webhook). Set up alert grouping and escalation policies. Implement alert history and status tracking.\n\n```typescript\ninterface AlertCondition {\n  type: 'threshold' | 'anomaly' | 'absence';\n  metric: string;\n  threshold?: number;\n  comparison?: 'above' | 'below' | 'equal';\n  timeWindow: string; // e.g., '5m', '1h', '1d'\n  sensitivity?: 'low' | 'medium' | 'high'; // for anomaly detection\n}\n\ninterface NotificationChannel {\n  type: 'email' | 'slack' | 'webhook' | 'pagerduty';\n  name: string;\n  config: {\n    recipients?: string[];\n    webhookUrl?: string;\n    apiKey?: string;\n  };\n}\n\ninterface AlertConfig {\n  name: string;\n  description: string;\n  condition: AlertCondition;\n  channels: string[]; // channel names\n  severity: 'info' | 'warning' | 'critical';\n  groupBy?: string[];\n  autoResolve?: boolean;\n  autoResolveTimeout?: string; // e.g., '15m'\n}\n\nasync function configureAlertRule(\n  alertConfig: AlertConfig,\n  channels: NotificationChannel[]\n): Promise<void> {\n  console.log(`Configuring alert rule: ${alertConfig.name}`);\n  \n  // Ensure notification channels exist\n  for (const channelName of alertConfig.channels) {\n    const channel = channels.find(c => c.name === channelName);\n    if (channel) {\n      const channelExists = await checkIfChannelExists(channelName);\n      if (!channelExists) {\n        await createNotificationChannel(channel);\n      }\n    }\n  }\n  \n  // Create alert rule\n  await createAlertRule({\n    name: alertConfig.name,\n    description: alertConfig.description,\n    condition: alertConfig.condition,\n    channels: alertConfig.channels,\n    severity: alertConfig.severity,\n    groupBy: alertConfig.groupBy,\n    autoResolve: alertConfig.autoResolve,\n    autoResolveTimeout: alertConfig.autoResolveTimeout\n  });\n}\n```",
+        "testStrategy": "Create integration tests for alerting and notification channel configuration. Test different alert conditions and thresholds. Verify notification delivery to configured channels. Test alert grouping and auto-resolution. Verify proper cleanup of test alerts and channels after testing.",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          12
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement Multi-Environment Deployment Support",
+        "description": "Enhance the deployment script to support different configurations for development, staging, and production environments.",
+        "details": "Extend the Alchemy deployment script to handle environment-specific configurations. Implement environment detection and configuration loading. Support different resource settings based on environment. Configure proper resource naming with environment suffixes. Implement environment-specific validation and safety checks.\n\n```typescript\nenum Environment {\n  Development = 'dev',\n  Staging = 'staging',\n  Production = 'prod'\n}\n\ninterface EnvironmentConfig {\n  r2Buckets?: Partial<R2BucketConfig>;\n  queues?: Partial<QueueConfig>;\n  analytics?: Partial<AnalyticsConfig>;\n}\n\ninterface AlchemyConfig {\n  // Base configuration\n  r2Buckets?: R2BucketConfig[];\n  queues?: QueueConfig[];\n  analytics?: AnalyticsConfig[];\n  \n  // Environment-specific overrides\n  environments?: Record<Environment, EnvironmentConfig>;\n}\n\nasync function deployResources(config: AlchemyConfig, env: Environment): Promise<void> {\n  console.log(`Deploying resources for environment: ${env}`);\n  \n  // Apply environment-specific overrides\n  const envConfig = config.environments?.[env] || {};\n  const mergedConfig = mergeConfigurations(config, envConfig);\n  \n  // Deploy resources with merged configuration\n  await deployR2Buckets(mergedConfig, env);\n  await deployQueues(mergedConfig, env);\n  await deployAnalytics(mergedConfig, env);\n  \n  console.log(`Deployment complete for environment: ${env}`);\n}\n\n// Helper to merge base and environment-specific configurations\nfunction mergeConfigurations(base: AlchemyConfig, envOverrides: EnvironmentConfig): AlchemyConfig {\n  // Deep merge logic for configuration objects\n  // ...\n}\n```",
+        "testStrategy": "Create integration tests for multi-environment deployment. Test deployment to different environments (dev/staging/production). Verify environment-specific configurations are properly applied. Test environment detection and configuration loading. Verify proper resource naming with environment suffixes. Test environment-specific validation and safety checks.",
+        "priority": "high",
+        "dependencies": [
+          2,
+          3,
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Create Comprehensive Documentation and Examples",
+        "description": "Develop comprehensive documentation and usage examples for all new infrastructure features.",
+        "details": "Create detailed documentation for R2 buckets, Queues, and Analytics/Monitoring features. Include configuration examples for different use cases. Document TypeScript bindings and type safety. Create usage examples for common scenarios. Document best practices and performance considerations. Create troubleshooting guides and FAQs.\n\n```markdown\n# Enhanced Alchemy Infrastructure Features\n\nThis documentation covers the new infrastructure features added to the LYTX analytics platform using Alchemy Infrastructure-as-Code.\n\n## Table of Contents\n\n1. [R2 Bucket Storage](#r2-bucket-storage)\n2. [Queue System](#queue-system)\n3. [Analytics and Monitoring](#analytics-and-monitoring)\n4. [Multi-Environment Configuration](#multi-environment-configuration)\n5. [Troubleshooting](#troubleshooting)\n\n## R2 Bucket Storage\n\n### Configuration\n\n```typescript\n// Example R2 bucket configuration\nconst config = {\n  r2Buckets: [\n    {\n      name: 'user-uploads',\n      environmentSuffix: true,\n      public: false,\n      cors: {\n        allowedOrigins: ['https://app.example.com'],\n        allowedMethods: ['GET', 'PUT', 'POST', 'DELETE'],\n        allowedHeaders: ['*'],\n        maxAgeSeconds: 3600\n      },\n      lifecycleRules: [\n        {\n          id: 'expire-old-uploads',\n          status: 'Enabled',\n          expiration: { days: 30 }\n        }\n      ],\n      versioning: true\n    }\n  ]\n};\n```\n\n### Usage Examples\n\n```typescript\n// Example: Uploading a file to R2\nasync function handleUpload(request: Request, env: Env): Promise<Response> {\n  const formData = await request.formData();\n  const file = formData.get('file') as File;\n  \n  if (!file) {\n    return new Response('No file uploaded', { status: 400 });\n  }\n  \n  const key = crypto.randomUUID();\n  await env.USER_UPLOADS.put(key, await file.arrayBuffer(), {\n    httpMetadata: {\n      contentType: file.type,\n    }\n  });\n  \n  return new Response(JSON.stringify({ key }), {\n    headers: { 'Content-Type': 'application/json' }\n  });\n}\n```\n\n## Queue System\n\n// Continue with similar documentation for Queues and Analytics\n```",
+        "testStrategy": "Review documentation for accuracy and completeness. Test code examples to ensure they work as documented. Verify documentation covers all features and configuration options. Get feedback from developers on clarity and usefulness. Update documentation based on feedback and testing results.",
+        "priority": "medium",
+        "dependencies": [
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-07-15T12:30:33.924Z",
+      "updated": "2025-07-15T12:30:33.924Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
