@@ -24,7 +24,7 @@ const hasFlag = (flag: string): boolean => args.includes(flag);
 // Check for help flag first
 if (hasFlag("--help") || hasFlag("-h")) {
   console.log(`
-Usage: bun run db/seed-data.ts [options]
+Usage: bun run db:seed [options]
 
 Options:
   -t, --team-id <id>        Team ID to create sites for (required)
@@ -38,9 +38,9 @@ Options:
   -h, --help               Show this help message
 
 Example:
-  bun run db/seed-data.ts --team-id 1 --sites 2 --events 50
-  bun run db/seed-data.ts --team-id 1 --remote --days 7
-  bun run db/seed-data.ts --team-id 1 --site-id 3 --events 100
+  bun run db:seed --team-id 1 --sites 2 --events 50
+  bun run db:seed --team-id 1 --remote --days 7
+  bun run db:seed --team-id 1 --site-id 3 --events 100
 `);
   process.exit(0);
 }

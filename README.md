@@ -186,7 +186,7 @@ LYTX supports multiple database backends through Drizzle ORM:
 
 #### Creating Users
 
-Use the `db:init` script to create users for development or production:
+Use the `db:init` script (located in `cli/init-db.ts`) to create users for development or production:
 
 ```bash
 # Create user for local development
@@ -210,7 +210,7 @@ The script automatically:
 
 #### Generating Sample Data
 
-Use the `db:seed` script to populate your database with realistic test data:
+Use the `db:seed` script (located in `cli/seed-data.ts`) to populate your database with realistic test data:
 
 ```bash
 # Generate sample data for team ID 1 (use the team ID from your created user)
@@ -263,6 +263,9 @@ SingleStore provides:
 ### Project Structure
 
 ```
+├── cli/                   # Command-line tools and scripts
+│   ├── init-db.ts        # Database initialization script
+│   └── seed-data.ts      # Sample data generation script
 ├── db/                    # Database schemas and migrations
 │   ├── d1/               # D1 (SQLite) configuration
 │   ├── postgres/         # PostgreSQL configuration

@@ -34,7 +34,7 @@
 
 ## Database Initialization
 
-The `db/init-db.ts` script creates a default user for development:
+The `cli/init-db.ts` script creates a default user for development:
 
 ```bash
 # Create default user with local database
@@ -60,7 +60,7 @@ The script automatically:
 
 ## Sample Data Generation
 
-The `db/seed-data.ts` script generates realistic sample sites and analytics data for testing:
+The `cli/seed-data.ts` script generates realistic sample sites and analytics data for testing:
 
 ```bash
 # Generate sample data for team ID 1

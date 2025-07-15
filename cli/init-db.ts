@@ -61,7 +61,7 @@ const hasFlag = (flag: string): boolean => args.includes(flag);
 // Check for help flag first
 if (hasFlag("--help") || hasFlag("-h")) {
   console.log(`
-Usage: bun run db/init-db.ts [options]
+Usage: bun run db:init [options]
 
 Options:
   -e, --email <email>       User email (required)
@@ -73,8 +73,8 @@ Options:
   -h, --help               Show this help message
 
 Example:
-  bun run db/init-db.ts --email admin@example.com --password mypassword --name "John Doe"
-  bun run db/init-db.ts --email admin@example.com --password mypassword --remote
+  bun run db:init --email admin@example.com --password mypassword --name "John Doe"
+  bun run db:init --email admin@example.com --password mypassword --remote
 `);
   process.exit(0);
 }
