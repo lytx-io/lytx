@@ -4,6 +4,7 @@ const std = @import("std");
 
 const DEFAULT_BASE_URL = "https://api.lytx.io";
 const API_KEY_ENV = "LYTX_API_KEY";
+const CONFIG_FILE_NAME = "config.json";
 const TABLE_ROW_LIMIT: usize = 100;
 
 const CliError = error{
@@ -14,16 +15,36 @@ const CliError = error{
     UnknownEndpoint,
     InvalidOpenApi,
     MissingPathParam,
+    MissingHomeDirectory,
+    InvalidConfigFile,
 };
 
-const Config = struct {
-    base_url: []const u8 = DEFAULT_BASE_URL,
+const CliConfig = struct {
+    base_url: ?[]const u8 = null,
     api_key: ?[]const u8 = null,
     json_output: bool = false,
 };
 
+const RuntimeConfig = struct {
+    base_url: []const u8,
+    api_key: ?[]const u8,
+    json_output: bool,
+};
+
+const StoredConfig = struct {
+    path: []u8,
+    base_url: ?[]u8 = null,
+    api_key: ?[]u8 = null,
+
+    fn deinit(self: *StoredConfig, allocator: std.mem.Allocator) void {
+        allocator.free(self.path);
+        if (self.base_url) |value| allocator.free(value);
+        if (self.api_key) |value| allocator.free(value);
+    }
+};
+
 const ParsedCli = struct {
-    config: Config,
+    config: CliConfig,
     command: []const u8,
     command_args: []const [:0]u8,
 };
@@ -96,11 +117,18 @@ pub fn main() void {
             CliError.MissingPathParam => {
                 stderr_writer.interface.print("error: missing required path parameter\n", .{}) catch {};
             },
+            CliError.MissingHomeDirectory => {
+                stderr_writer.interface.print("error: HOME/XDG_CONFIG_HOME not set; cannot resolve config path\n", .{}) catch {};
+            },
+            CliError.InvalidConfigFile => {
+                stderr_writer.interface.print("error: config file is invalid JSON\n", .{}) catch {};
+            },
             else => {
                 stderr_writer.interface.print("error: {t}\n", .{err}) catch {};
             },
         }
 
+        stderr_writer.interface.flush() catch {};
         std.process.exit(1);
     };
 }
@@ -117,18 +145,6 @@ fn run() !void {
 
     const parsed_cli = try parseCliArgs(args);
 
-    var owned_api_key: ?[]u8 = null;
-    defer if (owned_api_key) |value| allocator.free(value);
-
-    if (parsed_cli.config.api_key == null) {
-        owned_api_key = std.process.getEnvVarOwned(allocator, API_KEY_ENV) catch |err| switch (err) {
-            error.EnvironmentVariableNotFound => null,
-            else => return err,
-        };
-    }
-
-    const effective_api_key = parsed_cli.config.api_key orelse owned_api_key;
-
     var stdout_buf: [8192]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
     defer stdout_writer.interface.flush() catch {};
@@ -138,8 +154,37 @@ fn run() !void {
         return;
     }
 
+    if (std.mem.eql(u8, parsed_cli.command, "completion")) {
+        try runCompletionCommand(&stdout_writer.interface, parsed_cli.command_args);
+        return;
+    }
+
+    var stored_config = try loadStoredConfig(allocator);
+    defer stored_config.deinit(allocator);
+
+    if (std.mem.eql(u8, parsed_cli.command, "config")) {
+        try runConfigCommand(allocator, &stdout_writer.interface, parsed_cli.command_args, &stored_config);
+        return;
+    }
+
+    var owned_env_api_key: ?[]u8 = null;
+    defer if (owned_env_api_key) |value| allocator.free(value);
+
+    if (parsed_cli.config.api_key == null) {
+        owned_env_api_key = std.process.getEnvVarOwned(allocator, API_KEY_ENV) catch |err| switch (err) {
+            error.EnvironmentVariableNotFound => null,
+            else => return err,
+        };
+    }
+
+    const runtime_config: RuntimeConfig = .{
+        .base_url = parsed_cli.config.base_url orelse stored_config.base_url orelse DEFAULT_BASE_URL,
+        .api_key = parsed_cli.config.api_key orelse owned_env_api_key orelse stored_config.api_key,
+        .json_output = parsed_cli.config.json_output,
+    };
+
     if (std.mem.eql(u8, parsed_cli.command, "endpoints")) {
-        const spec_response = try fetchOpenApi(allocator, parsed_cli.config.base_url);
+        const spec_response = try fetchOpenApi(allocator, runtime_config.base_url);
         defer allocator.free(spec_response.body);
         if (@intFromEnum(spec_response.status) >= 300) {
             try printHttpError(&stdout_writer.interface, spec_response);
@@ -154,7 +199,7 @@ fn run() !void {
     }
 
     if (std.mem.eql(u8, parsed_cli.command, "openapi")) {
-        const spec_response = try fetchOpenApi(allocator, parsed_cli.config.base_url);
+        const spec_response = try fetchOpenApi(allocator, runtime_config.base_url);
         defer allocator.free(spec_response.body);
         try renderResponse(
             allocator,
@@ -169,8 +214,7 @@ fn run() !void {
         try runCallCommand(
             allocator,
             &stdout_writer.interface,
-            parsed_cli.config,
-            effective_api_key,
+            runtime_config,
             parsed_cli.command_args,
         );
         return;
@@ -179,15 +223,14 @@ fn run() !void {
     try runHybridCommand(
         allocator,
         &stdout_writer.interface,
-        parsed_cli.config,
-        effective_api_key,
+        runtime_config,
         parsed_cli.command,
         parsed_cli.command_args,
     );
 }
 
 fn parseCliArgs(args: []const [:0]u8) !ParsedCli {
-    var config: Config = .{};
+    var config: CliConfig = .{};
     var index: usize = 1;
 
     while (index < args.len) : (index += 1) {
@@ -221,11 +264,291 @@ fn parseCliArgs(args: []const [:0]u8) !ParsedCli {
     return .{ .config = config, .command = command, .command_args = command_args };
 }
 
+fn runCompletionCommand(writer: *std.Io.Writer, args: []const [:0]u8) !void {
+    if (args.len < 1) return CliError.InvalidArguments;
+
+    const shell = args[0];
+    if (std.mem.eql(u8, shell, "bash")) {
+        try writer.writeAll(BASH_COMPLETION_SCRIPT);
+        try writer.writeByte('\n');
+        return;
+    }
+
+    if (std.mem.eql(u8, shell, "zsh")) {
+        try writer.writeAll(ZSH_COMPLETION_SCRIPT);
+        try writer.writeByte('\n');
+        return;
+    }
+
+    if (std.mem.eql(u8, shell, "fish")) {
+        try writer.writeAll(FISH_COMPLETION_SCRIPT);
+        try writer.writeByte('\n');
+        return;
+    }
+
+    return CliError.InvalidArguments;
+}
+
+fn runConfigCommand(
+    allocator: std.mem.Allocator,
+    writer: *std.Io.Writer,
+    args: []const [:0]u8,
+    stored_config: *StoredConfig,
+) !void {
+    const action = if (args.len == 0) "show" else args[0];
+
+    if (std.mem.eql(u8, action, "show")) {
+        try writer.print("path: {s}\n", .{stored_config.path});
+        try writer.print("base_url: {s}\n", .{stored_config.base_url orelse "(unset)"});
+        if (stored_config.api_key) |api_key| {
+            try writer.print("api_key: set ({d} chars)\n", .{api_key.len});
+        } else {
+            try writer.writeAll("api_key: (unset)\n");
+        }
+        return;
+    }
+
+    if (std.mem.eql(u8, action, "path")) {
+        try writer.print("{s}\n", .{stored_config.path});
+        return;
+    }
+
+    if (std.mem.eql(u8, action, "set")) {
+        if (args.len < 3) return CliError.InvalidArguments;
+        const key = args[1];
+        const value = args[2];
+        if (value.len == 0) return CliError.InvalidArguments;
+
+        if (std.mem.eql(u8, key, "base-url")) {
+            if (stored_config.base_url) |old| allocator.free(old);
+            stored_config.base_url = try allocator.dupe(u8, value);
+        } else if (std.mem.eql(u8, key, "api-key")) {
+            if (stored_config.api_key) |old| allocator.free(old);
+            stored_config.api_key = try allocator.dupe(u8, value);
+        } else {
+            return CliError.InvalidArguments;
+        }
+
+        try saveStoredConfig(allocator, stored_config.*);
+        try writer.writeAll("config saved\n");
+        return;
+    }
+
+    if (std.mem.eql(u8, action, "clear")) {
+        if (args.len < 2) return CliError.InvalidArguments;
+        const key = args[1];
+
+        if (std.mem.eql(u8, key, "base-url")) {
+            if (stored_config.base_url) |old| allocator.free(old);
+            stored_config.base_url = null;
+        } else if (std.mem.eql(u8, key, "api-key")) {
+            if (stored_config.api_key) |old| allocator.free(old);
+            stored_config.api_key = null;
+        } else {
+            return CliError.InvalidArguments;
+        }
+
+        try saveStoredConfig(allocator, stored_config.*);
+        try writer.writeAll("config saved\n");
+        return;
+    }
+
+    return CliError.InvalidArguments;
+}
+
+fn loadStoredConfig(allocator: std.mem.Allocator) !StoredConfig {
+    const path = try resolveConfigPath(allocator);
+
+    var stored_config: StoredConfig = .{ .path = path };
+    errdefer stored_config.deinit(allocator);
+
+    const raw = std.fs.cwd().readFileAlloc(allocator, path, 1024 * 1024) catch |err| switch (err) {
+        error.FileNotFound => return stored_config,
+        else => return err,
+    };
+    defer allocator.free(raw);
+
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, raw, .{}) catch {
+        return CliError.InvalidConfigFile;
+    };
+    defer parsed.deinit();
+
+    if (parsed.value != .object) return CliError.InvalidConfigFile;
+
+    if (getObjectField(parsed.value, "base_url")) |base_url| {
+        switch (base_url) {
+            .string => |value| stored_config.base_url = try allocator.dupe(u8, value),
+            .null => {},
+            else => return CliError.InvalidConfigFile,
+        }
+    }
+
+    if (getObjectField(parsed.value, "api_key")) |api_key| {
+        switch (api_key) {
+            .string => |value| stored_config.api_key = try allocator.dupe(u8, value),
+            .null => {},
+            else => return CliError.InvalidConfigFile,
+        }
+    }
+
+    return stored_config;
+}
+
+fn saveStoredConfig(allocator: std.mem.Allocator, stored_config: StoredConfig) !void {
+    const dir_path = std.fs.path.dirname(stored_config.path) orelse return CliError.InvalidArguments;
+    try std.fs.cwd().makePath(dir_path);
+
+    const config_doc = .{
+        .base_url = stored_config.base_url,
+        .api_key = stored_config.api_key,
+    };
+
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    defer out.deinit();
+
+    var stringify: std.json.Stringify = .{
+        .writer = &out.writer,
+        .options = .{ .whitespace = .indent_2 },
+    };
+    try stringify.write(config_doc);
+    try out.writer.writeByte('\n');
+
+    const bytes = try out.toOwnedSlice();
+    defer allocator.free(bytes);
+
+    try std.fs.cwd().writeFile(.{
+        .sub_path = stored_config.path,
+        .data = bytes,
+        .flags = .{ .truncate = true },
+    });
+}
+
+fn resolveConfigPath(allocator: std.mem.Allocator) ![]u8 {
+    const xdg_config_home = std.process.getEnvVarOwned(allocator, "XDG_CONFIG_HOME") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => null,
+        else => return err,
+    };
+    defer if (xdg_config_home) |value| allocator.free(value);
+
+    if (xdg_config_home) |value| {
+        if (value.len > 0) {
+            return std.fs.path.join(allocator, &.{ value, "lytx", CONFIG_FILE_NAME });
+        }
+    }
+
+    const home = std.process.getEnvVarOwned(allocator, "HOME") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => return CliError.MissingHomeDirectory,
+        else => return err,
+    };
+    defer allocator.free(home);
+
+    return std.fs.path.join(allocator, &.{ home, ".config", "lytx", CONFIG_FILE_NAME });
+}
+
+const BASH_COMPLETION_SCRIPT =
+    \\_lytx_completions() {
+    \\  local cur prev commands
+    \\  COMPREPLY=()
+    \\  cur="${COMP_WORDS[COMP_CWORD]}"
+    \\  prev="${COMP_WORDS[COMP_CWORD-1]}"
+    \\  commands="help endpoints openapi call health sites read schema events stats event-summary summary time-series timeseries metrics query completion config"
+    \\
+    \\  if [[ ${COMP_CWORD} -eq 1 ]]; then
+    \\    COMPREPLY=( $(compgen -W "${commands} --base-url --api-key --json --help" -- "${cur}") )
+    \\    return 0
+    \\  fi
+    \\
+    \\  case "${prev}" in
+    \\    completion)
+    \\      COMPREPLY=( $(compgen -W "bash zsh fish" -- "${cur}") )
+    \\      return 0
+    \\      ;;
+    \\    config)
+    \\      COMPREPLY=( $(compgen -W "show path set clear" -- "${cur}") )
+    \\      return 0
+    \\      ;;
+    \\    set|clear)
+    \\      COMPREPLY=( $(compgen -W "base-url api-key" -- "${cur}") )
+    \\      return 0
+    \\      ;;
+    \\    --base-url|--api-key|--body)
+    \\      return 0
+    \\      ;;
+    \\  esac
+    \\
+    \\  COMPREPLY=( $(compgen -W "${commands} --base-url --api-key --json --help --body" -- "${cur}") )
+    \\}
+    \\complete -F _lytx_completions lytx
+;
+
+const ZSH_COMPLETION_SCRIPT =
+    \\#compdef lytx
+    \\
+    \\_lytx() {
+    \\  local state
+    \\  local -a commands
+    \\  commands=(
+    \\    'help:show help'
+    \\    'endpoints:list OpenAPI endpoints'
+    \\    'openapi:print OpenAPI document'
+    \\    'call:invoke any OpenAPI endpoint'
+    \\    'health:call health endpoint'
+    \\    'sites:list sites'
+    \\    'read:read site status'
+    \\    'schema:show schema'
+    \\    'events:query events'
+    \\    'stats:query stats'
+    \\    'event-summary:query summary'
+    \\    'time-series:query time series'
+    \\    'metrics:query metrics'
+    \\    'query:run SQL query'
+    \\    'completion:print shell completion'
+    \\    'config:manage local config'
+    \\  )
+    \\
+    \\  _arguments -C \\
+    \\    '--base-url[API base URL]:url:' \\
+    \\    '--api-key[API key]:key:' \\
+    \\    '--json[output JSON]' \\
+    \\    '1:command:->command' \\
+    \\    '*::arg:->args'
+    \\
+    \\  case "$state" in
+    \\    command)
+    \\      _describe 'command' commands
+    \\      ;;
+    \\    args)
+    \\      case "${words[2]}" in
+    \\        completion)
+    \\          _values 'shell' bash zsh fish
+    \\          ;;
+    \\        config)
+    \\          _values 'action' show path set clear
+    \\          ;;
+    \\      esac
+    \\      ;;
+    \\  esac
+    \\}
+    \\
+    \\compdef _lytx lytx
+;
+
+const FISH_COMPLETION_SCRIPT =
+    \\complete -c lytx -f
+    \\complete -c lytx -l base-url -r -d 'API base URL'
+    \\complete -c lytx -l api-key -r -d 'API key'
+    \\complete -c lytx -l json -d 'Output JSON'
+    \\
+    \\complete -c lytx -n '__fish_use_subcommand' -a 'help endpoints openapi call health sites read schema events stats event-summary summary time-series timeseries metrics query completion config'
+    \\complete -c lytx -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish'
+    \\complete -c lytx -n '__fish_seen_subcommand_from config' -a 'show path set clear'
+    \\complete -c lytx -n '__fish_seen_subcommand_from set clear' -a 'base-url api-key'
+;
+
 fn runCallCommand(
     allocator: std.mem.Allocator,
     writer: *std.Io.Writer,
-    config: Config,
-    effective_api_key: ?[]const u8,
+    config: RuntimeConfig,
     command_args: []const [:0]u8,
 ) !void {
     if (command_args.len < 2) return CliError.InvalidArguments;
@@ -259,7 +582,7 @@ fn runCallCommand(
     const response = try executeRequest(
         allocator,
         config.base_url,
-        effective_api_key,
+        config.api_key,
         request_spec,
         tail.params.items,
         tail.body_json,
@@ -277,8 +600,7 @@ fn runCallCommand(
 fn runHybridCommand(
     allocator: std.mem.Allocator,
     writer: *std.Io.Writer,
-    config: Config,
-    effective_api_key: ?[]const u8,
+    config: RuntimeConfig,
     command: []const u8,
     command_args: []const [:0]u8,
 ) !void {
@@ -330,7 +652,7 @@ fn runHybridCommand(
     const response = try executeRequest(
         allocator,
         config.base_url,
-        effective_api_key,
+        config.api_key,
         request_spec,
         tail.params.items,
         request_body,
@@ -1115,6 +1437,8 @@ fn printUsage(writer: *std.Io.Writer) !void {
         \\  lytx endpoints
         \\  lytx openapi
         \\  lytx call METHOD PATH [key=value ...] [--body JSON] [--json]
+        \\  lytx completion <bash|zsh|fish>
+        \\  lytx config [show|path|set|clear] ...
         \\
         \\Hybrid Commands:
         \\  lytx health
@@ -1129,7 +1453,8 @@ fn printUsage(writer: *std.Io.Writer) !void {
         \\  lytx query site_id=123 query='SELECT * FROM site_events LIMIT 10'
         \\
         \\Auth:
-        \\  --api-key KEY or environment variable LYTX_API_KEY
+        \\  precedence: --api-key > LYTX_API_KEY > config file
+        \\  set config with: lytx config set api-key YOUR_KEY
     );
     try writer.writeByte('\n');
 }
