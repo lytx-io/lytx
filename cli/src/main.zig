@@ -23,12 +23,20 @@ const CliConfig = struct {
     base_url: ?[]const u8 = null,
     api_key: ?[]const u8 = null,
     json_output: bool = false,
+    compact_output: bool = false,
+    rows_only: bool = false,
+    no_status: bool = false,
+    columns_csv: ?[]const u8 = null,
 };
 
 const RuntimeConfig = struct {
     base_url: []const u8,
     api_key: ?[]const u8,
     json_output: bool,
+    compact_output: bool,
+    rows_only: bool,
+    no_status: bool,
+    columns_csv: ?[]const u8,
 };
 
 const StoredConfig = struct {
@@ -59,6 +67,10 @@ const TailArgs = struct {
     params: std.ArrayList(Param),
     body_json: ?[]const u8 = null,
     json_output: bool = false,
+    compact_output: bool = false,
+    rows_only: bool = false,
+    no_status: bool = false,
+    columns_csv: ?[]const u8 = null,
 
     fn deinit(self: *TailArgs, allocator: std.mem.Allocator) void {
         self.params.deinit(allocator);
@@ -74,6 +86,14 @@ const RequestSpec = struct {
 const HttpResponse = struct {
     status: std.http.Status,
     body: []u8,
+};
+
+const RenderOptions = struct {
+    json_output: bool = false,
+    compact_output: bool = false,
+    rows_only: bool = false,
+    no_status: bool = false,
+    columns_csv: ?[]const u8 = null,
 };
 
 const OpenApiOperation = struct {
@@ -181,6 +201,10 @@ fn run() !void {
         .base_url = parsed_cli.config.base_url orelse stored_config.base_url orelse DEFAULT_BASE_URL,
         .api_key = parsed_cli.config.api_key orelse owned_env_api_key orelse stored_config.api_key,
         .json_output = parsed_cli.config.json_output,
+        .compact_output = parsed_cli.config.compact_output,
+        .rows_only = parsed_cli.config.rows_only,
+        .no_status = parsed_cli.config.no_status,
+        .columns_csv = parsed_cli.config.columns_csv,
     };
 
     if (std.mem.eql(u8, parsed_cli.command, "endpoints")) {
@@ -205,7 +229,10 @@ fn run() !void {
             allocator,
             &stdout_writer.interface,
             spec_response,
-            true,
+            .{
+                .json_output = true,
+                .no_status = runtime_config.no_status,
+            },
         );
         return;
     }
@@ -253,6 +280,29 @@ fn parseCliArgs(args: []const [:0]u8) !ParsedCli {
 
         if (std.mem.eql(u8, token, "--json")) {
             config.json_output = true;
+            continue;
+        }
+
+        if (std.mem.eql(u8, token, "--compact")) {
+            config.compact_output = true;
+            continue;
+        }
+
+        if (std.mem.eql(u8, token, "--rows-only")) {
+            config.rows_only = true;
+            continue;
+        }
+
+        if (std.mem.eql(u8, token, "--no-status")) {
+            config.no_status = true;
+            continue;
+        }
+
+        if (std.mem.eql(u8, token, "--columns")) {
+            index += 1;
+            if (index >= args.len) return CliError.InvalidArguments;
+            if (args[index].len == 0) return CliError.InvalidArguments;
+            config.columns_csv = args[index];
             continue;
         }
 
@@ -454,7 +504,7 @@ const BASH_COMPLETION_SCRIPT =
     \\  commands="help endpoints openapi call health sites read schema events stats event-summary summary time-series timeseries metrics query completion config"
     \\
     \\  if [[ ${COMP_CWORD} -eq 1 ]]; then
-    \\    COMPREPLY=( $(compgen -W "${commands} --base-url --api-key --json --help" -- "${cur}") )
+    \\    COMPREPLY=( $(compgen -W "${commands} --base-url --api-key --json --compact --rows-only --no-status --columns --help" -- "${cur}") )
     \\    return 0
     \\  fi
     \\
@@ -471,12 +521,12 @@ const BASH_COMPLETION_SCRIPT =
     \\      COMPREPLY=( $(compgen -W "base-url api-key" -- "${cur}") )
     \\      return 0
     \\      ;;
-    \\    --base-url|--api-key|--body)
+    \\    --base-url|--api-key|--body|--columns)
     \\      return 0
     \\      ;;
     \\  esac
     \\
-    \\  COMPREPLY=( $(compgen -W "${commands} --base-url --api-key --json --help --body" -- "${cur}") )
+    \\  COMPREPLY=( $(compgen -W "${commands} --base-url --api-key --json --compact --rows-only --no-status --columns --help --body" -- "${cur}") )
     \\}
     \\complete -F _lytx_completions lytx
 ;
@@ -510,6 +560,10 @@ const ZSH_COMPLETION_SCRIPT =
     \\    '--base-url[API base URL]:url:' \\
     \\    '--api-key[API key]:key:' \\
     \\    '--json[output JSON]' \\
+    \\    '--compact[compact table output]' \\
+    \\    '--rows-only[data array only]' \\
+    \\    '--no-status[hide HTTP status line]' \\
+    \\    '--columns[comma-separated columns]:columns:' \\
     \\    '1:command:->command' \\
     \\    '*::arg:->args'
     \\
@@ -538,6 +592,10 @@ const FISH_COMPLETION_SCRIPT =
     \\complete -c lytx -l base-url -r -d 'API base URL'
     \\complete -c lytx -l api-key -r -d 'API key'
     \\complete -c lytx -l json -d 'Output JSON'
+    \\complete -c lytx -l compact -d 'Compact table output'
+    \\complete -c lytx -l rows-only -d 'Data array only'
+    \\complete -c lytx -l no-status -d 'Hide HTTP status line'
+    \\complete -c lytx -l columns -r -d 'Comma-separated columns'
     \\
     \\complete -c lytx -n '__fish_use_subcommand' -a 'help endpoints openapi call health sites read schema events stats event-summary summary time-series timeseries metrics query completion config'
     \\complete -c lytx -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish'
@@ -593,7 +651,13 @@ fn runCallCommand(
         allocator,
         writer,
         response,
-        config.json_output or tail.json_output,
+        .{
+            .json_output = config.json_output or tail.json_output,
+            .compact_output = config.compact_output or tail.compact_output,
+            .rows_only = config.rows_only or tail.rows_only,
+            .no_status = config.no_status or tail.no_status,
+            .columns_csv = tail.columns_csv orelse config.columns_csv,
+        },
     );
 }
 
@@ -663,7 +727,13 @@ fn runHybridCommand(
         allocator,
         writer,
         response,
-        config.json_output or tail.json_output,
+        .{
+            .json_output = config.json_output or tail.json_output,
+            .compact_output = config.compact_output or tail.compact_output,
+            .rows_only = config.rows_only or tail.rows_only,
+            .no_status = config.no_status or tail.no_status,
+            .columns_csv = tail.columns_csv orelse config.columns_csv,
+        },
     );
 }
 
@@ -684,6 +754,10 @@ fn parseTailArgs(allocator: std.mem.Allocator, tokens: []const [:0]u8) !TailArgs
 
     var body_json: ?[]const u8 = null;
     var json_output = false;
+    var compact_output = false;
+    var rows_only = false;
+    var no_status = false;
+    var columns_csv: ?[]const u8 = null;
 
     var index: usize = 0;
     while (index < tokens.len) : (index += 1) {
@@ -701,6 +775,31 @@ fn parseTailArgs(allocator: std.mem.Allocator, tokens: []const [:0]u8) !TailArgs
             continue;
         }
 
+        if (std.mem.eql(u8, token, "--compact")) {
+            compact_output = true;
+            continue;
+        }
+
+        if (std.mem.eql(u8, token, "--rows-only")) {
+            rows_only = true;
+            continue;
+        }
+
+        if (std.mem.eql(u8, token, "--no-status")) {
+            no_status = true;
+            continue;
+        }
+
+        if (std.mem.eql(u8, token, "--columns")) {
+            index += 1;
+            if (index >= tokens.len) return CliError.InvalidArguments;
+            if (tokens[index].len == 0) return CliError.InvalidArguments;
+            columns_csv = tokens[index];
+            continue;
+        }
+
+        if (std.mem.startsWith(u8, token, "--")) return CliError.InvalidArguments;
+
         const separator_index = std.mem.indexOfScalar(u8, token, '=') orelse return CliError.InvalidArguments;
         const key = token[0..separator_index];
         const value = token[separator_index + 1 ..];
@@ -713,6 +812,10 @@ fn parseTailArgs(allocator: std.mem.Allocator, tokens: []const [:0]u8) !TailArgs
         .params = params,
         .body_json = body_json,
         .json_output = json_output,
+        .compact_output = compact_output,
+        .rows_only = rows_only,
+        .no_status = no_status,
+        .columns_csv = columns_csv,
     };
 }
 
@@ -1093,23 +1196,34 @@ fn renderResponse(
     allocator: std.mem.Allocator,
     writer: *std.Io.Writer,
     response: HttpResponse,
-    json_output: bool,
+    options: RenderOptions,
 ) !void {
-    try writer.print(
-        "HTTP {d} {s}\n",
-        .{ @intFromEnum(response.status), response.status.phrase() orelse "" },
-    );
+    if (!options.no_status) {
+        try writer.print(
+            "HTTP {d} {s}\n",
+            .{ @intFromEnum(response.status), response.status.phrase() orelse "" },
+        );
+    }
 
     if (response.body.len == 0) return;
 
-    if (json_output) {
+    if (options.json_output) {
         var parsed = parseJsonValue(allocator, response.body) catch {
             try writer.print("{s}\n", .{response.body});
             return;
         };
         defer parsed.deinit();
 
-        try writePrettyJson(writer, parsed.value);
+        const selected = selectPrimaryValue(parsed.value, options.rows_only);
+        if (options.columns_csv) |columns_csv| {
+            if (selected == .array and isObjectArray(selected.array)) {
+                try writeFilteredJsonArray(allocator, writer, selected.array, columns_csv);
+                try writer.writeByte('\n');
+                return;
+            }
+        }
+
+        try writePrettyJson(writer, selected);
         try writer.writeByte('\n');
         return;
     }
@@ -1120,7 +1234,7 @@ fn renderResponse(
     };
     defer parsed.deinit();
 
-    try renderJsonHuman(allocator, writer, parsed.value);
+    try renderJsonHuman(allocator, writer, parsed.value, options);
 }
 
 fn printHttpError(writer: *std.Io.Writer, response: HttpResponse) !void {
@@ -1146,13 +1260,16 @@ fn renderJsonHuman(
     allocator: std.mem.Allocator,
     writer: *std.Io.Writer,
     value: std.json.Value,
+    options: RenderOptions,
 ) !void {
-    if (try renderTableIfPossible(allocator, writer, value)) {
+    const selected = selectPrimaryValue(value, options.rows_only);
+
+    if (try renderTableIfPossible(allocator, writer, selected, options)) {
         return;
     }
 
-    if (value == .object) {
-        var object_iter = value.object.iterator();
+    if (selected == .object) {
+        var object_iter = selected.object.iterator();
         var all_scalars = true;
         while (object_iter.next()) |entry| {
             if (!isScalar(entry.value_ptr.*)) {
@@ -1162,17 +1279,17 @@ fn renderJsonHuman(
         }
 
         if (all_scalars) {
-            var iter = value.object.iterator();
+            var iter = selected.object.iterator();
             while (iter.next()) |entry| {
                 var cell_buffer: [256]u8 = undefined;
-                const cell = formatValueCell(entry.value_ptr.*, &cell_buffer);
+                const cell = formatValueCell(entry.key_ptr.*, entry.value_ptr.*, &cell_buffer);
                 try writer.print("{s}: {s}\n", .{ entry.key_ptr.*, cell });
             }
             return;
         }
     }
 
-    try writePrettyJson(writer, value);
+    try writePrettyJson(writer, selected);
     try writer.writeByte('\n');
 }
 
@@ -1180,9 +1297,10 @@ fn renderTableIfPossible(
     allocator: std.mem.Allocator,
     writer: *std.Io.Writer,
     value: std.json.Value,
+    options: RenderOptions,
 ) !bool {
     if (value == .array and isObjectArray(value.array)) {
-        try printObjectArrayTable(allocator, writer, value.array, null);
+        try printObjectArrayTable(allocator, writer, value.array, null, options.columns_csv);
         return true;
     }
 
@@ -1203,17 +1321,20 @@ fn renderTableIfPossible(
 
     if (table_array == null) return false;
 
-    var metadata_iter = value.object.iterator();
-    while (metadata_iter.next()) |entry| {
-        if (std.mem.eql(u8, entry.key_ptr.*, table_field.?)) continue;
-        if (!isScalar(entry.value_ptr.*)) continue;
+    if (!options.compact_output) {
+        var metadata_iter = value.object.iterator();
+        while (metadata_iter.next()) |entry| {
+            if (std.mem.eql(u8, entry.key_ptr.*, table_field.?)) continue;
+            if (!isScalar(entry.value_ptr.*)) continue;
 
-        var cell_buffer: [256]u8 = undefined;
-        const cell = formatValueCell(entry.value_ptr.*, &cell_buffer);
-        try writer.print("{s}: {s}\n", .{ entry.key_ptr.*, cell });
+            var cell_buffer: [256]u8 = undefined;
+            const cell = formatValueCell(entry.key_ptr.*, entry.value_ptr.*, &cell_buffer);
+            try writer.print("{s}: {s}\n", .{ entry.key_ptr.*, cell });
+        }
     }
 
-    try printObjectArrayTable(allocator, writer, table_array.?, table_field);
+    const table_title: ?[]const u8 = if (options.compact_output) null else table_field;
+    try printObjectArrayTable(allocator, writer, table_array.?, table_title, options.columns_csv);
     return true;
 }
 
@@ -1237,6 +1358,7 @@ fn printObjectArrayTable(
     writer: *std.Io.Writer,
     array: std.json.Array,
     title: ?[]const u8,
+    columns_csv: ?[]const u8,
 ) !void {
     if (title) |table_title| {
         try writer.print("\n{s}\n", .{table_title});
@@ -1253,16 +1375,29 @@ fn printObjectArrayTable(
     var columns: std.ArrayList([]const u8) = .empty;
     defer columns.deinit(allocator);
 
-    var seen: std.StringHashMap(void) = std.StringHashMap(void).init(allocator);
-    defer seen.deinit();
+    if (columns_csv) |csv| {
+        var selected_columns = try parseColumnsCsv(allocator, csv);
+        defer selected_columns.deinit(allocator);
 
-    for (rows) |row| {
-        var row_iter = row.object.iterator();
-        while (row_iter.next()) |entry| {
-            const key = entry.key_ptr.*;
-            if (seen.contains(key)) continue;
-            try seen.put(key, {});
-            try columns.append(allocator, key);
+        if (selected_columns.items.len > 0) {
+            for (selected_columns.items) |column| {
+                try columns.append(allocator, column);
+            }
+        }
+    }
+
+    if (columns.items.len == 0) {
+        var seen: std.StringHashMap(void) = std.StringHashMap(void).init(allocator);
+        defer seen.deinit();
+
+        for (rows) |row| {
+            var row_iter = row.object.iterator();
+            while (row_iter.next()) |entry| {
+                const key = entry.key_ptr.*;
+                if (seen.contains(key)) continue;
+                try seen.put(key, {});
+                try columns.append(allocator, key);
+            }
         }
     }
 
@@ -1283,7 +1418,7 @@ fn printObjectArrayTable(
         for (columns.items, 0..) |column, index| {
             const value = row.object.get(column);
             var cell_buffer: [256]u8 = undefined;
-            const cell = if (value) |actual| formatValueCell(actual, &cell_buffer) else "";
+            const cell = if (value) |actual| formatValueCell(column, actual, &cell_buffer) else "";
             widths.items[index] = @max(widths.items[index], cell.len);
         }
     }
@@ -1295,7 +1430,7 @@ fn printObjectArrayTable(
         for (columns.items, 0..) |column, index| {
             const value = row.object.get(column);
             var cell_buffer: [256]u8 = undefined;
-            const cell = if (value) |actual| formatValueCell(actual, &cell_buffer) else "";
+            const cell = if (value) |actual| formatValueCell(column, actual, &cell_buffer) else "";
             try writePadded(writer, cell, widths.items[index]);
             if (index + 1 < columns.items.len) {
                 try writer.writeAll(" | ");
@@ -1323,11 +1458,11 @@ fn printStringRow(
     try writer.writeByte('\n');
 }
 
-fn formatValueCell(value: std.json.Value, buffer: []u8) []const u8 {
+fn formatValueCell(column: []const u8, value: std.json.Value, buffer: []u8) []const u8 {
     return switch (value) {
         .null => "null",
         .bool => |v| if (v) "true" else "false",
-        .integer => |v| std.fmt.bufPrint(buffer, "{d}", .{v}) catch "?",
+        .integer => |v| if (isTimestampColumn(column)) formatEpochCell(v, buffer) else std.fmt.bufPrint(buffer, "{d}", .{v}) catch "?",
         .float => |v| std.fmt.bufPrint(buffer, "{d}", .{v}) catch "?",
         .number_string => |v| clipCell(v),
         .string => |v| clipCell(v),
@@ -1339,6 +1474,149 @@ fn formatValueCell(value: std.json.Value, buffer: []u8) []const u8 {
 fn clipCell(value: []const u8) []const u8 {
     if (value.len <= 72) return value;
     return value[0..72];
+}
+
+fn writeFilteredJsonArray(
+    allocator: std.mem.Allocator,
+    writer: *std.Io.Writer,
+    array: std.json.Array,
+    columns_csv: []const u8,
+) !void {
+    var columns = try parseColumnsCsv(allocator, columns_csv);
+    defer columns.deinit(allocator);
+
+    if (columns.items.len == 0) {
+        const as_value: std.json.Value = .{ .array = array };
+        try writePrettyJson(writer, as_value);
+        return;
+    }
+
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    defer out.deinit();
+
+    try out.writer.writeByte('[');
+    for (array.items, 0..) |row, row_index| {
+        if (row_index > 0) try out.writer.writeByte(',');
+
+        if (row != .object) {
+            var row_stringify: std.json.Stringify = .{
+                .writer = &out.writer,
+                .options = .{},
+            };
+            try row_stringify.write(row);
+            continue;
+        }
+
+        try out.writer.writeByte('{');
+        for (columns.items, 0..) |column, column_index| {
+            if (column_index > 0) try out.writer.writeByte(',');
+            try writeJsonString(&out.writer, column);
+            try out.writer.writeByte(':');
+            if (row.object.get(column)) |cell| {
+                var cell_stringify: std.json.Stringify = .{
+                    .writer = &out.writer,
+                    .options = .{},
+                };
+                try cell_stringify.write(cell);
+            } else {
+                try out.writer.writeAll("null");
+            }
+        }
+        try out.writer.writeByte('}');
+    }
+    try out.writer.writeByte(']');
+
+    const filtered_bytes = try out.toOwnedSlice();
+    defer allocator.free(filtered_bytes);
+
+    var filtered_parsed = try parseJsonValue(allocator, filtered_bytes);
+    defer filtered_parsed.deinit();
+
+    try writePrettyJson(writer, filtered_parsed.value);
+}
+
+fn selectPrimaryValue(value: std.json.Value, rows_only: bool) std.json.Value {
+    if (!rows_only or value != .object) return value;
+
+    if (getObjectField(value, "rows")) |rows| {
+        if (rows == .array) return rows;
+    }
+
+    if (getObjectField(value, "query")) |query_value| {
+        if (getObjectField(query_value, "events")) |events| {
+            if (events == .array) return events;
+        }
+    }
+
+    if (getObjectField(value, "summary")) |summary_value| {
+        if (getObjectField(summary_value, "summary")) |summary_rows| {
+            if (summary_rows == .array) return summary_rows;
+        }
+    }
+
+    if (getObjectField(value, "timeSeries")) |time_series| {
+        if (getObjectField(time_series, "data")) |data| {
+            if (data == .array) return data;
+        }
+    }
+
+    if (getObjectField(value, "metrics")) |metrics| {
+        if (getObjectField(metrics, "data")) |data| {
+            if (data == .array) return data;
+        }
+    }
+
+    return value;
+}
+
+fn parseColumnsCsv(allocator: std.mem.Allocator, columns_csv: []const u8) !std.ArrayList([]const u8) {
+    var columns: std.ArrayList([]const u8) = .empty;
+    errdefer columns.deinit(allocator);
+
+    var it = std.mem.splitScalar(u8, columns_csv, ',');
+    while (it.next()) |part| {
+        const trimmed = std.mem.trim(u8, part, " \t\n\r");
+        if (trimmed.len == 0) continue;
+        try columns.append(allocator, trimmed);
+    }
+
+    return columns;
+}
+
+fn isTimestampColumn(column: []const u8) bool {
+    return std.mem.eql(u8, column, "created_at") or
+        std.mem.eql(u8, column, "updated_at") or
+        std.mem.eql(u8, column, "createdAt") or
+        std.mem.eql(u8, column, "updatedAt") or
+        std.mem.eql(u8, column, "timestamp");
+}
+
+fn formatEpochCell(value: i64, buffer: []u8) []const u8 {
+    if (value < 0) return std.fmt.bufPrint(buffer, "{d}", .{value}) catch "?";
+
+    var seconds: u64 = @intCast(value);
+    if (seconds >= 1_000_000_000_000) {
+        seconds = @divFloor(seconds, 1000);
+    }
+
+    const epoch_seconds: std.time.epoch.EpochSeconds = .{ .secs = seconds };
+    const epoch_day = epoch_seconds.getEpochDay();
+    const day_seconds = epoch_seconds.getDaySeconds();
+    const year_day = epoch_day.calculateYearDay();
+    const month_day = year_day.calculateMonthDay();
+
+    return std.fmt.bufPrint(
+        buffer,
+        "{d:0>4}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2}Z",
+        .{
+            year_day.year,
+            month_day.month.numeric(),
+            month_day.day_index + 1,
+            day_seconds.getHoursIntoDay(),
+            day_seconds.getMinutesIntoHour(),
+            day_seconds.getSecondsIntoMinute(),
+        },
+    ) catch "?";
 }
 
 fn buildBodyFromParams(allocator: std.mem.Allocator, params: []const Param) ![]u8 {
@@ -1431,12 +1709,12 @@ fn printUsage(writer: *std.Io.Writer) !void {
     try writer.writeAll(
         \\lytx - Lytx API CLI
         \\Usage:
-        \\  lytx [--base-url URL] [--api-key KEY] [--json] <command> [args]
+        \\  lytx [--base-url URL] [--api-key KEY] [--json] [--compact] [--rows-only] [--columns a,b] [--no-status] <command> [args]
         \\
         \\OpenAPI Commands:
         \\  lytx endpoints
         \\  lytx openapi
-        \\  lytx call METHOD PATH [key=value ...] [--body JSON] [--json]
+        \\  lytx call METHOD PATH [key=value ...] [--body JSON] [--json] [--compact] [--rows-only] [--columns a,b] [--no-status]
         \\  lytx completion <bash|zsh|fish>
         \\  lytx config [show|path|set|clear] ...
         \\
@@ -1451,6 +1729,9 @@ fn printUsage(writer: *std.Io.Writer) !void {
         \\  lytx time-series site_id=123 granularity=day
         \\  lytx metrics site_id=123 metricType=events
         \\  lytx query site_id=123 query='SELECT * FROM site_events LIMIT 10'
+        \\
+        \\Output Notes:
+        \\  --columns filters displayed fields only; it does not change SQL execution
         \\
         \\Auth:
         \\  precedence: --api-key > LYTX_API_KEY > config file
