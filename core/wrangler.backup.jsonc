@@ -1,0 +1,107 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "compatibility_date": "2025-08-21",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "main": "src/worker.tsx",
+  "name": "lytx-test",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SYNC_DURABLE_OBJECT",
+        "class_name": "SyncDurableObject",
+      },
+      {
+        "name": "SITE_DURABLE_OBJECT",
+        "class_name": "SiteDurableObject",
+      }
+    ]
+  },
+  "queues": {
+    "producers": [
+      {
+        "queue": "site-events-queue",
+        "binding": "SITE_EVENTS_QUEUE"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "site-events-queue",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5
+      }
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "lytx_core_db",
+      "database_id": "52c98218-7243-4dd8-be84-601edff8feab",
+      "database_name": "lytx-core-db",
+      "migrations_dir": "db/d1/migrations",
+    },
+  ],
+  "hyperdrive": [
+    {
+      "binding": "lytx_pg",
+      "id": "513fa3753545417fad3f4e403ff8c723"
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SessionDurableObject"
+      ]
+    },
+    {
+      "tag": "v2",
+      "renamed_classes": [
+        {
+          "from": "SessionDurableObject",
+          "to": "SyncDurableObject"
+        }
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [
+        "SiteDurableObject"
+      ]
+    }
+  ],
+  // "rules": [
+  //   {
+  //     "fallthrough": true,
+  //     "globs": [
+  //       "**/*.sql"
+  //     ],
+  //     "type": "Text"
+  //   },
+  // ],
+  "kv_namespaces": [
+    {
+      "binding": "LYTX_EVENTS",
+      "id": "4d22298c548c401c95856418bd0c9541",
+      // "preview_id": "332cf268f04f405fae5fe91abc2bbe99"
+    },
+    {
+      "binding": "lytx_config",
+      "id": "3c0d73267c3949f29d3cfd42e53f5f91",
+      "preview_id": "48b563019bad4b999f39998b2e77cb32"
+    },
+    {
+      "binding": "lytx_sessions",
+      "id": "10455a31b34c41a685b5c373ba7f4275"
+    }
+  ],
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 0.01
+    }
+  },
+  "assets": {
+    "binding": "ASSETS"
+  }
+}

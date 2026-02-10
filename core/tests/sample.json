@@ -1,0 +1,15 @@
+[
+[{"fireMode":"event","id":"AW-696976645/MJTwCOK13eMDEIWKrMwC","type":"conversion","value":80}],
+[{"fireMode":"event","id":"AW-696976645/-r6zCOmos-QDEIWKrMwC","type":"conversion","value":80}],
+[{"fireMode":"event","id":"AW-696976645/hyzACMuj9uQDEIWKrMwC","type":"conversion","value":100}],
+{"fireMode":"config",
+"id":"AW-696976645/_gT4CKzf9OADEIWKrMwC",
+"type":"phone_conversion_number",
+"value":"418 227-1181"
+},
+{
+"fireMode":"config",
+"id":"AW-696976645/6lM1CNzZ9OADEIWKrMwC",
+"type":"phone_conversion_number",
+"value":"1 800 463-1303"}
+]

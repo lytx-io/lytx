@@ -1,0 +1,28 @@
+{
+  "name": "lytx-migration-worker",
+  "main": "./cli/migration-worker.ts",
+  "compatibility_date": "2024-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SITE_DURABLE_OBJECT",
+        "class_name": "SiteDurableObject",
+        "script_name": "lytx-core"
+      }
+    ]
+  },
+  
+  "d1_databases": [
+    {
+      "binding": "lytx_core_db",
+      "database_name": "lytx_core_db",
+      "database_id": "your-d1-database-id"
+    }
+  ],
+  
+  "vars": {
+    "ENVIRONMENT": "migration"
+  }
+}

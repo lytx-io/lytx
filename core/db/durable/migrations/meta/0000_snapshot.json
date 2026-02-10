@@ -1,0 +1,278 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "f3c5055e-ce55-455b-93fd-4929317a7fa7",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "site_events": {
+      "name": "site_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bot_data": {
+          "name": "bot_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "browser": {
+          "name": "browser",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "client_page_url": {
+          "name": "client_page_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "custom_data": {
+          "name": "custom_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "device_type": {
+          "name": "device_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "event": {
+          "name": "event",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "operating_system": {
+          "name": "operating_system",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "page_url": {
+          "name": "page_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "postal": {
+          "name": "postal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "query_params": {
+          "name": "query_params",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "referer": {
+          "name": "referer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "region": {
+          "name": "region",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "rid": {
+          "name": "rid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "screen_height": {
+          "name": "screen_height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "screen_width": {
+          "name": "screen_width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tag_id": {
+          "name": "tag_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "site_events_team_id_idx": {
+          "name": "site_events_team_id_idx",
+          "columns": [
+            "team_id"
+          ],
+          "isUnique": false
+        },
+        "site_events_site_id_idx": {
+          "name": "site_events_site_id_idx",
+          "columns": [
+            "site_id"
+          ],
+          "isUnique": false
+        },
+        "site_events_tag_id_idx": {
+          "name": "site_events_tag_id_idx",
+          "columns": [
+            "tag_id"
+          ],
+          "isUnique": false
+        },
+        "site_events_created_at_idx": {
+          "name": "site_events_created_at_idx",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "site_events_team_site_idx": {
+          "name": "site_events_team_site_idx",
+          "columns": [
+            "team_id",
+            "site_id"
+          ],
+          "isUnique": false
+        },
+        "site_events_team_tag_idx": {
+          "name": "site_events_team_tag_idx",
+          "columns": [
+            "team_id",
+            "tag_id"
+          ],
+          "isUnique": false
+        },
+        "site_events_site_created_idx": {
+          "name": "site_events_site_created_idx",
+          "columns": [
+            "site_id",
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "site_events_team_created_idx": {
+          "name": "site_events_team_created_idx",
+          "columns": [
+            "team_id",
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "site_events_country_idx": {
+          "name": "site_events_country_idx",
+          "columns": [
+            "country"
+          ],
+          "isUnique": false
+        },
+        "site_events_device_type_idx": {
+          "name": "site_events_device_type_idx",
+          "columns": [
+            "device_type"
+          ],
+          "isUnique": false
+        },
+        "site_events_event_idx": {
+          "name": "site_events_event_idx",
+          "columns": [
+            "event"
+          ],
+          "isUnique": false
+        },
+        "site_events_referer_idx": {
+          "name": "site_events_referer_idx",
+          "columns": [
+            "referer"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

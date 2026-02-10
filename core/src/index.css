@@ -1,0 +1,243 @@
+@import "tailwindcss";
+@import "@fontsource/montserrat/400.css";
+@import "@fontsource/montserrat/500.css";
+@import "@fontsource/montserrat/600.css";
+@import "@fontsource/montserrat/700.css";
+
+@theme {
+  /* Color Palette - Light Mode */
+  --color-primary: #f97316;
+  --color-primary-hover: #ea580c;
+  --color-primary-light: #fdba74;
+
+  --color-brand-cta: #D95C00;
+  --color-brand-cta-hover: #c45300;
+
+  --color-secondary: #6b7280;
+  --color-secondary-hover: #4b5563;
+  --color-secondary-light: #9ca3af;
+
+  --color-accent: #f59e0b;
+  --color-accent-hover: #d97706;
+  --color-accent-light: #fcd34d;
+
+  --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-danger-light: #fca5a5;
+
+  --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-warning-light: #fcd34d;
+
+  /* Neutral Colors - Light Mode */
+  --color-white: #ffffff;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-black: #000000;
+
+  /* Typography Scale */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-montserrat: "Montserrat", "Inter", system-ui, sans-serif;
+
+  /* Line Heights */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Spacing Scale */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+  --spacing-3xl: 4rem;
+
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg:
+    0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl:
+    0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  /* Dark Mode Theme Variables */
+  --theme-bg-primary: #121212; /* Main background */
+  --theme-bg-secondary: #171717; /* Secondary background */
+  --theme-bg-tertiary: #222222; /* Tertiary background */
+  --theme-text-primary: #f8fafc; /* Primary text */
+  --theme-text-secondary: #cbd5e1; /* Secondary text */
+  --theme-text-tertiary: #94a3b8; /* Tertiary text */
+  --theme-border-primary: #1f2937; /* Borders */
+  --theme-border-secondary: #f59e0b; /* Accent borders / focus */
+
+  /* Component Colors */
+  --theme-card-bg: #171717; /* Card background */
+  --theme-card-border: #1f2937; /* Card borders */
+  --theme-input-bg: #141414; /* Input background */
+  --theme-input-border: #334155; /* Input borders */
+  --theme-input-border-focus: #f59e0b; /* Input focus borders */
+  --theme-button-bg: #f97316; /* Button background */
+  --theme-button-hover: #ea580c; /* Button hover */
+}
+
+[data-theme="light"] {
+  /* Light Mode Theme Variables */
+  --theme-bg-primary: var(--color-white);
+  --theme-bg-secondary: var(--color-gray-50);
+  --theme-bg-tertiary: var(--color-gray-100);
+  --theme-text-primary: var(--color-gray-900);
+  --theme-text-secondary: var(--color-gray-600);
+  --theme-text-tertiary: var(--color-gray-500);
+  --theme-border-primary: var(--color-gray-200);
+  --theme-border-secondary: var(--color-gray-300);
+
+  /* Component Colors */
+  --theme-card-bg: var(--color-white);
+  --theme-card-border: var(--color-gray-200);
+  --theme-input-bg: var(--color-white);
+  --theme-input-border: var(--color-gray-300);
+  --theme-input-border-focus: var(--color-gray-400);
+  --theme-button-bg: var(--color-primary);
+  --theme-button-hover: var(--color-primary-hover);
+}
+
+/* View Transitions API - Navigation Animations */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: 150ms ease-out both fade-out;
+  }
+
+  ::view-transition-new(root) {
+    animation: 150ms ease-in 50ms both fade-in;
+  }
+
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* Disable view transitions for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+@layer base {
+  /* Enable smooth transitions only during theme toggles. */
+  :root.theme-transition * {
+    transition:
+      background-color 0.2s ease-in-out,
+      color 0.2s ease-in-out,
+      border-color 0.2s ease-in-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root.theme-transition * {
+      transition: none !important;
+    }
+  }
+
+  /* Only remove focus styles for non-keyboard interactions */
+  *:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* Ensure keyboard focus is always visible */
+  *:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  body {
+    background-color: var(--theme-bg-primary);
+    color: var(--theme-text-primary);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+  }
+}
+
+/* Nivo tooltip theming */
+div[style*="pointer-events: none;"] > div[style*="background: white;"],
+div[style*="pointer-events: none;"]
+  > div[style*="background: rgb(255, 255, 255)"] {
+  background: var(--theme-card-bg) !important;
+  color: var(--theme-text-primary) !important;
+  border: 1px solid var(--theme-border-primary) !important;
+  border-radius: 8px !important;
+}
+
+div[style*="pointer-events: none;"]
+  > div[style*="background: white;"]
+  table
+  tbody
+  tr
+  td,
+div[style*="pointer-events: none;"]
+  > div[style*="background: rgb(255, 255, 255)"]
+  table
+  tbody
+  tr
+  td {
+  color: var(--theme-text-primary) !important;
+}
+
+div[style*="pointer-events: none;"]
+  > div[style*="background: white;"]
+  table
+  tbody
+  tr
+  td[style*="color: rgb(0, 0, 0);"],
+div[style*="pointer-events: none;"]
+  > div[style*="background: rgb(255, 255, 255)"]
+  table
+  tbody
+  tr
+  td[style*="color: rgb(0, 0, 0);"] {
+  color: var(--theme-text-primary) !important;
+}

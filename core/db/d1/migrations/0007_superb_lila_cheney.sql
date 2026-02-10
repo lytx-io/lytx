@@ -1,0 +1,1 @@
+ALTER TABLE `team_billing` ADD `billing_method` text DEFAULT 'stripe_subscription' NOT NULL;

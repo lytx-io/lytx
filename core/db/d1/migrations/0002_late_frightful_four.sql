@@ -1,0 +1,1 @@
+ALTER TABLE `user` ADD `last_site_id` integer;

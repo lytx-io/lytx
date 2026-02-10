@@ -1,0 +1,249 @@
+{
+  // Theme configuration for web application
+  "branding": {
+    "name": "Lytx",
+    "logo": {
+      "primary": "./public/images/android-chrome-192x192.png",
+      "secondary": "./public/images/favicon-32x32.png",
+      "favicon": "./public/images/favicon-16x16.png"
+    },
+    "fonts": {
+      "primary": "Inter, sans-serif",
+      "secondary": "Roboto, sans-serif",
+      "code": "Fira Code, monospace"
+    }
+  },
+  // Color palette
+  "colors": {
+    "primary": {
+      "50": "#fff8f0",
+      "100": "#ffefd8",
+      "200": "#ffdcb0",
+      "300": "#fdc587",
+      "400": "#fca55d",
+      "500": "#fa8c2e", // Base color
+      "600": "#f97316",
+      "700": "#ea580c",
+      "800": "#c2410c",
+      "900": "#9a3412",
+      "950": "#7c2d12"
+    },
+    "secondary": {
+      "50": "#fff1f0",
+      "100": "#ffe1de",
+      "200": "#ffc9c2",
+      "300": "#ffa599",
+      "400": "#ff7b6b",
+      "500": "#f12f09", // Scarlet
+      "600": "#e11d0b",
+      "700": "#bc160d",
+      "800": "#991713",
+      "900": "#7f1814",
+      "950": "#450a09"
+    },
+    "accent": {
+      "50": "#fefef0",
+      "100": "#fefed8",
+      "200": "#fdfcb0",
+      "300": "#fcfb88",
+      "400": "#faf85a",
+      "500": "#fbe444", // Candy Corn
+      "600": "#f7d511",
+      "700": "#d5a80d",
+      "800": "#ab8310",
+      "900": "#8c6a13",
+      "950": "#4b3705"
+    },
+    "cream": {
+      "50": "#fbfac8", // Double Pearl Lusta
+      "100": "#f8f7c0",
+      "200": "#f5f4a8",
+      "300": "#e5e4a0",
+      "400": "#d1d0a0",
+      "500": "#a3a28a",
+      "600": "#7c7b6d",
+      "700": "#5e5d54",
+      "800": "#3e3d38",
+      "900": "#26251f",
+      "950": "#18171a"
+    },
+    "neutral": {
+      "50": "#f9fafb",
+      "100": "#f3f4f6",
+      "200": "#e5e7eb",
+      "300": "#d1d5db",
+      "400": "#9ca3af",
+      "500": "#6b7280",
+      "600": "#4b5563",
+      "700": "#374151",
+      "800": "#1f2937",
+      "900": "#111827",
+      "950": "#030712"
+    },
+    "success": {
+      "50": "#f0fdf4",
+      "100": "#dcfce7",
+      "200": "#bbf7d0",
+      "300": "#86efac",
+      "400": "#4ade80",
+      "500": "#22c55e",
+      "600": "#16a34a",
+      "700": "#15803d",
+      "800": "#166534",
+      "900": "#14532d",
+      "950": "#052e16"
+    },
+    "warning": {
+      "50": "#fffbeb",
+      "100": "#fef3c7",
+      "200": "#fde68a",
+      "300": "#fcd34d",
+      "400": "#fbbf24",
+      "500": "#f59e0b",
+      "600": "#d97706",
+      "700": "#b45309",
+      "800": "#92400e",
+      "900": "#78350f",
+      "950": "#451a03"
+    },
+    "error": {
+      "50": "#fef2f2",
+      "100": "#fee2e2",
+      "200": "#fecaca",
+      "300": "#fca5a5",
+      "400": "#f87171",
+      "500": "#ef4444",
+      "600": "#dc2626",
+      "700": "#b91c1c",
+      "800": "#991b1b",
+      "900": "#7f1d1d",
+      "950": "#450a0a"
+    }
+  },
+  // Component theming
+  "components": {
+    "button": {
+      "borderRadius": "0.375rem",
+      "fontWeight": "500",
+      "primary": {
+        "background": "colors.primary.600",
+        "text": "colors.neutral.50",
+        "hover": "colors.primary.700",
+        "active": "colors.primary.800"
+      },
+      "secondary": {
+        "background": "colors.secondary.600",
+        "text": "colors.neutral.50",
+        "hover": "colors.secondary.700",
+        "active": "colors.secondary.800"
+      },
+      "outline": {
+        "background": "transparent",
+        "text": "colors.primary.600",
+        "border": "colors.primary.600",
+        "hover": "colors.primary.50",
+        "active": "colors.primary.100"
+      },
+      "ghost": {
+        "background": "transparent",
+        "text": "colors.primary.600",
+        "hover": "colors.primary.50",
+        "active": "colors.primary.100"
+      }
+    },
+    "input": {
+      "borderRadius": "0.375rem",
+      "background": "colors.neutral.50",
+      "text": "colors.neutral.900",
+      "border": "colors.neutral.300",
+      "focus": "colors.primary.500",
+      "placeholder": "colors.neutral.400",
+      "error": "colors.error.500"
+    },
+    "card": {
+      "borderRadius": "0.5rem",
+      "background": "colors.neutral.50",
+      "border": "colors.neutral.200",
+      "shadow": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)"
+    },
+    "modal": {
+      "background": "colors.neutral.50",
+      "overlay": "rgba(0, 0, 0, 0.5)",
+      "borderRadius": "0.5rem",
+      "shadow": "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)"
+    },
+    "toast": {
+      "borderRadius": "0.375rem",
+      "success": {
+        "background": "colors.success.50",
+        "border": "colors.success.500",
+        "text": "colors.success.800"
+      },
+      "warning": {
+        "background": "colors.warning.50",
+        "border": "colors.warning.500",
+        "text": "colors.warning.800"
+      },
+      "error": {
+        "background": "colors.error.50",
+        "border": "colors.error.500",
+        "text": "colors.error.800"
+      },
+      "info": {
+        "background": "colors.primary.50",
+        "border": "colors.primary.500",
+        "text": "colors.primary.800"
+      }
+    }
+  },
+  // Layout settings
+  "layout": {
+    "maxWidth": "1280px",
+    "contentPadding": "1rem",
+    "breakpoints": {
+      "sm": "640px",
+      "md": "768px",
+      "lg": "1024px",
+      "xl": "1280px",
+      "2xl": "1536px"
+    },
+    "spacing": {
+      "xs": "0.25rem",
+      "sm": "0.5rem",
+      "md": "1rem",
+      "lg": "1.5rem",
+      "xl": "2rem",
+      "2xl": "3rem"
+    }
+  },
+  // Dark mode settings
+  "darkMode": {
+    "background": "colors.neutral.900",
+    "text": "colors.neutral.50",
+    "components": {
+      "card": {
+        "background": "colors.neutral.800",
+        "border": "colors.neutral.700"
+      },
+      "input": {
+        "background": "colors.neutral.800",
+        "border": "colors.neutral.700",
+        "text": "colors.neutral.100"
+      }
+    }
+  },
+  // Animation settings
+  "animations": {
+    "transition": {
+      "fast": "150ms",
+      "normal": "300ms",
+      "slow": "500ms"
+    },
+    "easing": {
+      "default": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "in": "cubic-bezier(0.4, 0, 1, 1)",
+      "out": "cubic-bezier(0, 0, 0.2, 1)",
+      "inOut": "cubic-bezier(0.4, 0, 0.2, 1)"
+    }
+  }
+}

@@ -1,0 +1,118 @@
+# Ralph Progress Log
+Branch: feat/core-ayn-verify-email-page
+Started: Tue Jan 13 06:57:20 PM EST 2026
+---
+
+## Codebase Patterns
+- Better Auth email verification link format: `/verify-email?token=...&callbackURL=...`
+- Better Auth `trustedOrigins` must include the local dev origin (e.g. `http://localhost:5173`) or sign-in requests fail with "Invalid origin".
+- For email verification UX, render a page route (`/verify-email`) and call `auth.api.verifyEmail` server-side; redirect via `<script>` for delayed navigation.
+- `newSiteSetup()` must be registered under the authenticated `/api` prefix; placing it in the unauthenticated root `/api` prefix causes `ctx.team` to be undefined.
+- For dashboard API filters, normalize inputs before comparing (e.g. lowercase `device_type`, uppercase `country`, hostname-matching for `referer`).
+- Auth resend verification should return `{status:true}` even on rate limit or user-not-found to prevent account enumeration.
+
+## [2026-01-13 19:33] - core-ayn
+- Implemented `/verify-email` confirmation route with success/error states and optional `callbackURL` redirect.
+- Added `VerifyEmailPage` UI component used by the route.
+- Browser verified error state and missing-token state.
+- Files changed: `src/worker.tsx`, `src/pages/VerifyEmail.tsx`, `progress.txt`
+- **Learnings for future iterations:**
+  - Better Auth’s `verifyEmail` endpoint applies `originCheck` to `callbackURL`; keep callback redirects in the app route instead of passing it into `auth.api.verifyEmail`.
+  - Playwright in this environment requires the dev server to be started in the background for connectivity.
+---
+
+## [2026-01-13 19:58] - core-c2o
+- Added `email_verified` flag to the Better Auth custom session payload.
+- Enabled Better Auth `emailAndPassword.requireEmailVerification` to block session creation for unverified users.
+- Files changed: `lib/auth.ts`
+- **Learnings for future iterations:**
+  - Better Auth supports gating sign-in via `emailAndPassword.requireEmailVerification`; prefer this over custom session middleware checks.
+---
+
+## [2026-01-13 20:32] - core-9qx
+- Added durable-object backed current visitor counting (distinct `rid` in rolling window).
+- Added `/api/dashboard/current-visitors` endpoint and dashboard polling UI to replace hardcoded visitors.
+- Browser verified dashboard shows live "Current Visitors" value.
+- Files changed: `db/durable/siteDurableObject.ts`, `src/api/sites_api.ts`, `src/app/Dashboard.tsx`, `src/worker.tsx`, `lib/auth.ts`, `progress.txt`
+- **Learnings for future iterations:**
+  - Better Auth `trustedOrigins` must include the local dev origin (e.g. `http://localhost:5173`) or sign-in requests fail with "Invalid origin".
+  - `newSiteSetup()` must be registered under the authenticated `/api` prefix; placing it in the unauthenticated root `/api` prefix causes `ctx.team` to be undefined.
+---
+
+## [2026-01-13 21:05] - core-2ev
+- Added robust error handling for dashboard data fetching (server + client), including user-friendly fallback UI.
+- Normalized API error responses to JSON and included a `requestId` for easier debugging.
+- Files changed: `src/api/sites_api.ts`, `src/app/Dashboard.tsx`, `types/rw.d.ts`, `types/vite.d.ts`, `worker-configuration.d.ts`, `progress.txt`
+- **Learnings for future iterations:**
+  - Prefer JSON error bodies for `/api/*` routes so the dashboard can surface actionable messages and still recover via "Try again".
+  - Include a per-request `requestId` in API error responses and logs to correlate UI errors with server logs.
+---
+
+## [2026-01-14 00:00] - core-aru
+- Added dashboard skeletons for scorecards, charts, and table cards.
+- Added non-blocking "Updating..." overlays during refetch across metrics, charts, and cards.
+- Browser verified skeleton state (artificial delay) and refetch overlay after date-range change.
+- Files changed: `src/app/Dashboard.tsx`, `progress.txt`
+- **Learnings for future iterations:**
+  - For dashboard refetch UX, use React Query `isFetching` for overlays and `isLoading` for initial skeletons.
+  - Better Auth local dev origin must match `BETTER_AUTH_URL` for email sign-in; keep it aligned with the running dev server port.
+---
+
+## [2026-01-14 01:35] - core-bc8
+- Added unit tests validating dashboard scorecard calculations and API param parsing.
+- Hardened `/api/dashboard/data` parameter validation and normalized filters (case-insensitive `device_type`, uppercase `country`, hostname-aware `source` incl. `direct`).
+- Browser verified dashboard loads and Traffic Source filter updates metrics.
+- Files changed: `src/api/sites_api.ts`, `src/utilities/dashboardParams.ts`, `tests/dashboardParams.test.ts`, `tests/tranformReports.test.ts`, `.gitignore`, `progress.txt`
+- **Learnings for future iterations:**
+  - Prefer centralized parsing helpers for API params (`parseSiteIdParam`, `parseDateParam`) to keep endpoint validation consistent.
+  - When filtering by traffic source, compare against referer hostname rather than raw referer string.
+---
+
+## [2026-01-14 04:12] - core-i7g
+- Added `/api/resend-verification-email` endpoint that proxies Better Auth's `send-verification-email` and rate limits by IP+email.
+- Added login UI affordance to resend verification emails and show success/error feedback.
+- Browser verified resend flow shows success message.
+- Files changed: `src/api/auth_api.ts`, `src/worker.tsx`, `src/app/providers/AuthProvider.tsx`, `src/pages/Login.tsx`, `lib/auth.ts`, `progress.txt`
+- **Learnings for future iterations:**
+  - For auth flows, include both `http://localhost:5173` and `http://127.0.0.1:5173` in Better Auth `trustedOrigins` to avoid "Invalid origin" during local dev.
+  - Avoid account enumeration: return success responses even when user is missing or rate limited.
+---
+
+## [2026-01-14 04:21] - core-58u
+- Updated login form to show a dedicated "Email verification required" state and guide users to resend the verification email.
+- Updated signup flow to show a "verification pending" success state after sign up, with a resend verification CTA.
+- Browser verified resend button enablement + signup pending UI.
+- Files changed: `src/pages/Login.tsx`, `src/pages/Signup.tsx`, `progress.txt`
+- **Learnings for future iterations:**
+  - On auth UI, keep a separate status state (idle/success/error/pending) instead of inferring from message strings.
+---
+
+## [2026-01-14 04:55] - core-6vw
+- Added `/verify-email` route with explicit handling for missing token, invalid token, and expired token.
+- Improved Better Auth API error logging for easier debugging.
+- Browser verified missing-token + invalid-token states (including `callbackURL` rendering).
+- Files changed: `src/worker.tsx`, `lib/auth.ts`, `src/pages/VerifyEmail.tsx`, `progress.txt`
+- **Learnings for future iterations:**
+  - Better Auth `verifyEmail` errors may surface as `token_expired`/`invalid_token`; map these to friendly UI messages.
+  - Keep `callbackURL` redirects in app routes (Better Auth applies origin checks).
+---
+
+## [2026-01-14 04:52] - core-c0v
+- Updated `rwsdk` from `^1.0.0-beta.9` to `^1.0.0-beta.48`.
+- Reviewed RedwoodSDK release notes for breaking changes (client navigation callback rename, prefetch rel update) and verified we don't use impacted APIs.
+- Ran `bun run build` and `bun test` to confirm upgrade is clean.
+- Files changed: `package.json`, `bun.lock`, `progress.txt`
+- **Learnings for future iterations:**
+  - RedwoodSDK `v1.0.0-beta.45` introduced breaking changes around client navigation callback and prefetch link rel; grep for `onHydrationUpdate` and `rel=\"prefetch\"` during upgrades.
+---
+
+## [2026-01-14 05:30] - core-e0b
+- Added per-team-member site access control via `team_member.allowed_site_ids` (defaults to `["all"]`).
+- Filtered `session.userSites` at login time so UI + API access automatically respects allowed sites.
+- Added Settings UI to let admins pick allowed sites per member.
+- Browser verified: admin can set allowed sites; member only sees assigned sites on Dashboard.
+- Files changed: `db/d1/schema.ts`, `db/d1/sites.ts`, `db/d1/teams.ts`, `db/d1/migrations/0013_sudden_nitro.sql`, `src/api/team_api.ts`, `src/app/Settings.tsx`, `src/utilities/route_interuptors.ts`, `lib/auth.ts`, `progress.txt`
+- **Learnings for future iterations:**
+  - Enforce per-member access by filtering `userSites` in `getSitesForUser()` so every downstream caller (dashboard routes, selector, etc.) stays consistent.
+  - For multi-selects with an "All" option, strip `all` when a specific option is selected to avoid sticky selection.
+---

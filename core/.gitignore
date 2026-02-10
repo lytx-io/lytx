@@ -1,0 +1,10 @@
+.env
+.env.prod
+.dev.vars
+lytx.config.json
+*.bak
+node_modules/
+dist/
+.wrangler/
+.alchemy/
+tmp/
