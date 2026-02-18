@@ -1,4 +1,8 @@
-import type { SiteDurableObject } from "@lytx/core";
+import {
+	resolveLytxResourceNames,
+	type LytxResourceStagePosition,
+	type SiteDurableObject,
+} from "@lytx/core";
 
 import alchemy from "alchemy";
 import {
@@ -10,7 +14,8 @@ import {
 	Worker,
 } from "alchemy/cloudflare";
 
-const app = await alchemy("lytx");
+const alchemyAppName = process.env.LYTX_APP_NAME ?? "lytx";
+const app = await alchemy(alchemyAppName);
 if (app.local && app.stage !== "dev") {
 	throw new Error(`Refusing local run on non-dev stage: ${app.stage}`);
 }
@@ -21,41 +26,64 @@ const repo_path = "../core";
 
 const adapter = "durable_object";
 
-const siteDurableObject = DurableObjectNamespace<SiteDurableObject>("site-durable-object", {
+const stagePositionRaw = process.env.LYTX_RESOURCE_STAGE_POSITION;
+const stagePosition: LytxResourceStagePosition =
+	stagePositionRaw === "prefix" || stagePositionRaw === "suffix" || stagePositionRaw === "none"
+		? stagePositionRaw
+		: "none";
+
+const resourceNames = resolveLytxResourceNames({
+	stage: app.stage,
+	prefix: process.env.LYTX_RESOURCE_PREFIX,
+	suffix: process.env.LYTX_RESOURCE_SUFFIX,
+	stagePosition,
+	overrides: {
+		workerName: process.env.LYTX_WORKER_NAME,
+		durableHostWorkerName: process.env.LYTX_DURABLE_HOST_WORKER_NAME,
+		durableObjectNamespaceName: process.env.LYTX_DURABLE_OBJECT_NAMESPACE_NAME,
+		d1DatabaseName: process.env.LYTX_D1_DATABASE_NAME,
+		eventsKvNamespaceName: process.env.LYTX_KV_EVENTS_NAME,
+		configKvNamespaceName: process.env.LYTX_KV_CONFIG_NAME,
+		sessionsKvNamespaceName: process.env.LYTX_KV_SESSIONS_NAME,
+		eventsQueueName: process.env.LYTX_QUEUE_NAME,
+	},
+});
+
+const siteDurableObject = DurableObjectNamespace<SiteDurableObject>(resourceNames.durableObjectNamespaceName, {
 	className: "SiteDurableObject",
 	sqlite: true,
 });
 
-const lytxKv = await KVNamespace("LYTX_EVENTS", {
+const lytxKv = await KVNamespace(resourceNames.eventsKvNamespaceName, {
 	adopt: adoptMode,
 	delete: deleteMode,
 });
 
-const lytx_config = await KVNamespace("lytx_config", {
+const lytx_config = await KVNamespace(resourceNames.configKvNamespaceName, {
 	adopt: adoptMode,
 	delete: deleteMode,
 });
 
-const siteEventsQueue = await Queue("site-events-queue", {
-	name: "site-events-queue",
+const siteEventsQueue = await Queue(resourceNames.eventsQueueName, {
+	name: resourceNames.eventsQueueName,
 	adopt: adoptMode,
 	delete: deleteMode,
 });
 
-const lytx_sessions = await KVNamespace("lytx_sessions", {
+const lytx_sessions = await KVNamespace(resourceNames.sessionsKvNamespaceName, {
 	adopt: adoptMode,
 	delete: deleteMode,
 });
 
-const lytxCoreDb = await D1Database("lytx-core-db", {
-	name: "lytx-core-db",
+const lytxCoreDb = await D1Database(resourceNames.d1DatabaseName, {
+	name: resourceNames.d1DatabaseName,
 	migrationsDir: `${repo_path}/db/d1/migrations`,
 	adopt: adoptMode,
 	delete: deleteMode,
 });
 
 const localDurableHost = app.local
-	? await Worker("lytx-app-do-host", {
+	? await Worker(resourceNames.durableHostWorkerName, {
 		entrypoint: `${repo_path}/endpoints/site_do_worker.ts`,
 		bindings: {
 			SITE_DURABLE_OBJECT: siteDurableObject,
@@ -65,7 +93,7 @@ const localDurableHost = app.local
 	})
 	: undefined;
 
-export const worker = await Redwood("lytx-app", {
+export const worker = await Redwood(resourceNames.workerName, {
 	adopt: false,
 	// url: false,
 	noBundle: false,

@@ -65,6 +65,8 @@ export default app satisfies ExportedHandler<Env>;
 - `domains.app` + `domains.tracking` (typed host/domain values)
 - `startupValidation.*` + `env.*` (startup env requirement checks with field-level errors)
 
+For deployment scripts, use `resolveLytxResourceNames(...)` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
+
 ## Quick start — manual composition (advanced)
 
 This drops the entire Lytx analytics platform into your Redwood app. Copy-paste into your `src/worker.tsx` and adjust as needed.
@@ -292,6 +294,32 @@ Your `wrangler.jsonc` (or `alchemy.run.ts`) needs these bindings for the full st
 | `lytx_sessions` | KV Namespace | Session storage |
 | `SITE_EVENTS_QUEUE` | Queue | Async event ingestion |
 | `SITE_DURABLE_OBJECT` | Durable Object | Per-site event aggregation |
+
+### Resource naming strategy
+
+Resource binding keys in worker code stay fixed (`LYTX_EVENTS`, `lytx_config`, etc.), but physical Cloudflare resource names can be configured deterministically in `alchemy.run.ts` via `resolveLytxResourceNames`.
+
+Supported naming env vars:
+
+```env
+# Optional global strategy
+LYTX_RESOURCE_PREFIX=
+LYTX_RESOURCE_SUFFIX=
+# one of: prefix | suffix | none
+LYTX_RESOURCE_STAGE_POSITION=none
+
+# Optional per-resource overrides
+LYTX_WORKER_NAME=
+LYTX_DURABLE_HOST_WORKER_NAME=
+LYTX_DURABLE_OBJECT_NAMESPACE_NAME=
+LYTX_D1_DATABASE_NAME=
+LYTX_KV_EVENTS_NAME=
+LYTX_KV_CONFIG_NAME=
+LYTX_KV_SESSIONS_NAME=
+LYTX_QUEUE_NAME=
+```
+
+This keeps naming deterministic across deploys and avoids accidental resource drift between stages.
 
 ### Environment variables
 

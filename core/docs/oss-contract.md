@@ -38,6 +38,8 @@ The following are supported under semantic versioning guarantees (see policy bel
 ### Middleware, auth, durable objects, and types
 
 - `createLytxApp`, `CreateLytxAppConfig`
+- `resolveLytxResourceNames`, `DEFAULT_LYTX_RESOURCE_NAMES`
+- `LytxResourceNames`, `LytxResourceNamingOptions`, `LytxResourceStagePosition`
 - `authMiddleware`, `sessionMiddleware`
 - `auth`
 - `checkIfTeamSetupSites`, `onlyAllowGetPost`
@@ -94,6 +96,8 @@ The contract supports configuring and binding these Cloudflare resources in cons
 Consumers may choose deployment-level names, but the runtime bindings exposed to the worker must match the expected binding keys above.
 
 `createLytxApp(config)` includes typed `names.*` validation for resource/binding naming, with field-level startup errors when invalid.
+
+`resolveLytxResourceNames(options)` is the supported deterministic naming strategy helper for deployment scripts, including stage-based prefixes/suffixes and per-resource overrides.
 
 ### Domain and environment configuration
 
