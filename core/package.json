@@ -36,6 +36,16 @@
       "import": "./index.ts",
       "default": "./index.ts"
     },
+    "./worker": {
+      "types": "./src/worker.tsx",
+      "import": "./src/worker.tsx",
+      "default": "./src/worker.tsx"
+    },
+    "./db/durable/siteDurableObject": {
+      "types": "./db/durable/siteDurableObject.ts",
+      "import": "./db/durable/siteDurableObject.ts",
+      "default": "./db/durable/siteDurableObject.ts"
+    },
     "./package.json": "./package.json"
   },
   "bin": {

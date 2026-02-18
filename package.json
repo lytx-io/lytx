@@ -1,0 +1,10 @@
+{
+  "name": "lytx-kit",
+  "workspaces": [
+    "core",
+    "demo"
+  ],
+  "scripts": {
+    "dev": "bun --filter core dev"
+  }
+}
