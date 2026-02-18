@@ -126,6 +126,12 @@ Inspired by [TigerStyle](https://github.com/tigerbeetle/tigerbeetle/blob/main/do
 - Explain *why* the code exists, not *what* it does
 - Document non-obvious thresholds, timing values, protocol details
 
+## Dev Server Policy
+
+- NEVER run local dev servers (`bun alchemy dev`, `bun run dev`, `vite dev`, `wrangler dev`, etc.).
+- Ask the human user to run dev servers and share output/screenshots/logs when needed.
+- If runtime verification is required, provide exact commands for the human to run instead of running them directly.
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
