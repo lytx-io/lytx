@@ -2,9 +2,18 @@
 
 Open-source web analytics platform built on [RedwoodSDK](https://rwsdk.com) (rwsdk) and Cloudflare Workers. Ship a full analytics dashboard — event ingestion, dashboards, team management, auth — inside your own Redwood app.
 
+## OSS contract
+
+The supported public API surface for `@lytx/core` is documented in `core/docs/oss-contract.md`.
+
+- Contract doc: [`docs/oss-contract.md`](./docs/oss-contract.md)
+- Read this first before relying on any non-root or deep import path.
+
 ## How it works
 
-`@lytx/core` exports every route, page, component, middleware, and Durable Object as individual named exports. **It does not export a Cloudflare fetch handler.** You import only the pieces you want into your own `src/worker.tsx`, wire them into `defineApp`, and deploy with your existing rwsdk toolchain.
+`@lytx/core` exports route, page, component, middleware, and Durable Object building blocks as named exports from the package root. The primary integration path is to import these into your own `src/worker.tsx`, wire them into `defineApp`, and deploy with your existing rwsdk toolchain.
+
+An experimental pre-wired worker entrypoint also exists at `@lytx/core/worker`; this entrypoint is intentionally not part of the stable API contract.
 
 Think of it like a parts catalog: pull in the full analytics stack, or cherry-pick just the event ingestion API and build your own UI.
 

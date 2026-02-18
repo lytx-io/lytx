@@ -1,4 +1,4 @@
-import type { SiteDurableObject } from "@lytx/core/db/durable/siteDurableObject";
+import type { SiteDurableObject } from "@lytx/core";
 
 import alchemy from "alchemy";
 import {
