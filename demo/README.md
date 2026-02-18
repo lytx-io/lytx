@@ -2,6 +2,8 @@
 
 This workspace is a minimal starter template for consuming `@lytx/core` with Alchemy + RedwoodSDK.
 
+For full setup and troubleshooting guidance, see `core/docs/self-host-quickstart.md`.
+
 Template files:
 
 - `demo/src/worker.tsx`

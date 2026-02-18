@@ -7,6 +7,7 @@ Open-source web analytics platform built on [RedwoodSDK](https://rwsdk.com) (rws
 The supported public API surface for `@lytx/core` is documented in `core/docs/oss-contract.md`.
 
 - Contract doc: [`docs/oss-contract.md`](./docs/oss-contract.md)
+- Self-host quickstart: [`docs/self-host-quickstart.md`](./docs/self-host-quickstart.md)
 - Read this first before relying on any non-root or deep import path.
 
 ## How it works
