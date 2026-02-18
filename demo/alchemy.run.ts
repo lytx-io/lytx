@@ -13,6 +13,11 @@ import {
 	Queue,
 	Worker,
 } from "alchemy/cloudflare";
+import path from "node:path";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const coreRoot = path.dirname(require.resolve("@lytx/core/package.json"));
 
 const alchemyAppName = process.env.LYTX_APP_NAME ?? "lytx";
 const app = await alchemy(alchemyAppName);
@@ -22,7 +27,6 @@ if (app.local && app.stage !== "dev") {
 
 const adoptMode = false;
 const deleteMode = true;
-const repo_path = "../core";
 
 const adapter = "durable_object";
 
@@ -80,14 +84,14 @@ const lytx_sessions = await KVNamespace(resourceNames.sessionsKvNamespaceName, {
 
 const lytxCoreDb = await D1Database(resourceNames.d1DatabaseName, {
 	name: resourceNames.d1DatabaseName,
-	migrationsDir: `${repo_path}/db/d1/migrations`,
+	migrationsDir: `${coreRoot}/db/d1/migrations`,
 	adopt: adoptMode,
 	delete: deleteMode,
 });
 
 const localDurableHost = app.local
 	? await Worker(resourceNames.durableHostWorkerName, {
-		entrypoint: `${repo_path}/endpoints/site_do_worker.ts`,
+		entrypoint: `${coreRoot}/endpoints/site_do_worker.ts`,
 		bindings: {
 			SITE_DURABLE_OBJECT: siteDurableObject,
 			lytx_core_db: lytxCoreDb,

@@ -1,15 +1,38 @@
-# demo
+# @lytx/core Consumer Starter
 
-To install dependencies:
+This workspace is a minimal starter template for consuming `@lytx/core` with Alchemy + RedwoodSDK.
+
+Template files:
+
+- `demo/src/worker.tsx`
+- `demo/vite.config.ts`
+- `demo/alchemy.run.ts`
+
+The starter uses only public root exports from `@lytx/core` (`createLytxApp`, `SiteDurableObject`, `SyncDurableObject`, and `resolveLytxResourceNames`).
+
+## Quick start
+
+1. Install dependencies:
 
 ```bash
 bun install
 ```
 
-To run:
+2. Create local env file:
 
 ```bash
-bun run index.ts
+cp .env.example .env
 ```
 
-This project was created using `bun init` in bun v1.3.8. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+3. Fill required secrets in `.env`.
+
+4. Run locally:
+
+```bash
+bun run dev
+```
+
+## Notes
+
+- `alchemy.run.ts` supports deterministic resource naming (`LYTX_RESOURCE_*`) and optional app/tracking domains (`LYTX_APP_DOMAIN`, `LYTX_TRACKING_DOMAIN`).
+- `src/worker.tsx` uses `createLytxApp(...)`, including optional tracking route prefix via `tagRoutes.pathPrefix`.

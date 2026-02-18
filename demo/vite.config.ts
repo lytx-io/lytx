@@ -1,12 +1,14 @@
 import path from "node:path";
+import { createRequire } from "node:module";
 import { build } from "esbuild";
 import { defineConfig, type Plugin } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import alchemy from "alchemy/cloudflare/redwood";
 
+const require = createRequire(import.meta.url);
 const VIRTUAL_MODULE_ID = "virtual:lytx-pixel-raw";
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_MODULE_ID}`;
-const coreRoot = path.resolve(__dirname, "../core");
+const coreRoot = path.dirname(require.resolve("@lytx/core/package.json"));
 
 function lytxPixelBundlePlugin(): Plugin {
   let cachedFull: string | null = null;
@@ -62,14 +64,24 @@ async function bundlePixelScript(entryFile: "lytxpixel.ts" | "lytxpixel-core.ts"
     minify: true,
   });
 
-  return result.outputFiles[0].text
+  const bundled = result.outputFiles[0];
+  if (!bundled) {
+    throw new Error(`Failed to bundle template script: ${entryFile}`);
+  }
+
+  return bundled.text
     .replace(/export\s*\{([^}]+)\};?/g, (_match, exports) => {
       return exports
         .split(",")
         .map((exp: string) => {
           const parts = exp.trim().split(/\s+as\s+/);
           if (parts.length === 2) {
-            return `var ${parts[1].trim()}=${parts[0].trim()};`;
+            const source = parts[0]?.trim();
+            const target = parts[1]?.trim();
+            if (!source || !target) {
+              return "";
+            }
+            return `var ${target}=${source};`;
           }
           return "";
         })
@@ -81,20 +93,20 @@ async function bundlePixelScript(entryFile: "lytxpixel.ts" | "lytxpixel-core.ts"
 
 export default defineConfig({
   plugins: [lytxPixelBundlePlugin(), alchemy(), tailwindcss()],
-  publicDir: path.resolve(__dirname, "../core/public"),
+  publicDir: path.resolve(coreRoot, "public"),
   resolve: {
     alias: {
       "@/Document": path.resolve(__dirname, "./src/Document.tsx"),
-      "@": path.resolve(__dirname, "../core/src"),
-      "@cli": path.resolve(__dirname, "../core/cli"),
-      "@app": path.resolve(__dirname, "../core/src/app"),
-      "@utilities": path.resolve(__dirname, "../core/src/utilities"),
-      "@components": path.resolve(__dirname, "../core/src/app/components"),
-      "@pages": path.resolve(__dirname, "../core/src/pages"),
-      "@api": path.resolve(__dirname, "../core/src/api"),
-      "@lib": path.resolve(__dirname, "../core/lib"),
-      "@db": path.resolve(__dirname, "../core/db"),
-      "@generated": path.resolve(__dirname, "../core/generated"),
+      "@": path.resolve(coreRoot, "src"),
+      "@cli": path.resolve(coreRoot, "cli"),
+      "@app": path.resolve(coreRoot, "src/app"),
+      "@utilities": path.resolve(coreRoot, "src/utilities"),
+      "@components": path.resolve(coreRoot, "src/app/components"),
+      "@pages": path.resolve(coreRoot, "src/pages"),
+      "@api": path.resolve(coreRoot, "src/api"),
+      "@lib": path.resolve(coreRoot, "lib"),
+      "@db": path.resolve(coreRoot, "db"),
+      "@generated": path.resolve(coreRoot, "generated"),
     },
   },
   server: {

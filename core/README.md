@@ -248,6 +248,10 @@ export default {
 } satisfies ExportedHandler<Env>;
 ```
 
+## Consumer starter template
+
+For a copy/paste starter workspace (worker + vite + `alchemy.run.ts`) that uses public root exports, see `demo/README.md`.
+
 ## Minimal setup — event ingestion only
 
 If you only need the tracking pixel and event API (no dashboard UI):
