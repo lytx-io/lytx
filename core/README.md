@@ -253,7 +253,7 @@ Your `wrangler.jsonc` (or `alchemy.run.ts`) needs these bindings for the full st
 
 ### Environment variables
 
-Add these to your `.dev.vars` (local) or worker secrets (production):
+Add these to your `.env` (local) or worker secrets (production):
 
 ```env
 # Required
@@ -274,6 +274,13 @@ RESEND_API_KEY=...
 AI_API_KEY=...
 AI_BASE_URL=...
 AI_MODEL=...
+AI_DAILY_TOKEN_LIMIT=
+
+# Report builder toggle (optional)
+# Set to `true` to enable report routes and UI
+REPORT_BUILDER=false
+# Set to `false` to hide Ask AI while keeping report builder enabled
+ASK_AI=true
 
 # Misc
 LYTX_DOMAIN=localhost:5173

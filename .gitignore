@@ -1,2 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
 .zig-cache/
 zig-out/
+
+# Environment
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Cloudflare / Alchemy
+.wrangler/
+.alchemy/
+
+# Generated config
+lytx.config.json
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+tmp/
