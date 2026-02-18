@@ -1,0 +1,23 @@
+{
+  "name": "demo",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun alchemy dev --stage dev"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@lytx/core": "workspace:*",
+    "@tailwindcss/vite": "^4.1.8",
+    "alchemy": "^0.84.0",
+    "esbuild": "^0.27.2",
+    "rwsdk": "1.0.0-beta.49",
+    "vite": "^7.3.1"
+  }
+}
