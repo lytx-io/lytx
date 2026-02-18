@@ -2,7 +2,7 @@
 
 This workspace is a minimal starter template for consuming `@lytx/core` with Alchemy + RedwoodSDK.
 
-For full setup and troubleshooting guidance, see `core/docs/self-host-quickstart.md`.
+For full setup and troubleshooting guidance, see `../core/docs/self-host-quickstart.md`.
 
 Template files:
 
@@ -14,21 +14,29 @@ The starter uses only public root exports from `@lytx/core` (`createLytxApp`, `S
 
 ## Quick start
 
-1. Install dependencies:
+1. Enter the demo workspace:
+
+```bash
+cd demo
+```
+
+2. Install dependencies:
 
 ```bash
 bun install
 ```
 
-2. Create local env file:
+3. Create local env file:
 
 ```bash
 cp .env.example .env
 ```
 
-3. Fill required secrets in `.env`.
+4. Fill required secrets in `.env`.
 
-4. Run locally:
+Important: set `BETTER_AUTH_URL` to the exact origin your app is served from (for example `http://localhost:5173` locally and your production URL in deployed environments).
+
+5. Run locally:
 
 ```bash
 bun run dev
@@ -37,4 +45,5 @@ bun run dev
 ## Notes
 
 - `alchemy.run.ts` supports deterministic resource naming (`LYTX_RESOURCE_*`) and optional app/tracking domains (`LYTX_APP_DOMAIN`, `LYTX_TRACKING_DOMAIN`).
+- Modular feature flags (`LYTX_FEATURE_*`) default to enabled in `alchemy.run.ts` when unset.
 - `src/worker.tsx` uses `createLytxApp(...)`, including optional tracking route prefix via `tagRoutes.pathPrefix`.
