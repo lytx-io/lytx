@@ -33,6 +33,8 @@ Every breaking or behaviorally significant change must include:
 - impact summary
 - migration guidance
 
+Migration instructions are maintained in `docs/migration-guide.md`.
+
 ## Compatibility matrix
 
 The matrix below defines expected compatibility targets for current releases.

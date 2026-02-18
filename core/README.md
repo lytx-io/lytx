@@ -9,6 +9,7 @@ The supported public API surface for `@lytx/core` is documented in `core/docs/os
 - Contract doc: [`docs/oss-contract.md`](./docs/oss-contract.md)
 - Self-host quickstart: [`docs/self-host-quickstart.md`](./docs/self-host-quickstart.md)
 - Semver/release policy: [`docs/release-policy.md`](./docs/release-policy.md)
+- Upgrade/migration guide: [`docs/migration-guide.md`](./docs/migration-guide.md)
 - Read this first before relying on any non-root or deep import path.
 
 ## How it works
