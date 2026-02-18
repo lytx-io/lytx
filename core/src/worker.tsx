@@ -37,7 +37,15 @@ import type { DBAdapter } from "@db/types";
 import { IS_DEV } from "rwsdk/constants";
 import type { AppContext, AppRequestInfo } from "@/types/app-context";
 import { handleQueueMessage } from "@/api/queueWorker";
-import { isAskAiEnabled, isReportBuilderEnabled } from "@/lib/featureFlags";
+import {
+  isAiFeatureEnabled,
+  isAskAiEnabled,
+  isAuthEnabled,
+  isDashboardEnabled,
+  isEventsEnabled,
+  isReportBuilderEnabled,
+  isTagScriptEnabled,
+} from "@/lib/featureFlags";
 import { parseCreateLytxAppConfig } from "@/config/createLytxAppConfig";
 import type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
 import type { DashboardResponseData } from "@db/tranformReports";
@@ -144,6 +152,11 @@ const appRoute = <TPath extends string>(
 export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
   const enableRequestLogging = parsed_config.enableRequestLogging ?? IS_DEV;
+  const authEnabled = parsed_config.features?.auth ?? isAuthEnabled();
+  const dashboardEnabled = authEnabled && (parsed_config.features?.dashboard ?? isDashboardEnabled());
+  const eventsEnabled = parsed_config.features?.events ?? isEventsEnabled();
+  const aiEnabled = dashboardEnabled && (parsed_config.features?.ai ?? isAiFeatureEnabled());
+  const tagScriptEnabled = parsed_config.features?.tagScript ?? isTagScriptEnabled();
   const tagRouteDbAdapter = parsed_config.tagRoutes?.dbAdapter ?? DEFAULT_TAG_DB_ADAPTER;
   const tagRouteQueueIngestionEnabled = parsed_config.tagRoutes?.useQueueIngestion ?? true;
   const includeLegacyTagRoutes = parsed_config.tagRoutes?.includeLegacyRoutes ?? true;
@@ -151,27 +164,32 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const legacyTagScriptPath = parsed_config.tagRoutes?.legacyScriptPath ?? DEFAULT_LEGACY_TAG_SCRIPT_PATH;
   const trackWebEventPath = parsed_config.tagRoutes?.eventPath ?? DEFAULT_TRACK_WEB_EVENT_PATH;
   const legacyTrackWebEventPath = parsed_config.tagRoutes?.legacyEventPath ?? DEFAULT_LEGACY_TRACK_WEB_EVENT_PATH;
-  const reportBuilderEnabled = parsed_config.features?.reportBuilderEnabled ?? isReportBuilderEnabled();
-  const askAiEnabled = parsed_config.features?.askAiEnabled ?? (reportBuilderEnabled && isAskAiEnabled());
+  const reportBuilderEnabled =
+    dashboardEnabled && (parsed_config.features?.reportBuilderEnabled ?? isReportBuilderEnabled());
+  const askAiEnabled =
+    aiEnabled && (parsed_config.features?.askAiEnabled ?? (reportBuilderEnabled && isAskAiEnabled()));
 
   const tagRoutes: Array<
     typeof legacyContainerRoute | ReturnType<typeof lytxTag> | ReturnType<typeof trackWebEvent>
   > = [];
 
-  if (includeLegacyTagRoutes) {
+  if (includeLegacyTagRoutes && tagScriptEnabled) {
     tagRoutes.push(legacyContainerRoute);
   }
 
-  tagRoutes.push(
-    lytxTag(tagRouteDbAdapter, tagScriptPath),
-    trackWebEvent(tagRouteDbAdapter, trackWebEventPath, { useQueue: tagRouteQueueIngestionEnabled }),
-  );
+  if (tagScriptEnabled) {
+    tagRoutes.push(lytxTag(tagRouteDbAdapter, tagScriptPath));
+  }
+
+  if (eventsEnabled) {
+    tagRoutes.push(trackWebEvent(tagRouteDbAdapter, trackWebEventPath, { useQueue: tagRouteQueueIngestionEnabled }));
+  }
 
   if (includeLegacyTagRoutes) {
-    if (legacyTagScriptPath !== tagScriptPath) {
+    if (tagScriptEnabled && legacyTagScriptPath !== tagScriptPath) {
       tagRoutes.push(lytxTag(tagRouteDbAdapter, legacyTagScriptPath));
     }
-    if (legacyTrackWebEventPath !== trackWebEventPath) {
+    if (eventsEnabled && legacyTrackWebEventPath !== trackWebEventPath) {
       tagRoutes.push(
         trackWebEvent(tagRouteDbAdapter, legacyTrackWebEventPath, { useQueue: tagRouteQueueIngestionEnabled }),
       );
@@ -184,22 +202,30 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
     },
     //NOTE: API ROUTES / no component or html rendering
     ...tagRoutes,
-    eventsApi,
+    ...(eventsEnabled ? [eventsApi] : []),
     seedApi,
-    route("/api/auth/*", (r) => authMiddleware(r)),
-  resendVerificationEmailRoute,
-  userApiRoutes,
+    ...(authEnabled
+      ? [
+        route("/api/auth/*", (r) => authMiddleware(r)),
+        resendVerificationEmailRoute,
+        userApiRoutes,
+      ]
+      : []),
   render<AppRequestInfo>(Document, [
     route("/", [
       onlyAllowGetPost, () => {
         return <Home />;
       },
     ]),
-    route("/signup", [
-      onlyAllowGetPost, () => {
-        return <Signup />;
-      },
-    ]),
+    ...(authEnabled
+      ? [
+        route("/signup", [
+          onlyAllowGetPost, () => {
+            return <Signup />;
+          },
+        ]),
+      ]
+      : []),
     route("/get-started", [
       onlyAllowGetPost, () => {
         return <GetStarted />;
@@ -215,96 +241,99 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
         return <TermsOfService />;
       },
     ]),
-    route("/login", [
-      onlyAllowGetPost,
-      () => {
-        return <Login />;
-      },
-    ]),
-    route("/verify-email", [
-      onlyAllowGetPost,
-      async ({ request }) => {
-        const requestId = crypto.randomUUID();
-        const url = new URL(request.url);
-        const token = url.searchParams.get("token") || "";
+    ...(authEnabled
+      ? [
+        route("/login", [
+          onlyAllowGetPost,
+          () => {
+            return <Login />;
+          },
+        ]),
+        route("/verify-email", [
+          onlyAllowGetPost,
+          async ({ request }) => {
+            const requestId = crypto.randomUUID();
+            const url = new URL(request.url);
+            const token = url.searchParams.get("token") || "";
 
-        const callbackURL = url.searchParams.get("callbackURL") || undefined;
-        const safeCallbackURL =
-          callbackURL && callbackURL.startsWith("/") && !callbackURL.includes("://")
-            ? callbackURL
-            : undefined;
+            const callbackURL = url.searchParams.get("callbackURL") || undefined;
+            const safeCallbackURL =
+              callbackURL && callbackURL.startsWith("/") && !callbackURL.includes("://")
+                ? callbackURL
+                : undefined;
 
-        if (!token) {
-          if (IS_DEV) console.warn("Email verification failed: missing token", { requestId });
-          return (
-            <VerifyEmail
-              status={{
-                type: "error",
-                message:
-                  "That verification link is missing a token. Please request a new verification email.",
-                callbackURL: safeCallbackURL,
-              }}
-            />
-          );
-        }
+            if (!token) {
+              if (IS_DEV) console.warn("Email verification failed: missing token", { requestId });
+              return (
+                <VerifyEmail
+                  status={{
+                    type: "error",
+                    message:
+                      "That verification link is missing a token. Please request a new verification email.",
+                    callbackURL: safeCallbackURL,
+                  }}
+                />
+              );
+            }
 
-        try {
-          await auth.api.verifyEmail({
-            query: {
-              token,
-            },
-          });
+            try {
+              await auth.api.verifyEmail({
+                query: {
+                  token,
+                },
+              });
 
-          return (
-            <VerifyEmail
-              status={{
-                type: "success",
-                message: "Your email has been verified. You can continue.",
-                callbackURL: safeCallbackURL,
-              }}
-            />
-          );
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "";
-          const normalized = message.toLowerCase();
+              return (
+                <VerifyEmail
+                  status={{
+                    type: "success",
+                    message: "Your email has been verified. You can continue.",
+                    callbackURL: safeCallbackURL,
+                  }}
+                />
+              );
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "";
+              const normalized = message.toLowerCase();
 
-          const friendlyMessage =
-            normalized.includes("token_expired") || normalized.includes("expired")
-              ? "That verification link has expired. Please request a new verification email."
-              : normalized.includes("invalid_token") || normalized.includes("invalid")
-                ? "That verification link is invalid. Please request a new verification email."
-                : normalized.includes("user_not_found")
-                  ? "We couldn't find an account for that link. Please request a new verification email."
-                  : "We couldn't verify your email. Please request a new verification email.";
+              const friendlyMessage =
+                normalized.includes("token_expired") || normalized.includes("expired")
+                  ? "That verification link has expired. Please request a new verification email."
+                  : normalized.includes("invalid_token") || normalized.includes("invalid")
+                    ? "That verification link is invalid. Please request a new verification email."
+                    : normalized.includes("user_not_found")
+                      ? "We couldn't find an account for that link. Please request a new verification email."
+                      : "We couldn't verify your email. Please request a new verification email.";
 
-          if (IS_DEV) console.warn("Email verification failed", {
-            requestId,
-            error: error instanceof Error ? { name: error.name, message: error.message } : error,
-            tokenPresent: Boolean(token),
-          });
+              if (IS_DEV) console.warn("Email verification failed", {
+                requestId,
+                error: error instanceof Error ? { name: error.name, message: error.message } : error,
+                tokenPresent: Boolean(token),
+              });
 
-          return (
-            <VerifyEmail
-              status={{
-                type: "error",
-                message: friendlyMessage,
-                callbackURL: safeCallbackURL,
-              }}
-            />
-          );
-        }
-      },
-    ]),
-    layout(AppLayout, [
+              return (
+                <VerifyEmail
+                  status={{
+                    type: "error",
+                    message: friendlyMessage,
+                    callbackURL: safeCallbackURL,
+                  }}
+                />
+              );
+            }
+          },
+        ]),
+      ]
+      : []),
+    ...(dashboardEnabled
+      ? [layout(AppLayout, [
       sessionMiddleware,
       //PERF: This API PREFIX REQUIRES AUTHENTICATION
       prefix<"/api", AppRequestInfo>("/api", [
         world_countries,
         getDashboardDataRoute,
         getCurrentVisitorsRoute,
-        aiConfigRoute,
-        aiChatRoute,
-        aiTagSuggestRoute,
+        ...(aiEnabled ? [aiConfigRoute, aiChatRoute, aiTagSuggestRoute] : []),
         siteEventsSqlRoute,
         siteEventsSchemaRoute,
         eventLabelsApi,
@@ -476,12 +505,16 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
             ]),
           ]),
       ]),
-      appRoute("/dashboard/events", [
-        checkIfTeamSetupSites,
-        async (_info) => {
-          return <EventsPage />;
-        },
-      ]),
+      ...(eventsEnabled
+        ? [
+          appRoute("/dashboard/events", [
+            checkIfTeamSetupSites,
+            async (_info) => {
+              return <EventsPage />;
+            },
+          ]),
+        ]
+        : []),
       appRoute("/dashboard/new-site", [
         (_info) => {
           return <NewSiteSetup />;
@@ -591,11 +624,15 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
           );
         },
       ]),
-      appRoute("/admin/events", [
-        ({ request }) => {
-          return Response.redirect(new URL("/dashboard/events", request.url).toString(), 308);
-        },
-      ]),
+      ...(eventsEnabled
+        ? [
+          appRoute("/admin/events", [
+            ({ request }) => {
+              return Response.redirect(new URL("/dashboard/events", request.url).toString(), 308);
+            },
+          ]),
+        ]
+        : []),
       appRoute("/new-site", [
         ({ request }) => {
           return Response.redirect(new URL("/dashboard/new-site", request.url).toString(), 308);
@@ -611,7 +648,8 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
           return Response.redirect(new URL("/dashboard/explore", request.url).toString(), 308);
         },
       ]),
-    ]),
+    ])]
+      : []),
 
     //NOTE: Put anything thats not a get above this
     // route("/:page", async ({ params, request }) => {

@@ -75,6 +75,11 @@ The following are not supported for external consumers and can change at any tim
 
 - `REPORT_BUILDER`: enables report-builder routes and UI.
 - `ASK_AI`: toggles Ask AI surfaces when report builder is enabled.
+- `LYTX_FEATURE_DASHBOARD`: enables authenticated dashboard shell/routes.
+- `LYTX_FEATURE_EVENTS`: enables events API and dashboard events surfaces.
+- `LYTX_FEATURE_AUTH`: enables auth routes/pages.
+- `LYTX_FEATURE_AI`: enables AI routes/features.
+- `LYTX_FEATURE_TAG_SCRIPT`: enables tag script routes.
 - `createLytxApp(config)` validates feature overrides at startup and fails fast on invalid combinations.
 
 ### Resource naming and bindings

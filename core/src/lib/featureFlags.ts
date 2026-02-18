@@ -26,21 +26,44 @@ const readRawFlag = (keys: string[]) => {
   return undefined;
 };
 
-export const isReportBuilderEnabled = () => {
-  const raw = readRawFlag(["REPORT_BUILDER"]);
-  return isEnabled(raw);
-};
-
-export const isAskAiEnabled = () => {
-  const raw = readRawFlag(["ASK_AI", "ASK_AI_ENABLED"]);
+const resolveFlag = (keys: string[], defaultValue: boolean) => {
+  const raw = readRawFlag(keys);
 
   if (raw === undefined || raw === null) {
-    return true;
+    return defaultValue;
   }
 
   if (typeof raw === "string" && raw.trim().length === 0) {
-    return true;
+    return defaultValue;
   }
 
   return isEnabled(raw);
+};
+
+export const isReportBuilderEnabled = () => {
+  return resolveFlag(["REPORT_BUILDER"], false);
+};
+
+export const isAskAiEnabled = () => {
+  return resolveFlag(["ASK_AI", "ASK_AI_ENABLED"], true);
+};
+
+export const isDashboardEnabled = () => {
+  return resolveFlag(["LYTX_FEATURE_DASHBOARD", "LYTX_DASHBOARD"], true);
+};
+
+export const isEventsEnabled = () => {
+  return resolveFlag(["LYTX_FEATURE_EVENTS", "LYTX_EVENTS_ENABLED"], true);
+};
+
+export const isAuthEnabled = () => {
+  return resolveFlag(["LYTX_FEATURE_AUTH", "LYTX_AUTH_ENABLED"], true);
+};
+
+export const isAiFeatureEnabled = () => {
+  return resolveFlag(["LYTX_FEATURE_AI", "LYTX_AI_ENABLED"], true);
+};
+
+export const isTagScriptEnabled = () => {
+  return resolveFlag(["LYTX_FEATURE_TAG_SCRIPT", "LYTX_TAG_SCRIPT_ENABLED"], true);
 };

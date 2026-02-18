@@ -55,6 +55,7 @@ export default app satisfies ExportedHandler<Env>;
 
 `createLytxApp` supports:
 
+- `features.dashboard`, `features.events`, `features.auth`, `features.ai`, `features.tagScript`
 - `tagRoutes.dbAdapter` (`"sqlite" | "postgres" | "singlestore" | "analytics_engine"`)
 - `tagRoutes.useQueueIngestion` (`true`/`false`)
 - `tagRoutes.includeLegacyRoutes` (`true` by default for `/lytx.js` and `/trackWebEvent` compatibility)
@@ -322,6 +323,13 @@ AI_DAILY_TOKEN_LIMIT=
 REPORT_BUILDER=false
 # Set to `false` to hide Ask AI while keeping report builder enabled
 ASK_AI=true
+
+# Modular feature toggles (optional)
+LYTX_FEATURE_DASHBOARD=true
+LYTX_FEATURE_EVENTS=true
+LYTX_FEATURE_AUTH=true
+LYTX_FEATURE_AI=true
+LYTX_FEATURE_TAG_SCRIPT=true
 
 # Misc
 LYTX_DOMAIN=localhost:5173

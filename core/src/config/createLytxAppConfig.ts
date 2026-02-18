@@ -52,6 +52,11 @@ const createLytxAppConfigSchema = z
       .optional(),
     features: z
       .object({
+        dashboard: z.boolean().optional(),
+        events: z.boolean().optional(),
+        auth: z.boolean().optional(),
+        ai: z.boolean().optional(),
+        tagScript: z.boolean().optional(),
         reportBuilderEnabled: z.boolean().optional(),
         askAiEnabled: z.boolean().optional(),
       })
@@ -96,6 +101,30 @@ const createLytxAppConfigSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.features?.dashboard === true && value.features?.auth === false) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["features", "dashboard"],
+        message: "Dashboard cannot be enabled when auth is disabled",
+      });
+    }
+
+    if (value.features?.reportBuilderEnabled === true && value.features?.dashboard === false) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["features", "reportBuilderEnabled"],
+        message: "Report builder cannot be enabled when dashboard is disabled",
+      });
+    }
+
+    if (value.features?.ai === false && value.features?.askAiEnabled === true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["features", "askAiEnabled"],
+        message: "Ask AI cannot be enabled when AI feature is disabled",
+      });
+    }
+
     if (value.features?.askAiEnabled === true && value.features?.reportBuilderEnabled === false) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
