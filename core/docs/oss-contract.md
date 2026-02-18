@@ -124,6 +124,7 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
   1. Mark export/path as deprecated in docs and changelog.
   2. Keep compatibility for at least one minor release when feasible.
   3. Remove in next major release unless urgent security/runtime constraints require faster action.
+- Release process and compatibility maintenance details are defined in `docs/release-policy.md`.
 - Consumer guidance:
   - Prefer root exports over subpaths.
   - Avoid deep imports into `src/`, `db/`, `lib/`, `endpoints/`, and other internals.
