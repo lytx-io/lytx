@@ -1,22 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertBanner } from "@/app/components/ui/AlertBanner";
+import { useMemo } from "react";
 import { CreateReportStarter } from "@/app/components/reports/CreateReportStarter";
+import { AskAiWorkspace } from "@/app/components/reports/AskAiWorkspace";
 import type { ReportBuilderActionId } from "@/app/components/ui/ReportBuilderMenu";
 
 type ReportBuilderWorkspaceProps = {
   activeReportBuilderItemId: ReportBuilderActionId;
+  initialAiConfigured?: boolean;
+  initialAiModel?: string;
 };
 
-const reportWorkspaceCopy: Record<Exclude<ReportBuilderActionId, "create-report">, { title: string; description: string }> = {
+const reportWorkspaceCopy: Partial<Record<Exclude<ReportBuilderActionId, "create-report">, { title: string; description: string }>> = {
   "create-reference": {
     title: "Create reference",
     description: "Reference report setup is next. This route is now separated and ready for dedicated UI.",
-  },
-  "ask-ai": {
-    title: "Ask AI",
-    description: "AI-assisted report setup is next. This route is now separated and ready for dedicated UI.",
   },
   "create-dashboard": {
     title: "Create dashboard",
@@ -28,9 +26,11 @@ const reportWorkspaceCopy: Record<Exclude<ReportBuilderActionId, "create-report"
   },
 };
 
-export function ReportBuilderWorkspace({ activeReportBuilderItemId }: ReportBuilderWorkspaceProps) {
-  const [notice, setNotice] = useState<string | null>(null);
-
+export function ReportBuilderWorkspace({
+  activeReportBuilderItemId,
+  initialAiConfigured = false,
+  initialAiModel = "",
+}: ReportBuilderWorkspaceProps) {
   const inactiveCopy = useMemo(
     () =>
       activeReportBuilderItemId === "create-report"
@@ -51,17 +51,13 @@ export function ReportBuilderWorkspace({ activeReportBuilderItemId }: ReportBuil
             window.location.assign(`/dashboard/reports/custom/new?${query.toString()}`);
           }}
         />
-
-        {notice ? (
-          <div className="fixed bottom-4 right-4 z-[60] w-[min(24rem,calc(100vw-2rem))]">
-            <AlertBanner
-              tone="info"
-              message={notice}
-              onDismiss={() => setNotice(null)}
-            />
-          </div>
-        ) : null}
       </>
+    );
+  }
+
+  if (activeReportBuilderItemId === "ask-ai") {
+    return (
+      <AskAiWorkspace initialAiConfigured={initialAiConfigured} initialAiModel={initialAiModel} />
     );
   }
 

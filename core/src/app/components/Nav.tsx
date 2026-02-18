@@ -10,6 +10,16 @@ type TeamInfo = {
   external_id?: number | null;
 };
 
+export type NavInitialSession = {
+  user?: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  } | null;
+  team?: TeamInfo | null;
+  all_teams?: TeamInfo[] | null;
+};
+
 const LAST_TEAM_KEY = "lytx_last_team_id";
 
 const getLastTeamFromStorage = (): number | null => {
@@ -29,7 +39,11 @@ const saveLastTeamToStorage = (teamId: number): void => {
   }
 };
 
-export function Nav() {
+type NavProps = {
+  initialSession?: NavInitialSession | null;
+};
+
+export function Nav({ initialSession = null }: NavProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isTeamMenuOpen, setIsTeamMenuOpen] = useState(false);
@@ -41,7 +55,8 @@ export function Nav() {
   const [activeTeamId, setActiveTeamId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
-  const { data: session, refetch, setCurrentSite } = useContext(AuthContext);
+  const { data: authSession, refetch, setCurrentSite } = useContext(AuthContext);
+  const session = authSession ?? initialSession;
   const user = session?.user as { name?: string | null; email?: string | null; image?: string | null } | undefined;
   const sessionTeamId = session?.team?.id ?? null;
   const rawTeams = (session?.all_teams ?? []) as TeamInfo[];
@@ -378,7 +393,7 @@ export function Nav() {
                       onMouseLeave={() => setIsTeamMenuOpen(false)}
                     >
                       <span
-                        className="absolute right-full top-0 h-full w-3"
+                        className="pointer-events-none absolute -right-3 -top-2 h-[calc(100%+1rem)] w-3"
                         aria-hidden="true"
                       />
                       <button
@@ -405,7 +420,7 @@ export function Nav() {
                         </svg>
                       </button>
                       <div
-                        className={`absolute right-full top-0 mr-0 w-64 min-w-[16rem] rounded-md border border-[var(--theme-border-primary)] bg-[var(--theme-bg-primary)] shadow-lg z-[90] ${isTeamMenuOpen ? "block" : "hidden"
+                        className={`absolute right-full -top-1 -mr-0.5 w-64 min-w-[16rem] rounded-md border border-[var(--theme-border-primary)] bg-[var(--theme-bg-primary)] shadow-lg z-[90] ${isTeamMenuOpen ? "block" : "hidden"
                           }`}
                       >
                         <div className="px-3 pt-2 text-[11px] uppercase tracking-wide text-[var(--theme-text-secondary)]">

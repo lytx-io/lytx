@@ -1,5 +1,4 @@
-import type { RequestInfo } from "rwsdk/worker";
-import type { AppContext } from "@/worker";
+import { prefix, route } from "rwsdk/router";
 import { d1_client } from "@db/d1/client";
 import { customReports } from "@db/d1/schema";
 import { and, desc, eq } from "drizzle-orm";
@@ -22,7 +21,7 @@ const parseReportUuidFromPath = (requestUrl: string) => {
   return decodeURIComponent(raw);
 };
 
-const listOrCreateCustomReports = route<RequestInfo<any, AppContext>>("/reports/custom", [
+const listOrCreateCustomReports = route("/reports/custom", [
   async ({ request, ctx }) => {
     if (request.method === "GET") {
       const url = new URL(request.url);
@@ -140,7 +139,7 @@ const listOrCreateCustomReports = route<RequestInfo<any, AppContext>>("/reports/
   },
 ]);
 
-const getOrUpdateCustomReport = route<RequestInfo<any, AppContext>>("/reports/custom/*", [
+const getOrUpdateCustomReport = route("/reports/custom/*", [
   async ({ request, ctx }) => {
     const reportUuid = parseReportUuidFromPath(request.url);
     if (!reportUuid) {
@@ -164,16 +163,36 @@ const getOrUpdateCustomReport = route<RequestInfo<any, AppContext>>("/reports/cu
     }
 
     const report = existing[0];
-    const site = getSiteFromContext(ctx, report.site_id);
-    if (!site) {
-      return new Response(JSON.stringify({ error: "Site not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
+    if (request.method !== "DELETE") {
+      const site = getSiteFromContext(ctx, report.site_id);
+      if (!site) {
+        return new Response(JSON.stringify({ error: "Site not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
 
     if (request.method === "GET") {
       return new Response(JSON.stringify({ report }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (request.method === "DELETE") {
+      if (ctx.user_role === "viewer") {
+        return new Response(JSON.stringify({ error: "You need editor or admin permissions to delete reports" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      await d1_client
+        .delete(customReports)
+        .where(eq(customReports.id, report.id));
+
+      return new Response(JSON.stringify({ uuid: reportUuid }), {
+        status: 200,
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -253,7 +272,7 @@ const getOrUpdateCustomReport = route<RequestInfo<any, AppContext>>("/reports/cu
   },
 ]);
 
-export const reportsApi = prefix<"/", RequestInfo<any, AppContext>>("/", [
+export const reportsApi = prefix("/", [
   listOrCreateCustomReports,
   getOrUpdateCustomReport,
 ]);

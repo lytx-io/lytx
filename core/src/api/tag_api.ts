@@ -3,7 +3,7 @@ import type { RequestInfo } from "rwsdk/worker";
 import { env } from "cloudflare:workers";
 import { IS_DEV } from "rwsdk/constants";
 import { parseBrowser, parseOs, parseDeviceType, parseUserAgent } from "@/utilities/detector";
-import type { AppContext } from "@/worker";
+import type { AppContext } from "@/types/app-context";
 import { type PageEvent, } from "@/templates/lytxpixel";
 
 

@@ -1,6 +1,5 @@
-import { defineApp, type RequestInfo } from "rwsdk/worker";
+import { defineApp } from "rwsdk/worker";
 import { route, render, prefix, layout } from "rwsdk/router";
-import type { ExportedHandler } from "cloudflare:workers";
 import { Document } from "@/Document";
 import { DashboardPage } from "@/app/Dashboard";
 import { EventsPage } from "@/app/Events";
@@ -13,8 +12,8 @@ import { AppLayout } from "@/app/Layout";
 import { eventsApi } from "@api/events_api";
 import { seedApi } from "@api/seed_api";
 import { team_dashboard_endpoints } from "@api/team_api";
-import { world_countries, getCurrentVisitorsRoute, getDashboardDataRoute, siteEventsSqlRoute, siteEventsSchemaRoute } from "@api/sites_api";
-import { aiChatRoute, aiConfigRoute, aiTagSuggestRoute } from "@api/ai_api";
+import { world_countries, getCurrentVisitorsRoute, getDashboardDataCore, getDashboardDataRoute, siteEventsSqlRoute, siteEventsSchemaRoute } from "@api/sites_api";
+import { aiChatRoute, aiConfigRoute, aiTagSuggestRoute, getAiConfig } from "@api/ai_api";
 import { resendVerificationEmailRoute, userApiRoutes } from "@api/auth_api";
 import { eventLabelsApi } from "@api/event_labels_api";
 import { reportsApi } from "@api/reports_api";
@@ -34,32 +33,111 @@ import { DashboardWorkspaceLayout } from "@/app/components/reports/DashboardWork
 import { ReportBuilderWorkspace } from "@/app/components/reports/ReportBuilderWorkspace";
 import { CustomReportBuilderPage } from "@/app/components/reports/custom/CustomReportBuilderPage";
 import { checkIfTeamSetupSites, onlyAllowGetPost } from "@utilities/route_interuptors";
-import type { AuthUserSession } from "@lib/auth";
-import type { DBAdapter, UserRole } from "@db/types";
+import type { DBAdapter } from "@db/types";
 import { IS_DEV } from "rwsdk/constants";
-import type { SitesContext, TeamContext } from "@db/d1/sites";
+import type { AppContext, AppRequestInfo } from "@/types/app-context";
 import { handleQueueMessage } from "@/api/queueWorker";
+import { isAskAiEnabled, isReportBuilderEnabled } from "@/lib/featureFlags";
+import type { DashboardResponseData } from "@db/tranformReports";
+import { parseDateParam } from "@/utilities/dashboardParams";
+import { getTeamSettings } from "@db/d1/teams";
+import { d1_client } from "@db/d1/client";
+import { user } from "@db/d1/schema";
+import { eq } from "drizzle-orm";
 export { SyncDurableObject } from "@/session/durableObject";
 export { SiteDurableObject } from "@db/durable/siteDurableObject";
 
 //TODO: Define things on context and create a middleware function where users can set adapters and override defaults
-export type AppContext = {
-  session: AuthUserSession;
-  initial_site_setup: boolean;
-  sites: SitesContext | null;
-  team: TeamContext;
-  blink_id: string;
-  user_role: UserRole;
-  //Site Events Accounts live in sqlite
-  db_adapter: DBAdapter;
-};
+export type { AppContext };
 
 //PERF: for the lib these need to be passed as options
 const tagRouteDbAdapter: DBAdapter = "sqlite";
 const tagRouteQueueIngestionEnabled = true;
 
+type ToolbarSiteOption = {
+  site_id: number;
+  name: string;
+  tag_id: string;
+};
 
-type AppRequestInfo = RequestInfo<any, AppContext>;
+const getInitialToolbarState = (ctx: AppContext) => {
+  const initialSites: ToolbarSiteOption[] = (ctx.sites ?? []).map((site) => ({
+    site_id: site.site_id,
+    name: site.name || `Site ${site.site_id}`,
+    tag_id: site.tag_id,
+  }));
+
+  const preferredSiteId = (ctx.session as any)?.last_site_id ?? null;
+  const initialSiteId = initialSites.some((site) => site.site_id === preferredSiteId)
+    ? preferredSiteId
+    : (initialSites[0]?.site_id ?? null);
+
+  return {
+    initialSites,
+    initialSiteId,
+  };
+};
+
+const resolvePreferredTimeZone = (value: unknown): string => {
+  if (typeof value !== "string" || value.trim().length === 0) return "UTC";
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value.trim() });
+    return value.trim();
+  } catch {
+    return "UTC";
+  }
+};
+
+const resolveUserTimeZoneForServerRender = async (
+  ctx: AppContext,
+  fallbackTimeZone?: unknown,
+): Promise<string> => {
+  try {
+    const dbUser = await d1_client
+      .select({ timezone: user.timezone })
+      .from(user)
+      .where(eq(user.id, ctx.session.user.id))
+      .limit(1);
+
+    if (dbUser[0]?.timezone) {
+      return resolvePreferredTimeZone(dbUser[0].timezone);
+    }
+  } catch (error) {
+    if (IS_DEV) {
+      console.log("🔥🔥🔥 failed to resolve user timezone for server render", error);
+    }
+  }
+
+  const sessionTimeZone = (ctx.session as any)?.timezone;
+  const candidate =
+    typeof sessionTimeZone === "string" && sessionTimeZone.trim().length > 0
+      ? sessionTimeZone
+      : fallbackTimeZone;
+
+  return resolvePreferredTimeZone(candidate);
+};
+
+const getDateStringInTimeZone = (date: Date, timeZone: string): string => {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+};
+
+const appRoute = <TPath extends string>(
+  path: TPath,
+  handlers: Parameters<typeof route<TPath, AppRequestInfo>>[1],
+) => route<TPath, AppRequestInfo>(path, handlers);
+const reportBuilderEnabled = isReportBuilderEnabled();
+const askAiEnabled = reportBuilderEnabled && isAskAiEnabled();
 
 const app = defineApp<AppRequestInfo>([
   ({ request }) => {
@@ -71,9 +149,9 @@ const app = defineApp<AppRequestInfo>([
   lytxTag(tagRouteDbAdapter, "/lytx.js"),
   trackWebEvent(tagRouteDbAdapter, "/trackWebEvent.v2", { useQueue: tagRouteQueueIngestionEnabled }),
   trackWebEvent(tagRouteDbAdapter, "/trackWebEvent", { useQueue: tagRouteQueueIngestionEnabled }),
-  eventsApi,
-  seedApi,
-  route("/api/auth/*", (r) => authMiddleware(r)),
+        eventsApi,
+        seedApi,
+        route("/api/auth/*", (r) => authMiddleware(r)),
   resendVerificationEmailRoute,
   userApiRoutes,
   render<AppRequestInfo>(Document, [
@@ -195,7 +273,7 @@ const app = defineApp<AppRequestInfo>([
         siteEventsSqlRoute,
         siteEventsSchemaRoute,
         eventLabelsApi,
-        reportsApi,
+        ...(reportBuilderEnabled ? [reportsApi] : []),
         ///api/sites
         //PERF: Add method to api prefix outside of sessionMiddleware loop
         newSiteSetup(),
@@ -204,113 +282,296 @@ const app = defineApp<AppRequestInfo>([
       onlyAllowGetPost,
       route("/dashboard", [
         checkIfTeamSetupSites,
-        ({ request }) => {
+        async ({ request, ctx }) => {
           const pathname = new URL(request.url).pathname;
           if (pathname === "/dashboard/") {
             return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
           }
-          return <DashboardPage activeReportBuilderItemId="create-report" />;
+
+          const toolbarState = getInitialToolbarState(ctx);
+          const timezone = await resolveUserTimeZoneForServerRender(
+            ctx,
+            (request as Request & { cf?: { timezone?: string } }).cf?.timezone,
+          );
+          const today = getDateStringInTimeZone(new Date(), timezone);
+          const todayStart = parseDateParam(today, { timeZone: timezone, boundary: "start" });
+          const todayEnd = parseDateParam(today, { timeZone: timezone, boundary: "end" });
+
+          let initialDashboardData: DashboardResponseData | null = null;
+          if (toolbarState.initialSiteId && todayStart && todayEnd) {
+            try {
+          const dashboardDataResult = await getDashboardDataCore({
+                ctx,
+                requestId: crypto.randomUUID(),
+                siteIdValue: toolbarState.initialSiteId,
+                dateStartValue: todayStart,
+                dateEndValue: todayEnd,
+                rawDateEnd: today,
+                normalizedTimezone: timezone,
+                normalizedDeviceType: null,
+                normalizedCountry: null,
+                normalizedSource: null,
+                normalizedPageUrl: null,
+                normalizedCity: null,
+                normalizedRegion: null,
+                normalizedEventName: null,
+                normalizedEventSummaryLimit: 50,
+                normalizedEventSummaryOffset: 0,
+                normalizedEventSummaryType: "all",
+                normalizedEventSummaryAction: "all",
+                normalizedEventSummarySortBy: "count",
+                normalizedEventSummarySortDirection: "desc",
+                eventSummarySearch: "",
+              });
+
+              if (dashboardDataResult.ok) {
+                initialDashboardData = dashboardDataResult.data;
+              }
+            } catch (error) {
+              if (IS_DEV) {
+                console.log("🔥🔥🔥 failed to prefetch today dashboard", error);
+              }
+            }
+          }
+
+          return (
+            <DashboardPage
+              activeReportBuilderItemId="create-report"
+              reportBuilderEnabled={reportBuilderEnabled}
+              askAiEnabled={askAiEnabled}
+              initialToolbarSites={toolbarState.initialSites}
+              initialToolbarSiteId={toolbarState.initialSiteId}
+              initialDashboardDateRange={{
+                start: today,
+                end: today,
+                preset: "Today",
+              }}
+              initialTimezone={timezone}
+              initialDashboardData={initialDashboardData}
+            />
+          );
         },
       ]),
-      layout(DashboardWorkspaceLayout, [
-        route("/dashboard/reports", [
-          ({ request }) => {
-            return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
-          },
-        ]),
-        route("/dashboard/reports/custom/new", [
-          checkIfTeamSetupSites,
-          ({ request }) => {
-            const url = new URL(request.url);
-            const template = url.searchParams.get("template");
-            return <CustomReportBuilderPage initialTemplate={template} />;
-          },
-        ]),
-        route("/dashboard/reports/custom/*", [
-          checkIfTeamSetupSites,
-          ({ request }) => {
-            const pathname = new URL(request.url).pathname;
-            const marker = "/dashboard/reports/custom/";
-            const reportUuid = pathname.includes(marker)
-              ? decodeURIComponent(pathname.slice(pathname.indexOf(marker) + marker.length))
-              : "";
+      layout<AppRequestInfo>(DashboardWorkspaceLayout, [
+        ...(reportBuilderEnabled
+          ? [
+            appRoute("/dashboard/reports", [
+              ({ request }) => {
+                return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+              },
+            ]),
+            appRoute("/dashboard/reports/custom/new", [
+              checkIfTeamSetupSites,
+              ({ request }) => {
+                const url = new URL(request.url);
+                const template = url.searchParams.get("template");
+                return <CustomReportBuilderPage initialTemplate={template} />;
+              },
+            ]),
+            appRoute("/dashboard/reports/custom/*", [
+              checkIfTeamSetupSites,
+              ({ request }) => {
+                const pathname = new URL(request.url).pathname;
+                const marker = "/dashboard/reports/custom/";
+                const reportUuid = pathname.includes(marker)
+                  ? decodeURIComponent(pathname.slice(pathname.indexOf(marker) + marker.length))
+                  : "";
 
-            if (!reportUuid || reportUuid.includes("/") || reportUuid === "new") {
-              return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
-            }
+                if (!reportUuid || reportUuid.includes("/") || reportUuid === "new") {
+                  return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+                }
 
-            return <CustomReportBuilderPage reportUuid={reportUuid} />;
-          },
-        ]),
-        route("/dashboard/reports/create-report", [
-          checkIfTeamSetupSites,
-          () => {
-            return <ReportBuilderWorkspace activeReportBuilderItemId="create-report" />;
-          },
-        ]),
-        route("/dashboard/reports/create-reference", [
-          checkIfTeamSetupSites,
-          () => {
-            return <ReportBuilderWorkspace activeReportBuilderItemId="create-reference" />;
-          },
-        ]),
-        route("/dashboard/reports/ask-ai", [
-          checkIfTeamSetupSites,
-          () => {
-            return <ReportBuilderWorkspace activeReportBuilderItemId="ask-ai" />;
-          },
-        ]),
-        route("/dashboard/reports/create-dashboard", [
-          checkIfTeamSetupSites,
-          () => {
-            return <ReportBuilderWorkspace activeReportBuilderItemId="create-dashboard" />;
-          },
-        ]),
-        route("/dashboard/reports/create-notification", [
-          checkIfTeamSetupSites,
-          () => {
-            return <ReportBuilderWorkspace activeReportBuilderItemId="create-notification" />;
-          },
-        ]),
+                return <CustomReportBuilderPage reportUuid={reportUuid} />;
+              },
+            ]),
+            appRoute("/dashboard/reports/create-report", [
+              checkIfTeamSetupSites,
+              (_info) => {
+                return <ReportBuilderWorkspace activeReportBuilderItemId="create-report" />;
+              },
+            ]),
+            appRoute("/dashboard/reports/create-reference", [
+              checkIfTeamSetupSites,
+              (_info) => {
+                return <ReportBuilderWorkspace activeReportBuilderItemId="create-reference" />;
+              },
+            ]),
+            appRoute("/dashboard/reports/ask-ai", [
+              checkIfTeamSetupSites,
+              ({ ctx, request }) => {
+                if (!askAiEnabled) {
+                  return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+                }
+
+                const aiConfig = getAiConfig(ctx.team.id);
+                const askAiWorkspaceProps = {
+                  activeReportBuilderItemId: "ask-ai" as const,
+                  initialAiConfigured: Boolean(aiConfig),
+                  initialAiModel: aiConfig?.model ?? "",
+                } as const;
+
+                return (
+                  <ReportBuilderWorkspace {...(askAiWorkspaceProps as any)} />
+                );
+              },
+            ]),
+            appRoute("/dashboard/reports/create-dashboard", [
+              checkIfTeamSetupSites,
+              (_info) => {
+                return <ReportBuilderWorkspace activeReportBuilderItemId="create-dashboard" />;
+              },
+            ]),
+            appRoute("/dashboard/reports/create-notification", [
+              checkIfTeamSetupSites,
+              (_info) => {
+                return <ReportBuilderWorkspace activeReportBuilderItemId="create-notification" />;
+              },
+            ]),
+          ]
+          : [
+            appRoute("/dashboard/reports", [
+              ({ request }) => {
+                return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+              },
+            ]),
+            appRoute("/dashboard/reports/*", [
+              ({ request }) => {
+                return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+              },
+            ]),
+          ]),
       ]),
-      route("/dashboard/events", [
+      appRoute("/dashboard/events", [
         checkIfTeamSetupSites,
-        async () => {
+        async (_info) => {
           return <EventsPage />;
         },
       ]),
-      route("/dashboard/new-site", [
-        () => {
+      appRoute("/dashboard/new-site", [
+        (_info) => {
           return <NewSiteSetup />;
         },
       ]),
-      route("/dashboard/settings", [
-        () => {
-          return <SettingsPage />;
+      appRoute("/dashboard/settings", [
+        async ({ ctx }) => {
+          const toolbarState = getInitialToolbarState(ctx);
+          const initialCurrentSite = toolbarState.initialSites.find(
+            (site) => site.site_id === toolbarState.initialSiteId,
+          ) ?? null;
+
+          const sessionUserSites = Array.isArray((ctx.session as any).userSites)
+            ? (ctx.session as any).userSites
+            : [];
+
+          const initialUserSites = sessionUserSites.length > 0
+            ? sessionUserSites.map((site: any) => ({
+              site_id: site.site_id,
+              name: site.name ?? null,
+              domain: site.domain ?? null,
+              tag_id: site.tag_id,
+              createdAt: site.createdAt ?? null,
+            }))
+            : (ctx.sites ?? []).map((site) => ({
+              site_id: site.site_id,
+              name: site.name ?? null,
+              domain: site.domain ?? null,
+              tag_id: site.tag_id,
+              createdAt: null,
+            }));
+
+          const sessionTeam = (ctx.session as any).team as {
+            id?: number;
+            name?: string | null;
+            external_id?: number | null;
+          } | null;
+
+          let initialTimezone: string | null =
+            (ctx.session as any).timezone && typeof (ctx.session as any).timezone === "string"
+              ? (ctx.session as any).timezone
+              : null;
+
+          if (!initialTimezone) {
+            try {
+              const dbUser = await d1_client
+                .select({ timezone: user.timezone })
+                .from(user)
+                .where(eq(user.id, ctx.session.user.id))
+                .limit(1);
+              initialTimezone = dbUser[0]?.timezone ?? null;
+            } catch (error) {
+              if (IS_DEV) {
+                console.log("🔥🔥🔥 failed to prefetch user timezone", error);
+              }
+            }
+          }
+
+          const [teamSettingsResult] = await Promise.allSettled([
+            getTeamSettings(ctx.team.id),
+          ]);
+
+          const initialTeamSettings =
+            teamSettingsResult.status === "fulfilled" ? teamSettingsResult.value : null;
+          if (teamSettingsResult.status === "rejected" && IS_DEV) {
+            console.log("🔥🔥🔥 failed to prefetch team settings", teamSettingsResult.reason);
+          }
+
+          return (
+            <SettingsPage
+              initialSession={{
+                user: {
+                  name: ctx.session.user?.name ?? null,
+                  email: ctx.session.user?.email ?? null,
+                },
+                team: {
+                  id: sessionTeam?.id ?? ctx.team.id,
+                  name: sessionTeam?.name ?? ctx.team.name ?? null,
+                  external_id: sessionTeam?.external_id ?? ctx.team.external_id ?? null,
+                },
+                role: ctx.user_role,
+                timezone: initialTimezone,
+                userSites: initialUserSites,
+              }}
+              initialCurrentSite={initialCurrentSite
+                ? {
+                  id: initialCurrentSite.site_id,
+                  name: initialCurrentSite.name,
+                  tag_id: initialCurrentSite.tag_id,
+                }
+                : null}
+              initialSites={toolbarState.initialSites}
+              initialTeamSettings={initialTeamSettings}
+            />
+          );
         },
       ]),
-      route("/dashboard/explore", [
+      appRoute("/dashboard/explore", [
         checkIfTeamSetupSites,
-        () => {
-          return <ExplorePage />;
+        ({ ctx }) => {
+          const toolbarState = getInitialToolbarState(ctx);
+          return (
+            <ExplorePage
+              initialSites={toolbarState.initialSites}
+              initialSiteId={toolbarState.initialSiteId}
+            />
+          );
         },
       ]),
-      route("/admin/events", [
+      appRoute("/admin/events", [
         ({ request }) => {
           return Response.redirect(new URL("/dashboard/events", request.url).toString(), 308);
         },
       ]),
-      route("/new-site", [
+      appRoute("/new-site", [
         ({ request }) => {
           return Response.redirect(new URL("/dashboard/new-site", request.url).toString(), 308);
         },
       ]),
-      route("/settings", [
+      appRoute("/settings", [
         ({ request }) => {
           return Response.redirect(new URL("/dashboard/settings", request.url).toString(), 308);
         },
       ]),
-      route("/explore", [
+      appRoute("/explore", [
         ({ request }) => {
           return Response.redirect(new URL("/dashboard/explore", request.url).toString(), 308);
         },
@@ -337,4 +598,4 @@ const app = defineApp<AppRequestInfo>([
 export default {
   fetch: app.fetch,
   queue: handleQueueMessage,
-} satisfies ExportedHandler<Env>;
+};

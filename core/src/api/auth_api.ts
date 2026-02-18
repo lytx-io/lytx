@@ -1,6 +1,4 @@
 import { route, prefix } from "rwsdk/router";
-import type { RequestInfo } from "rwsdk/worker";
-import type { AppContext } from "@/worker";
 import { env } from "cloudflare:workers";
 import { auth } from "@lib/auth";
 import { d1_client } from "@db/d1/client";
@@ -37,7 +35,7 @@ function validateCallbackURL(callbackURL: unknown) {
  * Proxies Better Auth's `/api/auth/send-verification-email` with app-level
  * rate limiting to prevent abuse.
  */
-export const resendVerificationEmailRoute = route<RequestInfo<any, AppContext>>(
+export const resendVerificationEmailRoute = route(
   "/api/resend-verification-email",
   async ({ request }) => {
     const requestId = crypto.randomUUID();
@@ -141,7 +139,7 @@ export const resendVerificationEmailRoute = route<RequestInfo<any, AppContext>>(
  *
  * Updates the user's timezone preference.
  */
-const updateTimezoneRoute = route<RequestInfo<any, AppContext>>(
+const updateTimezoneRoute = route(
   "/update-timezone",
   [
     sessionMiddleware,
@@ -213,7 +211,7 @@ const updateTimezoneRoute = route<RequestInfo<any, AppContext>>(
  *
  * Updates the user's last selected site.
  */
-const updateLastSiteRoute = route<RequestInfo<any, AppContext>>(
+const updateLastSiteRoute = route(
   "/update-last-site",
   [
     sessionMiddleware,
@@ -286,7 +284,7 @@ const updateLastSiteRoute = route<RequestInfo<any, AppContext>>(
  *
  * Updates the user's last selected team and refreshes session cache.
  */
-const updateLastTeamRoute = route<RequestInfo<any, AppContext>>(
+const updateLastTeamRoute = route(
   "/update-last-team",
   [
     sessionMiddleware,

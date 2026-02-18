@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import { Button } from "@/app/components/ui/Button";
 import { LYTX_SCRIPT_PATH } from "@/app/constants";
@@ -52,13 +52,14 @@ function CodeBlock({
 
 export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps) {
   const [activeInstallTab, setActiveInstallTab] = useState("html");
-  const lytxDomain = useMemo(
-    () => (typeof window !== "undefined" ? window.location.origin : "https://lytx.io"),
-    [],
-  );
+  const [lytxDomain, setLytxDomain] = useState("https://lytx.io");
+
+  useEffect(() => {
+    setLytxDomain(window.location.origin);
+  }, []);
   const containerClassName = className
-    ? `border border-[var(--theme-border-primary)] rounded-lg p-6 bg-[var(--theme-bg-secondary)] ${className}`
-    : "border border-[var(--theme-border-primary)] rounded-lg p-6 bg-[var(--theme-bg-secondary)]";
+    ? `border border-[var(--theme-border-primary)] rounded-lg bg-[var(--theme-bg-secondary)] p-4 sm:p-6 ${className}`
+    : "border border-[var(--theme-border-primary)] rounded-lg bg-[var(--theme-bg-secondary)] p-4 sm:p-6";
 
   const getCodeForTab = (tab: string) => {
     switch (tab) {
@@ -81,9 +82,9 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
 
   return (
     <div className={containerClassName}>
-      <div className="flex items-start justify-between mb-4">
+      <div className="mb-4 flex items-start justify-between">
         <div className="flex-1">
-          <div className="flex items-center space-x-3 mb-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2 sm:gap-3">
             <h3 className="text-lg font-medium text-[var(--theme-text-primary)]">
               {site.name || "Selected Site"}
             </h3>
@@ -98,7 +99,7 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
             </p>
             <p>
               <span className="font-medium">Tag ID:</span>{" "}
-              <code className="bg-[var(--theme-input-bg)] px-2 py-1 rounded text-xs">
+              <code className="break-all rounded bg-[var(--theme-input-bg)] px-2 py-1 text-xs">
                 {site.tag_id}
               </code>
             </p>
@@ -111,13 +112,14 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
       </div>
 
       <div className="border-t border-[var(--theme-border-primary)] pt-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <label className="text-sm font-medium text-[var(--theme-text-primary)]">
             Installation Instructions
           </label>
           <Button
             variant="primary"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() => {
               const code = getCodeForTab(activeInstallTab);
               if (code) {
@@ -130,26 +132,28 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
           </Button>
         </div>
 
-        <div className="flex space-x-1 mb-4 bg-[var(--theme-bg-secondary)] p-1 rounded-lg">
-          {[
-            { id: "html", label: "HTML" },
-            { id: "rwsdk", label: "RWSDK" },
-            { id: "sveltekit", label: "SvelteKit" },
-            { id: "solid", label: "Solid" },
-            { id: "nextjs", label: "Next.js" },
-            { id: "nuxt", label: "Nuxt" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveInstallTab(tab.id)}
-              className={`px-3 py-2 text-xs font-medium rounded-md transition-colors ${activeInstallTab === tab.id
-                ? "bg-[var(--theme-bg-primary)] text-[var(--theme-text-primary)] shadow-sm"
-                : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text-primary)]"
-                }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="mb-4 overflow-x-auto rounded-lg bg-[var(--theme-bg-secondary)] p-1">
+          <div className="flex min-w-max space-x-1">
+            {[
+              { id: "html", label: "HTML" },
+              { id: "rwsdk", label: "RWSDK" },
+              { id: "sveltekit", label: "SvelteKit" },
+              { id: "solid", label: "Solid" },
+              { id: "nextjs", label: "Next.js" },
+              { id: "nuxt", label: "Nuxt" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveInstallTab(tab.id)}
+                className={`whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-colors ${activeInstallTab === tab.id
+                  ? "bg-[var(--theme-bg-primary)] text-[var(--theme-text-primary)] shadow-sm"
+                  : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text-primary)]"
+                  }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-4">

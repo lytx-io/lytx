@@ -3,46 +3,107 @@ import {
   initClientNavigation,
 } from "rwsdk/client";
 
-const { handleResponse, onHydrated: originalOnHydrated } = initClientNavigation({
-  scrollBehavior: "instant",
-});
-
-// Wrap onHydrated to complete any pending view transition
-const onHydrated = () => {
-  // Complete the view transition by resolving the promise
-  if ((window as any).__viewTransitionResolve) {
-    (window as any).__viewTransitionResolve();
-    (window as any).__viewTransitionResolve = null;
-  }
-  
-  // Call original onHydrated for cache management
-  originalOnHydrated();
+type NavigationRuntime = {
+  handleResponse: ReturnType<typeof initClientNavigation>["handleResponse"];
+  onHydrated: () => void;
+  clickListener: (event: MouseEvent) => void;
 };
 
-// Intercept link clicks to start view transitions BEFORE rwsdk handles them
-document.addEventListener("click", (e) => {
-  const target = e.target as HTMLElement;
-  const link = target.closest("a[href]") as HTMLAnchorElement | null;
-  
-  if (!link) return;
-  
-  // Skip external links, new tabs, modified clicks
-  const href = link.getAttribute("href");
-  if (!href || href.startsWith("http") || href.startsWith("//")) return;
-  if (link.target === "_blank") return;
-  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-  
-  // Start view transition if supported
-  if (document.startViewTransition) {
-    document.startViewTransition(() => {
+declare global {
+  interface Window {
+    __lytxNavigationRuntime?: NavigationRuntime;
+    __lytxClientInitialized?: boolean;
+    __viewTransitionResolve?: (() => void) | null;
+    __viewTransitionTimeoutId?: number | null;
+  }
+}
+
+const clearPendingViewTransition = () => {
+  if (window.__viewTransitionTimeoutId) {
+    window.clearTimeout(window.__viewTransitionTimeoutId);
+    window.__viewTransitionTimeoutId = null;
+  }
+  if (window.__viewTransitionResolve) {
+    window.__viewTransitionResolve();
+    window.__viewTransitionResolve = null;
+  }
+};
+
+const createNavigationRuntime = (): NavigationRuntime => {
+  const { handleResponse, onHydrated: originalOnHydrated } = initClientNavigation({
+    scrollBehavior: "instant",
+  });
+
+  const onHydrated = () => {
+    clearPendingViewTransition();
+    originalOnHydrated();
+  };
+
+  const clickListener = (event: MouseEvent) => {
+    const target = event.target as HTMLElement | null;
+    const link = target?.closest("a[href]") as HTMLAnchorElement | null;
+
+    if (!link) return;
+    if (link.target === "_blank" || link.hasAttribute("download")) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    const href = link.getAttribute("href");
+    if (!href || href.startsWith("//") || href.startsWith("http")) return;
+
+    const nextUrl = new URL(link.href, window.location.href);
+    const currentUrl = new URL(window.location.href);
+    if (
+      nextUrl.origin !== currentUrl.origin
+      || (nextUrl.pathname === currentUrl.pathname
+        && nextUrl.search === currentUrl.search
+        && nextUrl.hash === currentUrl.hash)
+    ) {
+      return;
+    }
+
+    const startViewTransition = (document as any).startViewTransition as
+      | ((callback: () => Promise<void>) => unknown)
+      | undefined;
+    if (!startViewTransition) return;
+
+    clearPendingViewTransition();
+    startViewTransition(() => {
       return new Promise<void>((resolve) => {
-        (window as any).__viewTransitionResolve = resolve;
+        window.__viewTransitionResolve = resolve;
+        window.__viewTransitionTimeoutId = window.setTimeout(() => {
+          clearPendingViewTransition();
+        }, 1200);
       });
     });
-  }
-}, true); // Capture phase - run BEFORE rwsdk's handler
+  };
 
-initClient({ handleResponse, onHydrated });
+  document.addEventListener("click", clickListener, true);
+
+  return {
+    handleResponse,
+    onHydrated,
+    clickListener,
+  };
+};
+
+const runtime = window.__lytxNavigationRuntime ?? createNavigationRuntime();
+window.__lytxNavigationRuntime = runtime;
+
+if (!window.__lytxClientInitialized) {
+  initClient({ handleResponse: runtime.handleResponse, onHydrated: runtime.onHydrated });
+  window.__lytxClientInitialized = true;
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (window.__lytxNavigationRuntime) {
+      document.removeEventListener("click", window.__lytxNavigationRuntime.clickListener, true);
+    }
+    window.__lytxNavigationRuntime = undefined;
+    window.__lytxClientInitialized = false;
+    clearPendingViewTransition();
+  });
+}
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {

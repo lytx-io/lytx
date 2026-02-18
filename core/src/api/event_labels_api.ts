@@ -1,6 +1,4 @@
 import { route, prefix } from "rwsdk/router";
-import type { RequestInfo } from "rwsdk/worker";
-import type { AppContext } from "@/worker";
 import { onlyAllowPost } from "@utilities/route_interuptors";
 import { d1_client } from "@db/d1/client";
 import { eventLabels } from "@db/d1/schema";
@@ -9,7 +7,7 @@ import { getSiteFromContext } from "@/api/authMiddleware";
 import { IS_DEV } from "rwsdk/constants";
 
 // GET /api/event-labels?site_id=123
-const getEventLabels = route<RequestInfo<any, AppContext>>("/event-labels", [
+const getEventLabels = route("/event-labels", [
   async ({ request, ctx }) => {
     if (request.method !== "GET") {
       return new Response("Method not allowed", { status: 405 });
@@ -48,7 +46,7 @@ const getEventLabels = route<RequestInfo<any, AppContext>>("/event-labels", [
 ]);
 
 // POST /api/event-labels/save
-const saveEventLabel = route<RequestInfo<any, AppContext>>("/event-labels/save", [
+const saveEventLabel = route("/event-labels/save", [
   onlyAllowPost,
   async ({ request, ctx }) => {
     const body = (await request.json()) as {
@@ -132,7 +130,7 @@ const saveEventLabel = route<RequestInfo<any, AppContext>>("/event-labels/save",
 ]);
 
 // POST /api/event-labels/delete
-const deleteEventLabel = route<RequestInfo<any, AppContext>>("/event-labels/delete", [
+const deleteEventLabel = route("/event-labels/delete", [
   onlyAllowPost,
   async ({ request, ctx }) => {
     const body = (await request.json()) as {
@@ -188,7 +186,7 @@ const deleteEventLabel = route<RequestInfo<any, AppContext>>("/event-labels/dele
 ]);
 
 // Group all event label routes under /api prefix
-export const eventLabelsApi = prefix<"/", RequestInfo<any, AppContext>>("/", [
+export const eventLabelsApi = prefix("/", [
   getEventLabels,
   saveEventLabel,
   deleteEventLabel,

@@ -44,7 +44,7 @@ export function MarketingNav({
 
   const navLinks = links ?? [
     { label: "Features", href: "/#features" },
-    { label: "Pricing", href: "/pricing" },
+    { label: "Get Started", href: "/signup" },
     { label: "FAQ", href: "/#faq" },
   ];
 
@@ -70,7 +70,7 @@ export function MarketingNav({
           </div>
           <div className="flex items-center space-x-4">
             <a
-              href="https://github.com/lytx-io/lytx"
+              href="https://github.com/lytx-io/kit"
               target="_blank"
               rel="noreferrer"
               className="hidden sm:inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 transition-colors"
@@ -120,8 +120,8 @@ export function MarketingNav({
               </a>
             ))}
             <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
-              <a
-                href="https://github.com/lytx-io/lytx"
+            <a
+              href="https://github.com/lytx-io/kit"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 text-base font-medium text-slate-600 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 transition-colors py-2"

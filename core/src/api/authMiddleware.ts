@@ -1,9 +1,17 @@
 // import { initSupabase } from "@/db/server";
-import { AppContext } from "@/worker";
+import type { AppContext } from "@/types/app-context";
 // import { env } from "cloudflare:workers";
 // import { route } from "rwsdk/router";
 import type { RequestInfo } from "rwsdk/worker";
 import { auth } from "@lib/auth";
+import type { UserRole } from "@db/types";
+
+const resolveUserRole = (role: unknown): UserRole => {
+    if (role === "admin" || role === "editor" || role === "viewer") {
+        return role;
+    }
+    return "viewer";
+};
 
 export function authMiddleware({ request }: RequestInfo<any, AppContext>) {
     if (["POST", "GET"].includes(request.method)) {
@@ -22,7 +30,7 @@ export async function sessionMiddleware({ request, ctx }: RequestInfo<any, AppCo
     ctx.sites = session.userSites || null;
     ctx.session = session;
     ctx.team = session.team;
-    ctx.user_role = session.role;
+    ctx.user_role = resolveUserRole(session.role);
 
 }
 

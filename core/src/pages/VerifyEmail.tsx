@@ -10,7 +10,7 @@ export function VerifyEmail({ status }: { status: VerifyEmailStatus }) {
     <div className="flex flex-col justify-center items-center py-12 font-montserrat">
       <div className="flex flex-col min-h-[200px] w-full justify-center items-center px-4">
         <div className="h-auto">
-          <span className="text-3xl font-semibold">Lytx.io</span>
+          <span className="text-3xl font-semibold">Lytx</span>
         </div>
 
         <div className="h-auto my-4 text-lg font-medium">{title}</div>

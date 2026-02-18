@@ -1,4 +1,4 @@
-import type { AppContext } from "@/worker";
+import type { AppContext } from "@/types/app-context";
 import type { RequestInfo } from "rwsdk/worker";
 
 export function checkIfTeamSetupSites({ ctx }: RequestInfo<any, AppContext>) {

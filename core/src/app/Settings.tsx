@@ -11,8 +11,7 @@ import { SiteSelector } from "@components/SiteSelector";
 // import {Site}
 import { AuthContext } from "@/app/providers/AuthProvider";
 import { SiteTagInstallCard } from "@/app/components/SiteTagInstallCard";
-import { useQuery } from "@tanstack/react-query";
-import { useChat } from "@ai-sdk/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 interface TeamMember {
   id: string;
   name: string;
@@ -21,14 +20,80 @@ interface TeamMember {
   allowed_site_ids?: Array<number | "all">;
 }
 
+export type SettingsInitialSession = {
+  user?: {
+    name?: string | null;
+    email?: string | null;
+  } | null;
+  team?: {
+    id: number;
+    name?: string | null;
+    external_id?: number | null;
+  } | null;
+  role?: UserRole | null;
+  timezone?: string | null;
+  userSites?: Array<{
+    site_id: number;
+    name?: string | null;
+    domain?: string | null;
+    tag_id: string;
+    createdAt?: string | Date | null;
+  }>;
+};
+
+export type SettingsInitialCurrentSite = {
+  id: number;
+  name: string;
+  tag_id: string;
+};
+
+export type SettingsInitialSite = {
+  site_id: number;
+  name: string;
+  tag_id: string;
+};
+
+type BillingSummary = {
+  planName: string | null;
+  status: string | null;
+  currentPeriodEnd: string | null;
+  amount: number | null;
+  currency: string | null;
+  interval: string | null;
+  portalAvailable: boolean;
+  hasSubscription: boolean;
+  usageMode: "metered" | "capped" | "none";
+  usageCap: number | null;
+  currentPeriodEvents: number | null;
+  currentPeriodBillableEvents: number | null;
+  projectedInvoiceCents: number | null;
+  projectedMaxInvoiceCents: number | null;
+};
+
+const USAGE_CAP_MIN = 1_000_000;
+const USAGE_CAP_MAX = 50_000_000;
+const USAGE_CAP_STEP = 500_000;
+
+function formatUsageNumber(value: number) {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`;
+  }
+  return `${(value / 1_000).toFixed(0)}K`;
+}
+
+
 ///team/settings
 function TeamSettings(props: {
   team_id?: number;
   isSessionLoading: boolean;
   role: UserRole;
+  currentUserEmail?: string | null;
+  initialData?: Awaited<GetTeamSettings> | null;
   onApiDataLoad?: (data: Awaited<GetTeamSettings>) => void;
 }) {
+  const queryClient = useQueryClient();
   const [memberSitesMessage, setMemberSitesMessage] = useAlertState();
+  const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
   const {
     data: apiData,
     // error: queryError,
@@ -52,23 +117,11 @@ function TeamSettings(props: {
       return response.json() as GetTeamSettings;
     },
     enabled: !props.isSessionLoading && !!props.team_id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+    initialData: props.initialData ?? undefined,
+    staleTime: 0,
+    gcTime: 0,
   });
-  const [_teamMembers, setTeamMembers] = useState<TeamMember[]>([
-    {
-      id: "1",
-      name: "John Doe",
-      email: "john@example.com",
-      role: "Admin",
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      email: "jane@example.com",
-      role: "Member",
-    },
-  ]);
+  const [memberRoles, setMemberRoles] = useState<Record<string, UserRole>>({});
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
 
   // Pass team data to parent when available
@@ -78,6 +131,83 @@ function TeamSettings(props: {
     }
   }, [apiData, props]);
 
+  useEffect(() => {
+    if (!apiData) return;
+
+    const nextRoles: Record<string, UserRole> = {};
+    for (const member of apiData.members) {
+      nextRoles[member.id] = member.role as UserRole;
+    }
+    setMemberRoles(nextRoles);
+  }, [apiData]);
+
+  const saveMemberRole = async (memberId: string, originalRole: UserRole) => {
+    const selectedRole = memberRoles[memberId] ?? originalRole;
+    if (selectedRole === originalRole) {
+      setMemberSitesMessage({
+        type: "info",
+        text: "No role changes to save.",
+      });
+      return;
+    }
+
+    setSavingMemberId(memberId);
+    try {
+      const response = await fetch("/api/team/update-member-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: memberId,
+          role: selectedRole,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        setMemberSitesMessage({
+          type: "error",
+          text: `Error updating member role: ${text}`,
+        });
+        return;
+      }
+
+      const updated = (await response.json()) as TeamMember;
+      const nextRole = (updated.role as UserRole) ?? selectedRole;
+      setMemberRoles((prev) => ({
+        ...prev,
+        [memberId]: nextRole,
+      }));
+
+      if (apiData && props.onApiDataLoad) {
+        props.onApiDataLoad({
+          ...apiData,
+          members: apiData.members.map((member) =>
+            member.id === memberId
+              ? { ...member, role: nextRole }
+              : member,
+          ),
+        });
+      }
+
+      await queryClient.invalidateQueries({
+        queryKey: ["settingPageData", props.team_id],
+      });
+
+      setMemberSitesMessage({
+        type: "success",
+        text: "Member role updated.",
+      });
+    } catch (error) {
+      console.error("Error updating member role:", error);
+      setMemberSitesMessage({
+        type: "error",
+        text: "Error updating member role.",
+      });
+    } finally {
+      setSavingMemberId(null);
+    }
+  };
+
   if (isLoading || !apiData) {
     return (
       <div className="py-8 text-center text-[var(--theme-text-secondary)]">
@@ -85,6 +215,19 @@ function TeamSettings(props: {
       </div>
     );
   }
+
+  const normalizedCurrentUserEmail = props.currentUserEmail?.trim().toLowerCase() ?? null;
+  const orderedMembers = [...apiData.members].sort((left, right) => {
+    const leftIsCurrent =
+      normalizedCurrentUserEmail !== null
+      && left.email?.toLowerCase() === normalizedCurrentUserEmail;
+    const rightIsCurrent =
+      normalizedCurrentUserEmail !== null
+      && right.email?.toLowerCase() === normalizedCurrentUserEmail;
+
+    if (leftIsCurrent === rightIsCurrent) return 0;
+    return leftIsCurrent ? -1 : 1;
+  });
 
   return (
     <div className="space-y-8">
@@ -101,25 +244,32 @@ function TeamSettings(props: {
           />
         ) : null}
         <div className="border border-[var(--theme-border-primary)] rounded-lg divide-y divide-[var(--theme-border-primary)] overflow-hidden bg-[var(--theme-bg-secondary)]/30">
-          {apiData.members.map((member) => (
-            <div
-              key={member.id}
-              className="p-4 flex flex-col sm:flex-row sm:items-start gap-4 hover:bg-[var(--theme-bg-secondary)]/50 transition-colors"
-            >
+          {orderedMembers.map((member) => {
+            const isCurrentUser =
+              normalizedCurrentUserEmail !== null
+              && member.email?.toLowerCase() === normalizedCurrentUserEmail;
+
+            return (
+              <div
+                key={member.id}
+                className={`p-4 flex flex-col sm:flex-row sm:items-start gap-4 transition-colors ${
+                  isCurrentUser
+                    ? "bg-amber-500/5"
+                    : "hover:bg-[var(--theme-bg-secondary)]/50"
+                }`}
+              >
               <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
+                  {isCurrentUser ? (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-400">
+                      Your account
+                    </div>
+                  ) : null}
                   <Input
                     disabled
                     label="Name"
                     type="text"
                     value={member.name!}
-                    onChange={(e) => {
-                      setTeamMembers((prev) =>
-                        prev.map((m) =>
-                          m.id === member.id ? { ...m, name: e.target.value } : m,
-                        ),
-                      );
-                    }}
                     placeholder="Member name"
                   />
                   <Input
@@ -127,13 +277,6 @@ function TeamSettings(props: {
                     label="Email"
                     type="email"
                     value={member.email!}
-                    onChange={(e) => {
-                      setTeamMembers((prev) =>
-                        prev.map((m) =>
-                          m.id === member.id ? { ...m, email: e.target.value } : m,
-                        ),
-                      );
-                    }}
                     placeholder="Member email"
                   />
                 </div>
@@ -144,16 +287,13 @@ function TeamSettings(props: {
                       Role
                     </label>
                     <select
-                      disabled={props.role === "admin" ? true : false}
-                      value={member.role}
+                      disabled={props.role !== "admin"}
+                      value={memberRoles[member.id] ?? (member.role as UserRole)}
                       onChange={(e) => {
-                        setTeamMembers((prev) =>
-                          prev.map((m) =>
-                            m.id === member.id
-                              ? { ...m, role: e.target.value }
-                              : m,
-                          ),
-                        );
+                        setMemberRoles((prev) => ({
+                          ...prev,
+                          [member.id]: e.target.value as UserRole,
+                        }));
                       }}
                       className="w-full px-4 py-2 bg-[var(--theme-input-bg)] border border-[var(--theme-input-border)] rounded-lg text-[var(--theme-text-primary)] focus:border-[var(--theme-border-primary)] focus:outline-none transition-colors"
                     >
@@ -261,16 +401,29 @@ function TeamSettings(props: {
 
               {props.role === "admin" && (
                 <div className="flex sm:flex-col gap-2 pt-1 sm:pt-7">
-                  <Button variant="primary" size="sm">
-                    Save
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      void saveMemberRole(member.id, member.role as UserRole);
+                    }}
+                    disabled={savingMemberId === member.id}
+                  >
+                    {savingMemberId === member.id ? "Saving..." : "Save"}
                   </Button>
-                  <Button variant="danger" size="sm">
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={isCurrentUser}
+                    title={isCurrentUser ? "You cannot remove your own account from this view." : undefined}
+                  >
                     Remove
                   </Button>
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -388,6 +541,31 @@ function TeamSettings(props: {
   );
 }
 
+function formatBillingStatus(status?: string | null) {
+  if (!status) return "Active";
+  return status
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function formatBillingAmount(amount?: number | null, currency?: string | null) {
+  if (typeof amount !== "number") return null;
+  const currencyCode = currency?.trim().toUpperCase() || "USD";
+  const locale = currencyCode === "USD" ? "en-US" : undefined;
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: 2,
+    }).format(amount / 100);
+  } catch {
+    const normalizedAmount = (amount / 100).toFixed(2);
+    return currencyCode === "USD"
+      ? `$${normalizedAmount}`
+      : `${currencyCode} ${normalizedAmount}`;
+  }
+}
+
 function useAutoDismiss<T>(
   value: T | null,
   setValue: (next: T | null) => void,
@@ -411,18 +589,440 @@ function useAlertState() {
   return [alert, setAlert] as const;
 }
 
-export function SettingsPage() {
+function BillingSection(props: {
+  teamId?: number;
+  isSessionLoading: boolean;
+  canManage: boolean;
+  initialSummary?: BillingSummary | null;
+}) {
+  const queryClient = useQueryClient();
+  const [portalError, setPortalError] = useState<string | null>(null);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  const [subscribeError, setSubscribeError] = useState<string | null>(null);
+  const [isStartingSubscription, setIsStartingSubscription] = useState(false);
+  const [capEnabled, setCapEnabled] = useState(false);
+  const [capEvents, setCapEvents] = useState(5_000_000);
+  const [capDirty, setCapDirty] = useState(false);
+  const [capError, setCapError] = useState<string | null>(null);
+  const [capWarning, setCapWarning] = useState<string | null>(null);
+  const [isSavingCap, setIsSavingCap] = useState(false);
+
+  useAutoDismiss(portalError, setPortalError);
+  useAutoDismiss(subscribeError, setSubscribeError);
+  useAutoDismiss(capError, setCapError);
+  useAutoDismiss(capWarning, setCapWarning);
+
   const {
-    data: session,
-    isPending: isSessionLoading,
-    current_site,
-    refetch,
-  } = useContext(AuthContext) || {
-    data: null,
-    isPending: true,
-    current_site: null,
-  };
-  const [teamName, setTeamName] = useState("");
+    data: billingSummary,
+    isLoading: isBillingLoading,
+    error: billingError,
+  } = useQuery({
+    queryKey: ["billingSummary", props.teamId],
+    queryFn: async () => {
+      const response = await fetch("/api/billing/summary", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || response.statusText || "Failed to load billing");
+      }
+
+      const data = (await response.json()) as BillingSummary;
+      return data;
+    },
+    enabled: !props.isSessionLoading && !!props.teamId,
+    initialData: props.initialSummary ?? undefined,
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  const hasSubscription = Boolean(billingSummary?.hasSubscription);
+  const planName = hasSubscription
+    ? billingSummary?.planName ?? "Paid plan"
+    : "Subscription required";
+  const statusLabel = hasSubscription
+    ? formatBillingStatus(billingSummary?.status)
+    : "Not subscribed";
+  const amountLabel = formatBillingAmount(billingSummary?.amount, billingSummary?.currency);
+  const intervalLabel = billingSummary?.interval ? `/${billingSummary.interval}` : "";
+  const renewalLabel = billingSummary?.currentPeriodEnd
+    ? new Date(billingSummary.currentPeriodEnd).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+    : "—";
+  const portalAvailable = Boolean(billingSummary?.portalAvailable);
+  const billingErrorMessage = billingError instanceof Error
+    ? billingError.message
+    : "Failed to load billing";
+  const showStartSubscription = props.canManage && !hasSubscription;
+  const storedCapEnabled = Boolean(
+    billingSummary?.usageMode === "capped" && typeof billingSummary?.usageCap === "number",
+  );
+  const storedCap = billingSummary?.usageCap ?? 5_000_000;
+  const capHasChanges = capEnabled !== storedCapEnabled || (capEnabled && capEvents !== storedCap);
+  const projectionCurrency = billingSummary?.currency ?? "usd";
+  const currencyCode = projectionCurrency.toUpperCase();
+  const currencyHint = currencyCode === "USD"
+    ? "All billing amounts are shown in $ USD."
+    : `All billing amounts are shown in ${currencyCode}.`;
+  const projectedInvoiceLabel =
+    typeof billingSummary?.projectedInvoiceCents === "number"
+      ? formatBillingAmount(billingSummary.projectedInvoiceCents, projectionCurrency)
+      : null;
+  const projectedMaxInvoiceLabel =
+    typeof billingSummary?.projectedMaxInvoiceCents === "number"
+      ? formatBillingAmount(billingSummary.projectedMaxInvoiceCents, projectionCurrency)
+      : null;
+  const observedEvents = billingSummary?.currentPeriodEvents;
+  const billableEvents = billingSummary?.currentPeriodBillableEvents;
+  const hasCapActive = billingSummary?.usageMode === "capped" && typeof billingSummary?.usageCap === "number";
+  const capReached =
+    hasCapActive
+    && typeof observedEvents === "number"
+    && typeof billableEvents === "number"
+    && observedEvents > billableEvents;
+
+  useEffect(() => {
+    if (!billingSummary || capDirty) return;
+    setCapEnabled(storedCapEnabled);
+    setCapEvents(storedCap);
+  }, [billingSummary, capDirty, storedCapEnabled, storedCap]);
+
+  async function handleManageBilling() {
+    setPortalError(null);
+    setIsOpeningPortal(true);
+
+    try {
+      const response = await fetch("/api/billing/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || response.statusText || "Failed to open billing portal");
+      }
+
+      const data = (await response.json()) as { url?: string };
+      if (!data.url) {
+        throw new Error("Billing portal unavailable");
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to open billing portal";
+      setPortalError(message);
+    } finally {
+      setIsOpeningPortal(false);
+    }
+  }
+
+  async function handleStartSubscription() {
+    setSubscribeError(null);
+    setIsStartingSubscription(true);
+
+    try {
+      const response = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || response.statusText || "Failed to start checkout");
+      }
+
+      const data = (await response.json()) as { url?: string };
+      if (!data.url) {
+        throw new Error("Stripe checkout unavailable");
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to start checkout";
+      setSubscribeError(message);
+    } finally {
+      setIsStartingSubscription(false);
+    }
+  }
+
+  async function handleSaveUsageCap() {
+    setCapError(null);
+    setCapWarning(null);
+    setIsSavingCap(true);
+
+    try {
+      const response = await fetch("/api/billing/usage-cap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          capEnabled,
+          usageCap: capEvents,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || response.statusText || "Failed to update usage cap");
+      }
+
+      const data = (await response.json()) as {
+        usageMode?: "metered" | "capped" | "none";
+        usageCap?: number | null;
+        warning?: string | null;
+      };
+
+      setCapEnabled(data.usageMode === "capped");
+      if (typeof data.usageCap === "number") {
+        setCapEvents(data.usageCap);
+      }
+      setCapDirty(false);
+      setCapWarning(data.warning ?? null);
+      await queryClient.invalidateQueries({ queryKey: ["billingSummary", props.teamId] });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update usage cap";
+      setCapError(message);
+    } finally {
+      setIsSavingCap(false);
+    }
+  }
+
+  return (
+    <div id="billing">
+      <Card className="p-4 sm:p-6">
+      <div className="space-y-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <h2 className="text-xl font-semibold text-[var(--theme-text-primary)]">
+              Billing
+            </h2>
+            {hasSubscription ? (
+              <span className="inline-flex items-center rounded-full border border-emerald-500/60 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600">
+                Billing active
+              </span>
+            ) : null}
+          </div>
+          <p className="text-sm text-[var(--theme-text-secondary)]">
+            View your current plan and manage billing in Stripe.
+          </p>
+        </div>
+        {props.canManage ? (
+          <div className="flex flex-wrap gap-2">
+            {showStartSubscription ? (
+              <Button
+                variant="primary"
+                onClick={handleStartSubscription}
+                disabled={isStartingSubscription || isBillingLoading}
+              >
+                {isStartingSubscription ? "Starting…" : "Start subscription"}
+              </Button>
+            ) : null}
+            <Button
+              variant={showStartSubscription ? "secondary" : "primary"}
+              onClick={handleManageBilling}
+              disabled={isOpeningPortal || isBillingLoading || !portalAvailable}
+            >
+              {isOpeningPortal ? "Opening…" : "Manage billing"}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-lg border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)] p-4">
+          <p className="text-xs uppercase tracking-wide text-[var(--theme-text-secondary)]">
+            Current plan
+          </p>
+          <p className="text-lg font-semibold text-[var(--theme-text-primary)] mt-2">
+            {isBillingLoading ? "Loading..." : planName}
+          </p>
+          <p className="text-sm text-[var(--theme-text-secondary)] mt-1">
+            {isBillingLoading
+              ? "—"
+              : amountLabel
+                ? `${amountLabel}${intervalLabel}`
+                : hasSubscription
+                  ? "Contact support for pricing"
+                  : "Complete checkout to activate"}
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)] p-4">
+          <p className="text-xs uppercase tracking-wide text-[var(--theme-text-secondary)]">
+            Status
+          </p>
+          <p className="text-lg font-semibold text-[var(--theme-text-primary)] mt-2">
+            {isBillingLoading ? "Loading..." : statusLabel}
+          </p>
+          <p className="text-sm text-[var(--theme-text-secondary)] mt-1">
+            {isBillingLoading
+              ? "Checking Stripe"
+              : portalAvailable
+                ? "Stripe linked"
+                : "Stripe not linked"}
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)] p-4">
+          <p className="text-xs uppercase tracking-wide text-[var(--theme-text-secondary)]">
+            Renewal date
+          </p>
+          <p className="text-lg font-semibold text-[var(--theme-text-primary)] mt-2">
+            {isBillingLoading ? "Loading..." : renewalLabel}
+          </p>
+          <p className="text-sm text-[var(--theme-text-secondary)] mt-1">
+            Manage payment methods in Stripe
+          </p>
+        </div>
+      </div>
+
+      <p className="text-xs text-[var(--theme-text-secondary)]">
+        {currencyHint}
+      </p>
+
+      <div className="mt-6 rounded-lg border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)]/30 p-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-[var(--theme-text-primary)]">
+              Usage cap
+            </p>
+            <p className="text-xs text-[var(--theme-text-secondary)]">
+              Stop Stripe billing after a monthly event limit. Lytx continues ingesting events.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm text-[var(--theme-text-primary)]">
+            <input
+              type="checkbox"
+              checked={capEnabled}
+              onChange={(event) => {
+                setCapEnabled(event.target.checked);
+                setCapDirty(true);
+              }}
+              disabled={!props.canManage || isBillingLoading}
+              className="h-4 w-4"
+            />
+            Enable cap
+          </label>
+        </div>
+
+        <div className={`mt-4 ${capEnabled ? "" : "opacity-60 pointer-events-none"}`}>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs text-[var(--theme-text-secondary)]">Monthly cap</span>
+            <span className="text-sm font-semibold text-[var(--theme-text-primary)]">
+              {formatUsageNumber(capEvents)} events
+            </span>
+          </div>
+          <input
+            type="range"
+            min={USAGE_CAP_MIN}
+            max={USAGE_CAP_MAX}
+            step={USAGE_CAP_STEP}
+            value={capEvents}
+            onChange={(event) => {
+              setCapEvents(Number(event.target.value));
+              setCapDirty(true);
+            }}
+            className="w-full h-2 rounded-lg bg-[var(--theme-input-bg)] accent-[var(--theme-text-primary)]"
+          />
+          <div className="flex justify-between text-xs text-[var(--theme-text-secondary)] mt-1">
+            <span>{formatUsageNumber(USAGE_CAP_MIN)}</span>
+            <span>{formatUsageNumber(USAGE_CAP_MAX)}+</span>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-xs text-[var(--theme-text-secondary)]">
+              {projectedInvoiceLabel && typeof observedEvents === "number"
+                ? `Projected this period: ${projectedInvoiceLabel} (${observedEvents.toLocaleString()} observed events${typeof billableEvents === "number" ? `, ${billableEvents.toLocaleString()} billable` : ""}).`
+                : "Projected this period: unavailable until current period usage is loaded."}
+            </p>
+            {projectedMaxInvoiceLabel ? (
+              <p className="text-xs text-[var(--theme-text-secondary)]">
+                {`Max with cap: ${projectedMaxInvoiceLabel} this month${capReached ? " (cap reached)" : ""}.`}
+              </p>
+            ) : null}
+            <p className="text-xs text-[var(--theme-text-secondary)]">
+              {capEnabled
+                ? "Billing stops at the cap until next period."
+                : "No cap applied; billing is based on actual usage."}
+            </p>
+            <p
+              className="text-xs text-[var(--theme-text-secondary)]"
+              title="Observed events are total ingested events this period. Billable events are the portion Stripe bills after applying your billing mode and usage cap."
+            >
+              Observed events are ingested volume; billable events are what Stripe charges after cap rules.
+            </p>
+          </div>
+          {props.canManage ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveUsageCap}
+              disabled={isSavingCap || isBillingLoading || !capHasChanges}
+            >
+              {isSavingCap ? "Saving…" : "Save cap"}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {billingError ? (
+        <p className="text-sm text-red-500 mt-3">{billingErrorMessage}</p>
+      ) : null}
+      {portalError ? (
+        <p className="text-sm text-red-500 mt-2">{portalError}</p>
+      ) : null}
+      {subscribeError ? (
+        <p className="text-sm text-red-500 mt-2">{subscribeError}</p>
+      ) : null}
+      {capError ? (
+        <p className="text-sm text-red-500 mt-2">{capError}</p>
+      ) : null}
+      {capWarning ? (
+        <p className="text-sm text-amber-500 mt-2">{capWarning}</p>
+      ) : null}
+      </div>
+      </Card>
+    </div>
+  );
+}
+
+type SettingsPageProps = {
+  initialSession?: SettingsInitialSession | null;
+  initialCurrentSite?: SettingsInitialCurrentSite | null;
+  initialSites?: SettingsInitialSite[];
+  initialTeamSettings?: Awaited<GetTeamSettings> | null;
+  initialBillingSummary?: BillingSummary | null;
+};
+
+export function SettingsPage({
+  initialSession = null,
+  initialCurrentSite = null,
+  initialSites = [],
+  initialTeamSettings = null,
+  initialBillingSummary = null,
+}: SettingsPageProps) {
+  const auth = useContext(AuthContext) || null;
+  const authSession = auth?.data ?? null;
+  const session = authSession ?? initialSession;
+  const currentUserEmail =
+    ((authSession as any)?.user?.email as string | undefined)
+    ?? ((authSession as any)?.email as string | undefined)
+    ?? initialSession?.user?.email
+    ?? null;
+  const sessionTeamName = authSession?.team?.name ?? initialSession?.team?.name ?? null;
+  const sessionTimezone = authSession?.timezone ?? initialSession?.timezone ?? null;
+  const isSessionLoading = (auth?.isPending ?? false) && !initialSession;
+  const current_site = auth?.current_site ?? initialCurrentSite;
+  const refetch = auth?.refetch ?? (async () => undefined);
+  const initialSiteId = initialCurrentSite?.id ?? initialSites[0]?.site_id ?? null;
+  const [teamName, setTeamName] = useState(() => sessionTeamName ?? "");
   const [teamNameMessage, setTeamNameMessage] = useAlertState();
   const [apiKeyMessage, setApiKeyMessage] = useAlertState();
   const [memberMessage, setMemberMessage] = useAlertState();
@@ -441,139 +1041,41 @@ export function SettingsPage() {
     allowed_team_members: ["all"] as string[]
   });
   const [isAddingApiKey, setIsAddingApiKey] = useState(false);
-  const [teamMembersData, setTeamMembersData] = useState<Awaited<GetTeamSettings> | null>(null);
-  // AI config + chat state
-  const [aiModel, setAiModel] = useState("");
-  const [aiConfigured, setAiConfigured] = useState(false);
-  const [aiConfigError, setAiConfigError] = useState<string | null>(null);
-
-  // AI site tagging suggestions state
-  const [aiTagUrl, setAiTagUrl] = useState("");
-  const [aiTagStatus, setAiTagStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [aiTagError, setAiTagError] = useState<string | null>(null);
-  const [aiTagResult, setAiTagResult] = useState<null | {
-    tagFound: boolean;
-    trackingOk: boolean | null;
-    aiConfigured?: boolean;
-    suggestion: string;
-    requestId?: string;
+  const [teamMembersData, setTeamMembersData] = useState<Awaited<GetTeamSettings> | null>(initialTeamSettings);
+  const [checkoutMessage, setCheckoutMessage] = useState<null | {
+    type: "success" | "error";
+    text: string;
   }>(null);
 
-  const {
-    messages: aiMessages,
-    input: aiInput,
-    handleInputChange: handleAiInputChange,
-    handleSubmit: handleAiSubmit,
-    status: aiStatus,
-    error: aiChatError,
-    setMessages: setAiMessages,
-  } = useChat({
-    api: "/api/ai/chat",
-    body: {
-      site_id: current_site?.id ?? null,
-    },
-  });
-
   useEffect(() => {
-    if (!isSessionLoading && session) {
-      void loadAiConfig();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSessionLoading, session?.team?.id]);
-
-  useEffect(() => {
-    if (!isSessionLoading && session?.team?.name) {
-      setTeamName(session.team.name);
+    if (!isSessionLoading && sessionTeamName) {
+      setTeamName(sessionTeamName);
     } else if (!isSessionLoading) {
       setTeamName("");
     }
-  }, [isSessionLoading, session?.team?.id, session?.team?.name]);
+  }, [isSessionLoading, session?.team?.id, sessionTeamName]);
 
-  async function loadAiConfig() {
-    try {
-      setAiConfigError(null);
-      const response = await fetch("/api/ai/config", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const checkoutStatus = url.searchParams.get("checkout");
+    if (!checkoutStatus) return;
+
+    if (checkoutStatus === "success") {
+      setCheckoutMessage({
+        type: "success",
+        text: "Subscription started. Stripe will confirm your billing details shortly.",
       });
-
-      if (!response.ok) {
-        const text = await response.text();
-        setAiConfigError(text || "Failed to load AI configuration");
-        return;
-      }
-
-      const data = (await response.json()) as {
-        configured: boolean;
-        model: string;
-      };
-
-      setAiConfigured(Boolean(data.configured));
-      setAiModel(data.model ?? "");
-    } catch (error) {
-      console.error("Failed to load AI config", error);
-      setAiConfigError("Failed to load AI configuration");
+    } else if (checkoutStatus === "cancel") {
+      setCheckoutMessage({
+        type: "error",
+        text: "Checkout canceled. Your subscription was not started.",
+      });
     }
-  }
 
-  async function runAiTagSuggestion() {
-    try {
-      setAiTagError(null);
-      setAiTagStatus("loading");
-      setAiTagResult(null);
-
-      if (!current_site?.id) {
-        setAiTagStatus("error");
-        setAiTagError("Select a site first.");
-        return;
-      }
-
-      if (!aiTagUrl.trim()) {
-        setAiTagStatus("error");
-        setAiTagError("Enter a URL to analyze.");
-        return;
-      }
-
-      const response = await fetch("/api/ai/site-tag-suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          site_id: current_site.id,
-          url: aiTagUrl,
-        }),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as
-          | { error?: string; requestId?: string }
-          | null;
-        setAiTagStatus("error");
-        setAiTagError(body?.error || response.statusText || "Request failed");
-        return;
-      }
-
-      const data = (await response.json()) as {
-        requestId?: string;
-        tagFound: boolean;
-        trackingOk: boolean | null;
-        aiConfigured?: boolean;
-        suggestion: string;
-      };
-
-      setAiTagResult({
-        tagFound: data.tagFound,
-        trackingOk: data.trackingOk,
-        aiConfigured: data.aiConfigured,
-        suggestion: data.suggestion,
-        requestId: data.requestId,
-      });
-      setAiTagStatus("success");
-    } catch (error) {
-      console.error("AI tag suggestion failed", error);
-      setAiTagStatus("error");
-      setAiTagError("Request failed");
-    }
-  }
+    url.searchParams.delete("checkout");
+    window.history.replaceState({}, "", url.toString());
+  }, []);
 
   // Add site form state
   const [showAddSiteForm, setShowAddSiteForm] = useState(false);
@@ -588,23 +1090,23 @@ export function SettingsPage() {
   const [isAddingSite, setIsAddingSite] = useState(false);
 
   // User timezone state
-  const [userTimezone, setUserTimezone] = useState<string>("");
+  const [userTimezone, setUserTimezone] = useState<string>(() => sessionTimezone ?? "");
   const [isUpdatingTimezone, setIsUpdatingTimezone] = useState(false);
   const [timezoneMessage, setTimezoneMessage] = useAlertState();
 
   // Initialize timezone from session, or default to browser timezone for display
   useEffect(() => {
-    if (!isSessionLoading && session) {
-      const savedTimezone = session.timezone;
-      if (savedTimezone) {
-        setUserTimezone(savedTimezone);
-      } else {
-        // Pre-fill with browser timezone as a suggested default
-        const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        setUserTimezone(browserTimezone);
-      }
+    if (isSessionLoading) return;
+
+    if (sessionTimezone) {
+      setUserTimezone(sessionTimezone);
+      return;
     }
-  }, [isSessionLoading, session]);
+
+    // Pre-fill with browser timezone as a suggested default
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    setUserTimezone(browserTimezone);
+  }, [isSessionLoading, sessionTimezone]);
 
   async function handleUpdateTimezone() {
     if (!userTimezone) return;
@@ -793,13 +1295,24 @@ export function SettingsPage() {
       ? session.userSites.find((site) => site.site_id === current_site.id)
       : null;
   return (
-    <div className="p-6 bg-[var(--theme-bg-primary)] min-h-screen">
+    <div className="bg-[var(--theme-bg-primary)] min-h-screen px-4 py-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <h1 className="text-3xl font-bold text-[var(--theme-text-primary)] mb-8">
           Settings
         </h1>
+        {checkoutMessage ? (
+          <div
+            className={`rounded-lg border px-4 py-3 text-sm font-medium ${checkoutMessage.type === "success"
+              ? "border-green-500/60 bg-green-500/10 text-green-600"
+              : "border-red-500/60 bg-red-500/10 text-red-500"
+              }`}
+          >
+            {checkoutMessage.text}
+          </div>
+        ) : null}
+
         {/* User Profile Section */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h2 className="text-xl font-semibold text-[var(--theme-text-primary)] mb-4">
             Your Profile
           </h2>
@@ -825,11 +1338,11 @@ export function SettingsPage() {
               <label className="block text-sm font-medium text-[var(--theme-text-primary)] mb-2">
                 Default Timezone
               </label>
-              <div className="flex items-center space-x-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <select
                   value={userTimezone}
                   onChange={(e) => setUserTimezone(e.target.value)}
-                  className="flex-1 px-4 py-2 bg-[var(--theme-input-bg)] border border-[var(--theme-input-border)] rounded-lg text-[var(--theme-text-primary)] focus:border-[var(--theme-border-primary)] focus:outline-none transition-colors"
+                  className="w-full min-w-0 px-4 py-2 bg-[var(--theme-input-bg)] border border-[var(--theme-input-border)] rounded-lg text-[var(--theme-text-primary)] focus:border-[var(--theme-border-primary)] focus:outline-none transition-colors sm:flex-1"
                 >
                   <option value="">Select timezone...</option>
                   {Intl.supportedValuesOf("timeZone").map((tz) => (
@@ -842,6 +1355,7 @@ export function SettingsPage() {
                   onClick={handleUpdateTimezone}
                   variant="primary"
                   disabled={isUpdatingTimezone || !userTimezone}
+                  className="w-full sm:w-auto sm:shrink-0"
                 >
                   {isUpdatingTimezone ? "Saving..." : "Save"}
                 </Button>
@@ -864,23 +1378,24 @@ export function SettingsPage() {
         </Card>
 
         {/* Team Name Section */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h2 className="text-xl font-semibold text-[var(--theme-text-primary)] mb-4">
             Team Name
           </h2>
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <Input
               type="text"
               disabled={session?.role === "admin" ? false : true}
               value={teamName}
               onChange={(event) => setTeamName(event.target.value)}
-              className="flex-1"
+              className="w-full sm:flex-1"
               placeholder="Enter team name"
             />
             {session?.role === "admin" ? (
               <Button
                 onClick={async (e) => await updateTeamName(e)}
                 variant="primary"
+                className="w-full sm:w-auto"
               >
                 Save
               </Button>
@@ -897,8 +1412,15 @@ export function SettingsPage() {
           ) : null}
         </Card>
 
+        <BillingSection
+          teamId={session?.team?.id}
+          isSessionLoading={isSessionLoading}
+          canManage={session?.role === "admin"}
+          initialSummary={initialBillingSummary}
+        />
+
         {/* Team Settings Section */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-[var(--theme-text-primary)]">
               Team Settings
@@ -1097,9 +1619,11 @@ export function SettingsPage() {
           <div className="space-y-3">
             {!isSessionLoading && session ? (
               <TeamSettings
-                team_id={session.team.id}
+                team_id={session.team?.id}
                 role={session.role as UserRole}
+                currentUserEmail={currentUserEmail}
                 isSessionLoading={isSessionLoading}
+                initialData={initialTeamSettings}
                 onApiDataLoad={setTeamMembersData}
               />
             ) : (
@@ -1112,172 +1636,9 @@ export function SettingsPage() {
           </div>
         </Card>
 
-        {/* AI Assistant Section */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-[var(--theme-text-primary)]">
-              AI Assistant
-            </h2>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="secondary"
-                onClick={() => setAiMessages([])}
-                disabled={aiStatus !== "ready"}
-              >
-                Clear Chat
-              </Button>
-            </div>
-          </div>
-
-          <p className="text-sm text-[var(--theme-text-secondary)] mb-4">
-            The assistant uses the server-configured AI SDK model. Ask questions about
-            your data; it suggests queries and explains results.
-          </p>
-
-          {aiConfigError && (
-            <div className="mb-4 p-3 rounded border border-[var(--color-danger)] text-[var(--color-danger)] bg-[var(--color-danger)] bg-opacity-10">
-              {aiConfigError}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-6">
-            <Input
-              label="Model"
-              placeholder="Configured on server"
-              value={aiModel}
-              onChange={() => undefined}
-              disabled
-              helperText="Model configured via environment"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-1 gap-4">
-            {/* Data Assistant chat */}
-            <div className="border border-[var(--theme-border-primary)] rounded-lg overflow-hidden">
-              <div className="max-h-[320px] overflow-y-auto p-4 space-y-3 bg-[var(--theme-bg-secondary)]">
-                {aiMessages.length === 0 ? (
-                  <p className="text-sm text-[var(--theme-text-secondary)]">
-                    Ask something like: “Show me top pages over last 7 days” or
-                    “Which referrers drove the most visitors?”
-                  </p>
-                ) : (
-                  aiMessages.map((m) => (
-                    <div key={m.id} className="text-sm">
-                      <div className="font-semibold text-[var(--theme-text-primary)] mb-1">
-                        {m.role}
-                      </div>
-                      <div className="text-[var(--theme-text-secondary)] whitespace-pre-wrap">
-                        {m.parts
-                          .map((part) => (part.type === "text" ? part.text : ""))
-                          .join("")}
-                      </div>
-                    </div>
-                  ))
-                )}
-                {aiChatError && (
-                  <p className="text-sm text-[var(--color-danger)]">
-                    {aiChatError.message}
-                  </p>
-                )}
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  if (!aiConfigured) {
-                    e.preventDefault();
-                    setAiConfigError("AI is not configured on the server.");
-                    return;
-                  }
-
-                  handleAiSubmit(e);
-                }}
-                className="p-3 bg-[var(--theme-bg-primary)] flex gap-2"
-              >
-                <input
-                  value={aiInput}
-                  onChange={handleAiInputChange}
-                  placeholder={aiConfigured ? "Ask about your data…" : "AI not configured"}
-                  disabled={aiStatus !== "ready" || !aiConfigured}
-                  className="flex-1 px-4 py-2 bg-[var(--theme-input-bg)] border border-[var(--theme-input-border)] rounded-lg text-[var(--theme-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-colors"
-                />
-                <Button variant="primary" disabled={aiStatus !== "ready" || !aiConfigured}>
-                  {aiStatus === "ready" ? "Send" : "…"}
-                </Button>
-              </form>
-            </div>
-
-            {/* Site tag suggestions */}
-            <div className="hidden border border-[var(--theme-border-primary)] rounded-lg p-4 bg-[var(--theme-bg-secondary)]">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-[var(--theme-text-primary)]">
-                  Tagging Suggestions
-                </h3>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setAiTagResult(null);
-                    setAiTagError(null);
-                    setAiTagStatus("idle");
-                  }}
-                  disabled={aiTagStatus === "loading"}
-                >
-                  Clear
-                </Button>
-              </div>
-
-              <Input
-                label="Page URL"
-                placeholder="https://example.com/pricing"
-                value={aiTagUrl}
-                onChange={(e) => setAiTagUrl(e.target.value)}
-                disabled={aiTagStatus === "loading"}
-                helperText="We’ll check for the Lytx tag and suggest events to track."
-              />
-
-              <div className="flex justify-end mt-3">
-                <Button
-                  variant="primary"
-                  onClick={() => void runAiTagSuggestion()}
-                  disabled={aiTagStatus === "loading"}
-                >
-                  {aiTagStatus === "loading" ? "Analyzing…" : "Analyze"}
-                </Button>
-              </div>
-
-              {aiTagError && (
-                <div className="mt-3 p-3 rounded border border-[var(--color-danger)] text-[var(--color-danger)] bg-[var(--color-danger)] bg-opacity-10">
-                  {aiTagError}
-                </div>
-              )}
-
-              {aiTagResult && (
-                <div className="mt-3 space-y-2">
-                  <div className="text-xs text-[var(--theme-text-secondary)]">
-                    <span className="font-medium text-[var(--theme-text-primary)]">Tag on page:</span>{" "}
-                    {aiTagResult.tagFound ? "Detected" : "Not detected"}
-                    {" · "}
-                    <span className="font-medium text-[var(--theme-text-primary)]">Tracking:</span>{" "}
-                    {aiTagResult.trackingOk === null
-                      ? "Unknown"
-                      : aiTagResult.trackingOk
-                        ? "Events seen"
-                        : "No events yet"}
-                    {aiTagResult.requestId ? ` · req ${aiTagResult.requestId}` : ""}
-                  </div>
-
-                  <div className="whitespace-pre-wrap text-sm text-[var(--theme-text-secondary)]">
-                    {aiTagResult.suggestion}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </Card>
-
         {/* Site Tags Section */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
+        <Card className="p-4 sm:p-6">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold text-[var(--theme-text-primary)]">
               Site Tag
             </h2>
@@ -1285,6 +1646,7 @@ export function SettingsPage() {
               <Button
                 variant={showAddSiteForm ? "secondary" : "primary"}
                 onClick={() => setShowAddSiteForm(!showAddSiteForm)}
+                className="w-full sm:w-auto"
               >
                 {showAddSiteForm ? "Cancel" : "Add New Site"}
               </Button>
@@ -1409,7 +1771,17 @@ export function SettingsPage() {
             </div>
           ) : null}
 
-          <SiteSelector />
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-[var(--theme-text-primary)] mb-2">
+              Site
+            </label>
+            <SiteSelector
+              initialSites={initialSites}
+              initialSiteId={initialSiteId}
+              wrapperClassName="w-full sm:w-[260px]"
+              selectClassName="w-full"
+            />
+          </div>
 
           <div className="space-y-6">
             {currentSiteTag ? (

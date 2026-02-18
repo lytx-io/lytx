@@ -6,7 +6,7 @@
  */
 
 import type { SiteEventInput } from "@/session/siteSchema";
-import { getDashboardDataFromDurableObject } from "@/session/durableObjectClient";
+import { getDashboardDataFromDurableObject } from "@db/durable/durableObjectClient";
 import type { DashboardOptions } from "@db/types";
 import { IS_DEV } from "rwsdk/constants";
 
@@ -218,11 +218,12 @@ export async function validateRecordCounts(
     // Get count from durable object
     const options: DashboardOptions = {
       site_id: siteId,
+      site_uuid: `site-${siteId}`,
       team_id: 1, // TODO: Get actual team_id
       date: dateRange
     };
 
-    const dashboardData = await getDashboardDataFromDurableObject(options, env);
+    const dashboardData = await getDashboardDataFromDurableObject(options);
     const durableObjectCount = dashboardData.query?.events?.length || 0;
 
     // Compare counts
@@ -283,10 +284,11 @@ export async function validateDataConsistency(
     // Get events from durable object
     const options: DashboardOptions = {
       site_id: siteId,
+      site_uuid: `site-${siteId}`,
       team_id: 1, // TODO: Get actual team_id
     };
 
-    const dashboardData = await getDashboardDataFromDurableObject(options, env);
+    const dashboardData = await getDashboardDataFromDurableObject(options);
     const durableObjectEvents = dashboardData.query?.events || [];
 
     if (durableObjectEvents.length === 0) {

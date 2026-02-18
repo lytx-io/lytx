@@ -41,14 +41,26 @@ const formatEventDate = (value: string | null, timezone: string) => {
     });
   }
 };
+
+const getAutocaptureDisplayName = (eventName: string): string => {
+  if (!eventName.startsWith("$ac_")) return eventName;
+
+  const parts = eventName.split("_");
+  const elementText = parts[2] || "unnamed";
+  const elementId = parts[3] || null;
+
+  return elementId ? `${elementText}_${elementId}` : elementText;
+};
 export const EventSummaryTable = ({
   data,
   isLoading,
   timezone,
+  labelsMap,
 }: {
   data: EventSummaryData | null | undefined;
   isLoading: boolean;
   timezone: string;
+  labelsMap?: Map<string, string>;
 }) => {
   const summary = data?.summary ?? [];
   const totalEvents = data?.totalEvents ?? 0;
@@ -154,7 +166,9 @@ export const EventSummaryTable = ({
                   className="hover:bg-(--theme-bg-secondary) transition-colors"
                 >
                   <td className="px-3 sm:px-6 py-4 text-sm text-(--theme-text-primary)">
-                    {row.event || "Unknown"}
+                    {row.event
+                      ? (labelsMap?.get(row.event) || getAutocaptureDisplayName(row.event))
+                      : "Unknown"}
                   </td>
                   <td className="px-3 sm:px-6 py-4 text-sm text-(--theme-text-primary)">
                     {row.count.toLocaleString()}

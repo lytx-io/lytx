@@ -20,15 +20,15 @@ export function MarketingFooter() {
             <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 dark:text-white">Product</h3>
             <ul className="space-y-3">
               <li><a href="/#features" className="text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">Features</a></li>
-              <li><a href="/pricing" className="text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">Pricing</a></li>
+              <li><a href="/signup" className="text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">Get Started</a></li>
               <li><a href="/#demo" className="hidden text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">Live Demo</a></li>
             </ul>
           </div>
           <div>
             <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 dark:text-white">Resources</h3>
             <ul className="space-y-3">
-              <li><a target="_blank" href="https://api.lytx.io/" className="text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">API Documentation</a></li>
-              <li><a target="_blank" href="https://github.com/lytx-io/lytx" className="text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">GitHub</a></li>
+              <li><a href="/api/docs" className="text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">API Documentation</a></li>
+              <li><a target="_blank" href="https://github.com/lytx-io/kit" className="text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">GitHub</a></li>
               <li><a href="#" className="hidden text-slate-600 hover:text-amber-600 text-sm dark:text-slate-400 dark:hover:text-amber-400">Blog</a></li>
             </ul>
           </div>

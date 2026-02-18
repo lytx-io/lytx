@@ -71,14 +71,6 @@ export function TermsOfService() {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Paid plans</h2>
-              <p>
-              If you purchase a paid plan, you agree to the pricing and billing terms presented at
-              checkout. Fees are non-refundable except where required by law.
-              </p>
-            </div>
-
-            <div className="space-y-3">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Termination</h2>
               <p>
               You may stop using the Services at any time. We may suspend or terminate access if you
@@ -111,10 +103,10 @@ export function TermsOfService() {
                 Miami, FL 33179<br />
                 Email:{" "}
                 <a
-                  href="mailto:legal@lytx.io"
+                  href="mailto:legal@yourdomain.com"
                   className="text-slate-600 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 underline underline-offset-4"
                 >
-                  legal@lytx.io
+                  legal@yourdomain.com
                 </a>
               </p>
             </div>

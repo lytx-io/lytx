@@ -7,7 +7,6 @@ import React, {
   useState,
   useCallback,
   useContext,
-  type ReactNode,
   Suspense,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -17,9 +16,9 @@ import { SiteTagInstallCard } from "@/app/components/SiteTagInstallCard";
 import { useTheme } from "@/app/providers/ThemeProvider";
 import { AlertBanner } from "@/app/components/ui/AlertBanner";
 import { DashboardToolbar } from "@/app/components/reports/DashboardToolbar";
-import type { ReportBuilderActionId } from "@/app/components/ui/ReportBuilderMenu";
+import type { ReportBuilderMenuActiveId } from "@/app/components/ui/ReportBuilderMenu";
 import { EventSummaryTable } from "@components/charts/EventSummary";
-import { ChartComponent, ChartSkeleton, CardTabs, TableComponent, getCountryFlagIcon, getBrowserTimeZone, getDateStringInTimeZone, isValidTimeZone, ScorecardSkeleton, SkeletonBlock, SpinnerIcon, HelpTooltip, DateRange, DashboardFilters, FilterModal, DashboardNotice, DatePicker, Scorecard } from "@/app/components/charts/ChartComponents";
+import { ChartComponent, ChartSkeleton, CardTabs, TableComponent, getCountryFlagIcon, getBrowserTimeZone, getDateStringInTimeZone, isValidTimeZone, ScorecardSkeleton, SkeletonBlock, DashboardFilters, DashboardNotice, Scorecard } from "@/app/components/charts/ChartComponents";
 
 import { useMediaQuery } from "@/app/utils/media";
 import {
@@ -36,8 +35,10 @@ import {
 import { chartColors } from "@/app/utils/chartThemes";
 import { DashboardCard } from "@components/DashboardCard";
 import { WorldMapCard } from "@components/WorldMapCard";
+import { useDashboardToolbarControls } from "@/app/components/reports/useDashboardToolbarControls";
 import type { EventLabelSelect } from "@db/d1/schema";
 import { EventTypesFunnel } from "@/app/components/charts/EventFunnel";
+import type { ToolbarSiteOption } from "@/app/components/reports/DashboardToolbar";
 
 // Props for the main DashboardPage (now empty as data is fetched internally)
 export interface DashboardPageProps {
@@ -52,7 +53,18 @@ export interface DashboardPageProps {
   DateRange?: {
     auto: "7 days";
   };
-  activeReportBuilderItemId?: ReportBuilderActionId;
+  activeReportBuilderItemId?: ReportBuilderMenuActiveId;
+  reportBuilderEnabled?: boolean;
+  askAiEnabled?: boolean;
+  initialToolbarSites?: ToolbarSiteOption[];
+  initialToolbarSiteId?: number | null;
+  initialDashboardData?: DashboardResponseData | null;
+  initialDashboardDateRange?: {
+    start: string;
+    end: string;
+    preset: "Today";
+  };
+  initialTimezone?: string | null;
 }
 const getBrowserIcon = (name: string | null | undefined) => {
   const value = typeof name === "string" ? name.toLowerCase() : "";
@@ -289,6 +301,30 @@ const getOsDotClass = (name: string | null | undefined) => {
   return "bg-green-600";
 };
 
+const truncateAxisLabel = (value: unknown, maxLength: number) => {
+  const label = String(value ?? "").trim();
+  if (label.length <= maxLength) return label;
+  return `${label.slice(0, Math.max(1, maxLength - 3))}...`;
+};
+
+const dashboardChartTitles = {
+  pageViews: "Page Views",
+  topReferrers: "Top Referrers",
+  deviceTypes: "Device Types",
+  topSources: "Top Sources",
+  topPages: "Top Pages",
+  locations: "Locations",
+  devices: "Devices",
+} as const;
+
+const GEO_LIST_VISIBLE_ROWS = 10;
+const GEO_LIST_ROW_HEIGHT_PX = 36;
+const GEO_LIST_MAX_HEIGHT = GEO_LIST_VISIBLE_ROWS * GEO_LIST_ROW_HEIGHT_PX;
+
+type BillingSummaryLite = {
+  hasSubscription: boolean;
+};
+
 // --- DashboardPage (fetches its own data) ---
 export function DashboardPage(props: DashboardPageProps) {
   const isSmallScreen = useMediaQuery("(max-width: 640px)");
@@ -299,13 +335,27 @@ export function DashboardPage(props: DashboardPageProps) {
     ReferrersData,
     EventSummary,
     activeReportBuilderItemId = "create-report",
+    reportBuilderEnabled = false,
+    askAiEnabled = true,
+    initialToolbarSites = [],
+    initialToolbarSiteId = null,
+    initialDashboardData = null,
+    initialDashboardDateRange,
+    initialTimezone = null,
   } = props;
 
   const { data: session, isPending: isSessionLoading, current_site } = useContext(
     AuthContext,
   ) || { data: null, isPending: true };
 
-  const browserTimezone = useMemo(() => getBrowserTimeZone(), []);
+  const [browserTimezone, setBrowserTimezone] = useState<string>(() =>
+    isValidTimeZone(initialTimezone) ? initialTimezone : "UTC",
+  );
+
+  useEffect(() => {
+    setBrowserTimezone(getBrowserTimeZone());
+  }, []);
+
   const savedTimezone = session?.timezone;
   const effectiveTimezone =
     isValidTimeZone(savedTimezone) ? savedTimezone : browserTimezone;
@@ -320,9 +370,9 @@ export function DashboardPage(props: DashboardPageProps) {
   // const [current_site, setCurrentSite] = useState<{ name: string, id: number } | undefined>();
   const [filters, setFilters] = useState<DashboardFilters>({
     dateRange: {
-      start: "",
-      end: "",
-      preset: "Today",
+      start: initialDashboardDateRange?.start ?? "",
+      end: initialDashboardDateRange?.end ?? "",
+      preset: initialDashboardDateRange?.preset ?? "Today",
     },
     deviceType: undefined,
     country: undefined,
@@ -331,11 +381,16 @@ export function DashboardPage(props: DashboardPageProps) {
     source: undefined,
     pageUrl: undefined,
     eventName: undefined,
-    siteId: undefined,
+    siteId: initialToolbarSiteId ? String(initialToolbarSiteId) : undefined,
   });
 
-  const [isClientReady, setIsClientReady] = useState(false);
-  const hasInitializedDateRange = useRef(false);
+  const [isClientReady, setIsClientReady] = useState(
+    Boolean(initialDashboardDateRange?.start && initialDashboardDateRange?.end),
+  );
+  const hasInitializedDateRange = useRef(
+    Boolean(initialDashboardDateRange?.start && initialDashboardDateRange?.end),
+  );
+  const hasConsumedInitialDashboardData = useRef(false);
 
   useEffect(() => {
     if (isSessionLoading || hasInitializedDateRange.current) return;
@@ -356,7 +411,9 @@ export function DashboardPage(props: DashboardPageProps) {
 
   useEffect(() => {
     const nextSiteId =
-      current_site?.id?.toString() ?? session?.userSites?.[0]?.site_id?.toString();
+      current_site?.id?.toString()
+      ?? session?.userSites?.[0]?.site_id?.toString()
+      ?? initialToolbarSiteId?.toString();
 
     if (!nextSiteId) return;
 
@@ -364,11 +421,39 @@ export function DashboardPage(props: DashboardPageProps) {
       ...prevFilters,
       siteId: nextSiteId,
     }));
-  }, [current_site?.id, session?.userSites]);
+  }, [current_site?.id, initialToolbarSiteId, session?.userSites]);
 
-  // UI state for modals
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const effectiveSiteId =
+    current_site?.id
+    ?? (filters.siteId ? Number(filters.siteId) : null)
+    ?? initialToolbarSiteId
+    ?? null;
+
+  const shouldUseInitialDashboardData =
+    !hasConsumedInitialDashboardData.current
+    &&
+    Boolean(initialDashboardData)
+    && effectiveSiteId === initialToolbarSiteId
+    && filters.dateRange.preset === "Today"
+    && !filters.deviceType
+    && !filters.country
+    && !filters.city
+    && !filters.region
+    && !filters.source
+    && !filters.pageUrl
+    && !filters.eventName;
+
+  const isRealtimePreset =
+    filters.dateRange.preset === "Today"
+    || filters.dateRange.preset === "Last hour"
+    || filters.dateRange.preset === "Last 30 min";
+
+  const dashboardStaleTime = isRealtimePreset ? 0 : 5 * 60 * 1000;
+  const dashboardGcTime = isRealtimePreset ? 0 : 10 * 60 * 1000;
+
+  useEffect(() => {
+    hasConsumedInitialDashboardData.current = true;
+  }, []);
 
   const [notice, setNotice] = useState<DashboardNotice | null>(null);
 
@@ -429,7 +514,7 @@ export function DashboardPage(props: DashboardPageProps) {
   } = useQuery({
     queryKey: [
       "dashboardData",
-      current_site?.id,
+      effectiveSiteId,
       filters.dateRange,
       filters.deviceType,
       filters.country,
@@ -441,7 +526,7 @@ export function DashboardPage(props: DashboardPageProps) {
       effectiveTimezone,
     ],
     queryFn: async () => {
-      if (!current_site?.id) {
+      if (!effectiveSiteId) {
         throw new Error("No site selected");
       }
 
@@ -450,7 +535,7 @@ export function DashboardPage(props: DashboardPageProps) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            site_id: current_site.id,
+            site_id: effectiveSiteId,
             date_start: filters.dateRange.start,
             date_end: filters.dateRange.end,
             device_type: filters.deviceType,
@@ -500,22 +585,47 @@ export function DashboardPage(props: DashboardPageProps) {
         throw error;
       }
     },
-    enabled: isClientReady && !isSessionLoading && !!current_site?.id && !!filters.dateRange.start && !!filters.dateRange.end,
+    enabled: isClientReady && Boolean(effectiveSiteId) && Boolean(filters.dateRange.start) && Boolean(filters.dateRange.end),
+    initialData: shouldUseInitialDashboardData ? initialDashboardData ?? undefined : undefined,
+    initialDataUpdatedAt: shouldUseInitialDashboardData ? Date.now() : undefined,
+    refetchOnMount: isRealtimePreset ? "always" : false,
     placeholderData: (previousData) => previousData,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+    staleTime: dashboardStaleTime,
+    gcTime: dashboardGcTime,
   });
 
-  const labelsQuery = useQuery<EventLabelSelect[], Error>({
-    queryKey: ["event-labels", current_site?.id],
+  const { data: billingSummary } = useQuery({
+    queryKey: ["billingSummaryLite", session?.team?.id],
     queryFn: async () => {
-      if (!current_site?.id) return [];
-      const response = await fetch(`/api/event-labels?site_id=${current_site.id}`);
+      const response = await fetch("/api/billing/summary", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load billing summary");
+      }
+
+      return (await response.json()) as BillingSummaryLite;
+    },
+    enabled: isClientReady && !isSessionLoading && !!session?.team?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const requiresSubscriptionActivation = billingSummary?.hasSubscription === false;
+
+  const labelsQuery = useQuery<EventLabelSelect[], Error>({
+    queryKey: ["event-labels", effectiveSiteId],
+    queryFn: async () => {
+      if (!effectiveSiteId) return [];
+      const response = await fetch(`/api/event-labels?site_id=${effectiveSiteId}`);
       if (!response.ok) throw new Error("Failed to fetch event labels");
       return response.json();
     },
-    enabled: Boolean(current_site?.id),
+    enabled: Boolean(effectiveSiteId),
     staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const eventLabelsMap = useMemo(() => {
@@ -580,6 +690,20 @@ export function DashboardPage(props: DashboardPageProps) {
     return aggregatedCountries;
   }, [apiData?.CountryUniques, aggregatedCountries]);
 
+  const rankedGeoCities = useMemo(() => {
+    const rows = dashboardData.deviceGeoData?.geoData?.rows || [];
+    return rows
+      .map((row) => {
+        const [country, city, count] = row as [string, string, number];
+        return {
+          country,
+          city,
+          count: typeof count === "number" ? count : Number(count) || 0,
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+  }, [dashboardData.deviceGeoData?.geoData?.rows]);
+
   const deviceTypeFilterOptions = useMemo(
     () => (dashboardData.deviceGeoData?.deviceTypes?.data || []).map((d: { id: string }) => d.id).filter(Boolean),
     [dashboardData.deviceGeoData?.deviceTypes?.data],
@@ -629,171 +753,23 @@ export function DashboardPage(props: DashboardPageProps) {
     return rows.map((row) => String(row[0])).filter(Boolean);
   }, [dashboardData.eventTypesData?.rows]);
 
-  const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
-    setFilters(newFilters);
-
-    const hasAnyFilter =
-      !!newFilters.deviceType || !!newFilters.country || !!newFilters.city || !!newFilters.region || !!newFilters.source || !!newFilters.pageUrl || !!newFilters.eventName;
-    notify({
-      type: "info",
-      message: hasAnyFilter
-        ? "Filters updated."
-        : "All filters cleared.",
+  const { controls: toolbarControls, footer: toolbarFooter, modal: toolbarModal } =
+    useDashboardToolbarControls({
+      filters,
+      setFilters,
+      timezone: effectiveTimezone,
+      onNotify: notify,
+      isUpdating: isFetching && !isLoading,
+      deviceTypeOptions: deviceTypeFilterOptions,
+      countryOptions: countryFilterOptions,
+      cityOptions: cityFilterOptions,
+      regionOptions: regionFilterOptions,
+      sourceOptions: sourceFilterOptions,
+      pageUrlOptions: pageUrlFilterOptions,
+      eventNameOptions: eventNameFilterOptions,
     });
-  }, [notify]);
 
-  // Handle date range changes
-  // const handleDateRangeChange = useCallback((newDateRange: DateRange) => {
-  //   const newFilters = { ...filters, dateRange: newDateRange };
-  //   handleFiltersChange(newFilters);
-  // }, [filters, handleFiltersChange]);
-
-  async function handleDateRangeChange(newDateRange: DateRange) {
-    setFilters((prevFilters) => ({
-      ...prevFilters,
-      dateRange: newDateRange,
-    }));
-
-    notify({
-      type: "info",
-      message: "Date range updated.",
-    });
-  }
-
-
-  // Format date range display
-  const getDateRangeDisplay = () => {
-    if (!filters.dateRange.start || !filters.dateRange.end) {
-      return "Loading dates...";
-    }
-    if (filters.dateRange.preset) {
-      return filters.dateRange.preset;
-    }
-    return `${filters.dateRange.start} to ${filters.dateRange.end}`;
-  };
-
-  const toolbarControls: ReactNode = (
-    <>
-      <button
-        type="button"
-        onClick={() => setIsFilterModalOpen(true)}
-        aria-haspopup="dialog"
-        aria-expanded={isFilterModalOpen}
-        className="bg-(--theme-bg-secondary) hover:bg-(--theme-bg-tertiary) text-(--theme-text-primary) font-medium py-1.5 px-3 sm:py-2 sm:px-4 text-sm rounded-md border border-(--theme-border-primary) transition-colors focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
-      >
-        Filter
-      </button>
-      <div className="relative flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-          aria-haspopup="dialog"
-          aria-expanded={isDatePickerOpen}
-          className="bg-(--theme-bg-secondary) hover:bg-(--theme-bg-tertiary) text-(--theme-text-primary) py-1.5 px-3 sm:py-2 sm:px-4 text-sm rounded-md border border-(--theme-border-primary) cursor-pointer transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
-        >
-          <span className="truncate max-w-32 sm:max-w-56">
-            {getDateRangeDisplay()}
-          </span>
-          <svg
-            aria-hidden="true"
-            focusable="false"
-            className="w-4 h-4 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </button>
-        <div className="hidden sm:flex">
-          <HelpTooltip text="Change the reporting period. Presets update immediately; custom dates apply when the picker closes." />
-        </div>
-        <DatePicker
-          dateRange={filters.dateRange}
-          onDateRangeChange={handleDateRangeChange}
-          isOpen={isDatePickerOpen}
-          onToggle={() => setIsDatePickerOpen(!isDatePickerOpen)}
-          timezone={effectiveTimezone}
-        />
-      </div>
-    </>
-  );
-
-  const toolbarFooter: ReactNode = (
-    <>
-      {(() => {
-        const chips: Array<{ label: string; key: keyof DashboardFilters }> = [];
-        if (filters.deviceType) chips.push({ label: `Device: ${filters.deviceType}`, key: "deviceType" });
-        if (filters.country) chips.push({ label: `Country: ${filters.country}`, key: "country" });
-        if (filters.region) chips.push({ label: `Region: ${filters.region}`, key: "region" });
-        if (filters.city) chips.push({ label: `City: ${filters.city}`, key: "city" });
-        if (filters.source) chips.push({ label: `Source: ${filters.source}`, key: "source" });
-        if (filters.pageUrl) chips.push({ label: `Page: ${filters.pageUrl}`, key: "pageUrl" });
-        if (filters.eventName) chips.push({ label: `Event: ${filters.eventName}`, key: "eventName" });
-        if (chips.length === 0) return null;
-        return (
-          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            {chips.map((chip) => (
-              <span
-                key={chip.key}
-                className="inline-flex items-center gap-1 rounded-full bg-(--theme-bg-tertiary) border border-(--theme-border-primary) px-2.5 py-0.5 text-xs text-(--theme-text-primary)"
-              >
-                {chip.label}
-                <button
-                  type="button"
-                  onClick={() => setFilters((prev) => ({ ...prev, [chip.key]: undefined }))}
-                  className="ml-0.5 rounded-full p-0.5 hover:bg-(--theme-bg-secondary) transition-colors focus:outline-none focus:ring-1 focus:ring-(--theme-border-secondary)"
-                  aria-label={`Remove ${chip.label} filter`}
-                >
-                  <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={() => setFilters((prev) => ({
-                dateRange: prev.dateRange,
-                siteId: prev.siteId,
-              }))}
-              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs text-(--theme-text-secondary) hover:text-(--theme-text-primary) transition-colors focus:outline-none focus:ring-1 focus:ring-(--theme-border-secondary)"
-            >
-              Clear all
-            </button>
-          </div>
-        );
-      })()}
-
-      {isFetching && !isLoading && (
-        <div className="flex items-center gap-2 mt-2 text-xs text-(--theme-text-secondary)">
-          <SpinnerIcon className="w-3 h-3 animate-spin" />
-          <span>Updating dashboard...</span>
-        </div>
-      )}
-    </>
-  );
-
-  if (isSessionLoading) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          <div className="flex items-center justify-center py-12">
-            <span className="text-(--theme-text-secondary)">
-              Loading session...
-            </span>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (!current_site?.id) {
+  if (!effectiveSiteId) {
     return (
       <div className="flex flex-col min-h-screen">
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
@@ -852,7 +828,7 @@ export function DashboardPage(props: DashboardPageProps) {
     );
   }
 
-  if (!isClientReady) {
+  if (!isClientReady && !initialDashboardData) {
     return (
       <div className="flex flex-col min-h-screen">
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
@@ -900,11 +876,15 @@ export function DashboardPage(props: DashboardPageProps) {
         <main className="flex-1">
           <DashboardToolbar
             activeReportBuilderItemId={activeReportBuilderItemId}
+            reportBuilderEnabled={reportBuilderEnabled}
+            askAiEnabled={askAiEnabled}
             controls={toolbarControls}
             footer={toolbarFooter}
+            initialSites={initialToolbarSites}
+            initialSiteId={initialToolbarSiteId}
           />
           <div className="p-4 sm:p-6 lg:p-8">
-            {isLoading || !apiData ? (
+            {!apiData ? (
               <>
                 <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                   {Array.from({ length: 6 }).map((_, index) => (
@@ -948,6 +928,45 @@ export function DashboardPage(props: DashboardPageProps) {
                   ))}
                 </section>
               </>
+            ) : requiresSubscriptionActivation ? (
+              <div className="flex flex-col items-center justify-center gap-6 w-full">
+                <div className="text-center w-full max-w-4xl px-4">
+                  <h2 className="text-2xl font-bold mb-2 text-(--theme-text-primary)">
+                    Dashboard inactive until billing is active
+                  </h2>
+                  <p className="text-(--theme-text-secondary) mb-2">
+                    Your site tag can keep collecting events, but reports stay locked until a payment method and subscription are added.
+                  </p>
+                  {apiData?.noSiteRecordsExist ? (
+                    <p className="text-xs text-(--theme-text-secondary) mb-6">
+                      Install the Lytx site tag now, then add billing to unlock dashboard reporting.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-(--theme-text-secondary) mb-6">
+                      We have data for this site and will unlock all dashboard cards as soon as billing is active.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <a
+                      href="/dashboard/settings#billing"
+                      className="inline-flex items-center px-4 py-2 bg-(--theme-button-bg) text-white rounded hover:bg-(--theme-button-hover) transition-colors focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
+                    >
+                      Add payment method
+                    </a>
+                    <a
+                      href="/dashboard/settings"
+                      className="inline-flex items-center px-4 py-2 bg-(--theme-input-bg) text-(--theme-text-primary) border border-(--theme-input-border) rounded hover:bg-(--theme-bg-secondary) transition-colors focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
+                    >
+                      Open settings
+                    </a>
+                  </div>
+                </div>
+                {apiData?.noSiteRecordsExist && currentSiteTag ? (
+                  <div id="site-tag-install" className="w-full max-w-5xl mx-auto">
+                    <SiteTagInstallCard site={currentSiteTag} />
+                  </div>
+                ) : null}
+              </div>
             ) : (apiData && apiData.noSiteRecordsExist) ? (
               <div className="flex flex-col items-center justify-center gap-6 w-full">
                 <div className="text-center w-full max-w-4xl px-4">
@@ -1023,14 +1042,14 @@ export function DashboardPage(props: DashboardPageProps) {
                         chartData={dashboardData.pageViewsData}
                         isLoading={isFetching}
                         type="line"
-                        title="Page Views"
+                        title={dashboardChartTitles.pageViews}
                       />
                     </div>
                     {/* Referrers Chart */}
                     <ChartComponent
                       chartId="referrersChart"
                       chartData={dashboardData.referrersData}
-                      title="Referrers"
+                      title={dashboardChartTitles.topReferrers}
                       type="pie"
                       isLoading={isFetching}
                       onItemClick={(id) => setFilters((prev) => ({ ...prev, source: id }))}
@@ -1040,7 +1059,7 @@ export function DashboardPage(props: DashboardPageProps) {
                       <ChartComponent
                         chartId="deviceTypesChart"
                         chartData={dashboardData.deviceGeoData.deviceTypes}
-                        title="Device Types"
+                        title={dashboardChartTitles.deviceTypes}
                         type="pie"
                         isLoading={isFetching}
                         onItemClick={(id) => setFilters((prev) => ({ ...prev, deviceType: id }))}
@@ -1052,7 +1071,7 @@ export function DashboardPage(props: DashboardPageProps) {
                 {/* Detailed Information Grid (2x2) */}
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                   {/* Top Sources Card (Top-Left) */}
-                  <DashboardCard title="Top Sources" titleAs="h3">
+                  <DashboardCard title={dashboardChartTitles.topSources} titleAs="h3">
                     <CardTabs
                       tabs={["Sources", "Referrers"]}
                       activeTab={topSourcesTab}
@@ -1109,7 +1128,7 @@ export function DashboardPage(props: DashboardPageProps) {
                   </DashboardCard>
 
                   {/* Top Pages Card (Top-Right) */}
-                  <DashboardCard title="Top Pages" titleAs="h3">
+                  <DashboardCard title={dashboardChartTitles.topPages} titleAs="h3">
                     <div style={{ height: "250px", cursor: "pointer" }}>
                       <ResponsiveBar
                         data={dashboardData.topPagesData?.data || []}
@@ -1134,10 +1153,8 @@ export function DashboardPage(props: DashboardPageProps) {
                           tickRotation: 0,
                           legend: "",
                           format: (value) => {
-                            const maxLen = isSmallScreen ? 10 : 15;
-                            return String(value).length > maxLen
-                              ? String(value).substring(0, maxLen - 1) + "…"
-                              : String(value);
+                            const maxLen = isSmallScreen ? 16 : 28;
+                            return truncateAxisLabel(value, maxLen);
                           },
                         }}
                         enableGridX={true}
@@ -1146,7 +1163,7 @@ export function DashboardPage(props: DashboardPageProps) {
                         enableLabel={false}
                         isInteractive={true}
                         onClick={(bar) => setFilters((prev) => ({ ...prev, pageUrl: String(bar.indexValue) }))}
-                        tooltip={({ id, value, color }) => (
+                        tooltip={({ indexValue, value, color }) => (
                           <div
                             style={{
                               padding: "6px 10px",
@@ -1158,7 +1175,7 @@ export function DashboardPage(props: DashboardPageProps) {
                               fontWeight: 600,
                             }}
                           >
-                            <strong>{id}</strong>: {value.toLocaleString()}
+                            <strong>{String(indexValue)}</strong>: {value.toLocaleString()} views
                           </div>
                         )}
                         theme={{
@@ -1183,7 +1200,7 @@ export function DashboardPage(props: DashboardPageProps) {
                   </DashboardCard>
 
                   {/* Locations Card (Bottom-Left) */}
-                  <DashboardCard title="Locations" titleAs="h3">
+                  <DashboardCard title={dashboardChartTitles.locations} titleAs="h3">
                     <CardTabs
                       tabs={["Countries", "Cities"]}
                       activeTab={locationsTab}
@@ -1191,7 +1208,7 @@ export function DashboardPage(props: DashboardPageProps) {
                         setLocationsTab(tab as "Countries" | "Cities")
                       }
                     >
-                      <div style={{ height: "300px" }}>
+                      <div style={{ height: "360px" }}>
                         {locationsTab === "Countries" ? (
                           aggregatedCountries.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1203,11 +1220,14 @@ export function DashboardPage(props: DashboardPageProps) {
                               </p>
                             </div>
                           ) : (
-                            <ul className="space-y-3 pt-4 overflow-y-auto overflow-x-hidden scrollbar-none max-h-65">
+                            <ul
+                              className="overflow-y-auto overflow-x-hidden scrollbar-none"
+                              style={{ maxHeight: `${GEO_LIST_MAX_HEIGHT}px` }}
+                            >
                               {aggregatedCountries.map(([country, count]) => (
                                 <li
                                   key={country}
-                                  className="flex items-center justify-between py-2 border-b border-(--theme-border-primary) last:border-b-0 cursor-pointer hover:bg-(--theme-bg-secondary) rounded px-1 -mx-1 transition-colors"
+                                  className="flex min-h-9 items-center justify-between border-b border-(--theme-border-primary) px-1 py-1.5 last:border-b-0 cursor-pointer hover:bg-(--theme-bg-secondary) rounded transition-colors"
                                   onClick={() => setFilters((prev) => ({ ...prev, country }))}
                                 >
                                   <div className="flex items-center">
@@ -1227,7 +1247,7 @@ export function DashboardPage(props: DashboardPageProps) {
                               ))}
                             </ul>
                           )
-                        ) : (dashboardData.deviceGeoData?.geoData?.rows?.length ?? 0) === 0 ? (
+                        ) : rankedGeoCities.length === 0 ? (
                           <div className="flex flex-col items-center justify-center h-full text-center">
                             <p className="text-(--theme-text-secondary)">
                               No cities data available
@@ -1237,13 +1257,15 @@ export function DashboardPage(props: DashboardPageProps) {
                             </p>
                           </div>
                         ) : (
-                          <ul className="space-y-3 pt-4 overflow-y-auto overflow-x-hidden scrollbar-none max-h-65">
-                            {(dashboardData.deviceGeoData?.geoData?.rows || []).map((row) => {
-                              const [country, city, count] = row as [string, string, number];
+                          <ul
+                            className="overflow-y-auto overflow-x-hidden scrollbar-none"
+                            style={{ maxHeight: `${GEO_LIST_MAX_HEIGHT}px` }}
+                          >
+                            {rankedGeoCities.map(({ country, city, count }) => {
                               return (
                                 <li
                                   key={`${city}-${country}`}
-                                  className="flex items-center justify-between py-2 border-b border-(--theme-border-primary) last:border-b-0 cursor-pointer hover:bg-(--theme-bg-secondary) rounded px-1 -mx-1 transition-colors"
+                                  className="flex min-h-9 items-center justify-between border-b border-(--theme-border-primary) px-1 py-1.5 last:border-b-0 cursor-pointer hover:bg-(--theme-bg-secondary) rounded transition-colors"
                                   onClick={() => setFilters((prev) => ({ ...prev, city, country }))}
                                 >
                                   <div className="flex items-center">
@@ -1252,17 +1274,12 @@ export function DashboardPage(props: DashboardPageProps) {
                                         <span className="h-4 w-4 rounded-full bg-blue-500" />
                                       )}
                                     </span>
-                                    <div className="flex flex-col">
-                                      <span className="text-sm text-(--theme-text-primary)">
-                                        {city}
-                                      </span>
-                                      <span className="text-xs text-(--theme-text-secondary)">
-                                        {country}
-                                      </span>
-                                    </div>
+                                    <span className="text-sm text-(--theme-text-primary)">
+                                      {city}, <span className="text-(--theme-text-secondary)">{country}</span>
+                                    </span>
                                   </div>
                                   <span className="text-sm text-(--theme-text-primary) font-medium">
-                                    {typeof count === 'number' ? count.toLocaleString() : count}
+                                    {count.toLocaleString()}
                                   </span>
                                 </li>
                               );
@@ -1274,7 +1291,7 @@ export function DashboardPage(props: DashboardPageProps) {
                   </DashboardCard>
 
                   {/* Devices Card (Bottom-Right) */}
-                  <DashboardCard title="Devices" titleAs="h3">
+                  <DashboardCard title={dashboardChartTitles.devices} titleAs="h3">
                     <CardTabs
                       tabs={["Browser", "OS"]}
                       activeTab={devicesTab}
@@ -1338,6 +1355,7 @@ export function DashboardPage(props: DashboardPageProps) {
                     data={dashboardData.eventSummary}
                     isLoading={isFetching}
                     timezone={effectiveTimezone}
+                    labelsMap={eventLabelsMap}
                   />
                 </section>
 
@@ -1349,36 +1367,17 @@ export function DashboardPage(props: DashboardPageProps) {
                     const eventTypesTableData = dashboardData.eventTypesData;
                     if (eventTypesTableData) {
                       return (
-                        <>
-                          <EventTypesFunnel
-                            tableId="eventTypesTable"
-                            tableData={eventTypesTableData}
-                            labelsMap={eventLabelsMap}
-                          />
-                        </>
+                        <EventTypesFunnel
+                          tableId="eventTypesTable"
+                          tableData={eventTypesTableData}
+                          labelsMap={eventLabelsMap}
+                        />
                       );
                     }
                     return null;
                   })()}
 
-                  {dashboardData.deviceGeoData &&
-                    dashboardData.deviceGeoData.geoData &&
-                    (() => {
-                      const geoDataTableData = dashboardData.deviceGeoData.geoData;
-                      // Add margin top if the eventTypesTable was rendered
-                      const marginTopClass = dashboardData.eventTypesData
-                        ? "mt-8"
-                        : "";
-                      return (
-                        <div className={marginTopClass}>
-                          <TableComponent
-                            tableId="geoDataTable"
-                            tableData={geoDataTableData}
-                          // title is already part of geoDataTableData or defaults in TableComponent
-                          />
-                        </div>
-                      );
-                    })()}
+
                 </section>
 
               </>)}
@@ -1395,21 +1394,7 @@ export function DashboardPage(props: DashboardPageProps) {
         </main>
       </Suspense>
 
-      {/* Filter Modal */}
-      <FilterModal
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        isOpen={isFilterModalOpen}
-        onClose={() => setIsFilterModalOpen(false)}
-        onNotify={notify}
-        deviceTypeOptions={deviceTypeFilterOptions}
-        countryOptions={countryFilterOptions}
-        cityOptions={cityFilterOptions}
-        regionOptions={regionFilterOptions}
-        sourceOptions={sourceFilterOptions}
-        pageUrlOptions={pageUrlFilterOptions}
-        eventNameOptions={eventNameFilterOptions}
-      />
+      {toolbarModal}
 
     </div>
   );

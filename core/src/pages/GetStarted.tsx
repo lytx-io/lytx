@@ -250,12 +250,12 @@ export function GetStarted() {
             <div className="mt-4 text-xs text-slate-400">
               Source code:{" "}
               <a
-                href="https://github.com/lytx-io/lytx"
+              href="https://github.com/lytx-io/kit"
                 className="text-amber-300 hover:text-amber-200"
                 target="_blank"
                 rel="noreferrer"
               >
-                github.com/lytx-io/lytx
+                github.com/lytx-io/kit
               </a>
             </div>
           </div>
@@ -270,16 +270,16 @@ export function GetStarted() {
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <a
-              href="https://github.com/lytx-io/lytx"
+              href="https://github.com/lytx-io/kit"
               className="inline-flex items-center justify-center px-6 py-3 rounded-full border border-slate-200 text-slate-900 font-semibold hover:bg-slate-50 dark:border-slate-700 dark:text-white dark:hover:bg-slate-800 transition-colors"
             >
               View the repo
             </a>
             <a
-              href="/pricing"
+              href="/signup"
               className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-orange-600 text-white font-semibold hover:bg-orange-500 transition-colors shadow-lg shadow-orange-500/20"
             >
-              Compare plans
+              Create an account
             </a>
           </div>
         </div>

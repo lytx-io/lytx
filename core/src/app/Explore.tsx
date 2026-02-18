@@ -7,6 +7,17 @@ import { SiteSelector } from "@components/SiteSelector";
 import { AuthContext } from "@/app/providers/AuthProvider";
 import { SQLEditor } from "@components/SQLEditor";
 
+type ExploreInitialSite = {
+  site_id: number;
+  name: string;
+  tag_id: string;
+};
+
+type ExplorePageProps = {
+  initialSites?: ExploreInitialSite[];
+  initialSiteId?: number | null;
+};
+
 /** Convert rows to CSV format */
 function rowsToCsv(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return "";
@@ -67,16 +78,14 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ExplorePage() {
+export function ExplorePage({ initialSites = [], initialSiteId = null }: ExplorePageProps) {
   const {
-    data: session,
-    isPending: isSessionLoading,
     current_site,
   } = useContext(AuthContext) || {
-    data: null,
-    isPending: true,
     current_site: null,
   };
+
+  const currentSiteId = current_site?.id ?? initialSiteId;
 
   const [sqlQuery, setSqlQuery] = useState("");
   const [sqlStatus, setSqlStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -92,7 +101,7 @@ export function ExplorePage() {
       setSqlStatus("loading");
       setSqlResult(null);
 
-      if (!current_site?.id) {
+      if (!currentSiteId) {
         setSqlStatus("error");
         setSqlError("Select a site first.");
         return;
@@ -108,7 +117,7 @@ export function ExplorePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          site_id: current_site.id,
+          site_id: currentSiteId,
           query: sqlQuery,
         }),
       });
@@ -153,7 +162,7 @@ export function ExplorePage() {
             <span className="text-sm font-medium text-[var(--theme-text-primary)]">
               Site:
             </span>
-            <SiteSelector />
+            <SiteSelector initialSites={initialSites} initialSiteId={initialSiteId} />
           </div>
         </Card>
 
@@ -191,7 +200,7 @@ export function ExplorePage() {
             placeholder="SELECT event, page_url, created_at FROM site_events ORDER BY created_at DESC LIMIT 50"
             disabled={sqlStatus === "loading"}
             height="400px"
-            siteId={current_site?.id}
+            siteId={currentSiteId ?? undefined}
           />
 
           <div className="flex items-center justify-between mt-4">
@@ -201,7 +210,7 @@ export function ExplorePage() {
             <Button
               variant="primary"
               onClick={() => void runSqlQuery()}
-              disabled={sqlStatus === "loading" || !current_site?.id}
+              disabled={sqlStatus === "loading" || !currentSiteId}
             >
               {sqlStatus === "loading" ? "Running…" : "Run Query"}
             </Button>

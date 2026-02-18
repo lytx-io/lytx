@@ -15,7 +15,7 @@ export const SiteTag: React.FC<SiteTagProps> = ({
   if (!lytx_domain) {
     lytx_domain = typeof window !== "undefined" 
       ? window.location.host 
-      : "lytx.io";
+      : "localhost:5173";
   }
 
   return (

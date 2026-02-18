@@ -1,6 +1,6 @@
 import { route } from "rwsdk/router";
 import type { RequestInfo } from "rwsdk/worker";
-import type { AppContext } from "@/worker";
+import type { AppContext } from "@/types/app-context";
 import { checkIfTeamSetupSites } from "@/utilities/route_interuptors";
 import { getSiteFromContext } from "@/api/authMiddleware";
 import { IS_DEV } from "rwsdk/constants";
@@ -26,6 +26,11 @@ import {
 
 const DASHBOARD_CACHE_TTL_SECONDS = IS_DEV ? 5 : 30;
 const DASHBOARD_CACHE_STALE_SECONDS = 30;
+
+type EventSummaryTypeFilter = "all" | "autocapture" | "event_capture" | "page_view";
+type EventSummaryActionFilter = "all" | "click" | "submit" | "change" | "rule";
+type EventSummarySortBy = "count" | "first_seen" | "last_seen";
+type EventSummarySortDirection = "asc" | "desc";
 
 function formatDuration(seconds: number): string {
     if (!Number.isFinite(seconds) || seconds <= 0) return "0s";
@@ -163,6 +168,251 @@ export const getCurrentVisitorsRoute = route(
     ],
 );
 
+type DashboardDataCoreInput = {
+    ctx: AppContext;
+    requestId: string;
+    siteIdValue: number;
+    dateStartValue: Date | null;
+    dateEndValue: Date | null;
+    rawDateEnd: unknown;
+    normalizedTimezone: string | null;
+    normalizedDeviceType: string | null;
+    normalizedCountry: string | null;
+    normalizedSource: string | null;
+    normalizedPageUrl: string | null;
+    normalizedCity: string | null;
+    normalizedRegion: string | null;
+    normalizedEventName: string | null;
+    normalizedEventSummaryLimit: number;
+    normalizedEventSummaryOffset: number;
+    eventSummarySearch: string;
+    normalizedEventSummaryType: EventSummaryTypeFilter;
+    normalizedEventSummaryAction: EventSummaryActionFilter;
+    normalizedEventSummarySortBy: EventSummarySortBy;
+    normalizedEventSummarySortDirection: EventSummarySortDirection;
+};
+
+type DashboardDataCoreResult =
+    | { ok: true; data: DashboardResponseData }
+    | { ok: false; status: number; error: string };
+
+export async function getDashboardDataCore(input: DashboardDataCoreInput): Promise<DashboardDataCoreResult> {
+    const {
+        ctx,
+        siteIdValue,
+        dateStartValue,
+        dateEndValue,
+        rawDateEnd,
+        normalizedTimezone,
+        normalizedDeviceType,
+        normalizedCountry,
+        normalizedSource,
+        normalizedPageUrl,
+        normalizedCity,
+        normalizedRegion,
+        normalizedEventName,
+        normalizedEventSummaryLimit,
+        normalizedEventSummaryOffset,
+        eventSummarySearch,
+        normalizedEventSummaryType,
+        normalizedEventSummaryAction,
+        normalizedEventSummarySortBy,
+        normalizedEventSummarySortDirection,
+    } = input;
+
+    if (IS_DEV) console.log("🔥🔥🔥 site_id", siteIdValue);
+
+    const dashboardOptions: DashboardOptions = {
+        site_id: siteIdValue,
+        site_uuid: "",
+        team_id: ctx.team.id,
+    };
+
+    const endDateIsDateOnly = isDateOnly(rawDateEnd);
+    const endDateIsExact = !endDateIsDateOnly || !!normalizedTimezone;
+    if (dateStartValue || dateEndValue) {
+        dashboardOptions.date = {
+            start: dateStartValue ?? undefined,
+            end: dateEndValue ?? undefined,
+            endIsExact: endDateIsExact,
+        };
+    }
+
+    const siteDetails = getSiteFromContext(ctx, siteIdValue);
+    if (!siteDetails || !siteDetails.uuid) {
+        return { ok: false, status: 404, error: "Site not found" };
+    }
+
+    let db_adapter = ctx.db_adapter;
+    dashboardOptions.site_uuid = siteDetails.uuid;
+    if (siteDetails.site_db_adapter != ctx.db_adapter) {
+        db_adapter = siteDetails.site_db_adapter;
+    }
+
+    if (db_adapter != "sqlite") {
+        if (siteDetails.external_id > 0) {
+            dashboardOptions.site_id = siteDetails.external_id;
+        }
+
+        const externalTeamId = ctx.team.external_id ?? 0;
+        if (externalTeamId > 0) {
+            dashboardOptions.team_id = externalTeamId;
+        }
+    }
+
+    const eventSummary = await getEventSummaryFromDurableObject({
+        ...dashboardOptions,
+        date: {
+            start: dateStartValue ?? undefined,
+            end: dateEndValue ?? undefined,
+            endIsExact: endDateIsExact,
+        },
+        limit: normalizedEventSummaryLimit,
+        offset: normalizedEventSummaryOffset,
+        search: eventSummarySearch,
+        type: normalizedEventSummaryType,
+        action: normalizedEventSummaryAction,
+        sortBy: normalizedEventSummarySortBy,
+        sortDirection: normalizedEventSummarySortDirection,
+    });
+
+    const dashboardAggregates = await getDashboardAggregatesFromDurableObject({
+        ...dashboardOptions,
+        date: {
+            start: dateStartValue ?? undefined,
+            end: dateEndValue ?? undefined,
+            endIsExact: endDateIsExact,
+        },
+        timezone: normalizedTimezone ?? undefined,
+        country: normalizedCountry ?? undefined,
+        deviceType: normalizedDeviceType ?? undefined,
+        source: normalizedSource ?? undefined,
+        pageUrl: normalizedPageUrl ?? undefined,
+        city: normalizedCity ?? undefined,
+        region: normalizedRegion ?? undefined,
+        event: normalizedEventName ?? undefined,
+    });
+
+    if (!dashboardAggregates) {
+        return { ok: false, status: 404, error: "No data found" };
+    }
+
+    const pageViewsData = getPageViewsData(dashboardAggregates.pageViews);
+
+    const referers = Array.from(
+        dashboardAggregates.referers.reduce((acc, item) => {
+            const normalizedReferer = cleanRefererValue(item.id);
+            const current = acc.get(normalizedReferer) ?? 0;
+            acc.set(normalizedReferer, current + item.value);
+            return acc;
+        }, new Map<string, number>()),
+    )
+        .sort((a, b) => b[1] - a[1])
+        .map(([id, value]) => ({ id, value }));
+
+    const topSourcesData = getTopSourcesData(
+        referers
+            .slice(0, 10)
+            .map((a) => ({ name: a.id, visitors: a.value })),
+    );
+
+    const referrersData = getReferrersData(referers.slice(0, 10));
+
+    const eventTypesData = getEventTypesData(dashboardAggregates.events);
+
+    const geoData = dashboardAggregates.cities
+        .map(([city, details]) => [details.country, city, details.count]) as Array<[string, string, number]>;
+
+    const deviceGeoData = getDeviceGeoData({
+        geoData,
+        deviceData: dashboardAggregates.devices,
+    });
+
+    const topPagesData = getTopPagesData(dashboardAggregates.topPages.slice(0, 10));
+
+    const browserData = getDeviceData(
+        dashboardAggregates.browsers.map((a) => ({
+            name: a.id,
+            visitors: a.value,
+            percentage: "",
+        })),
+    );
+
+    const osData = getDeviceData(
+        dashboardAggregates.operatingSystems.map((a) => ({
+            name: a.id,
+            visitors: a.value,
+            percentage: "",
+        })),
+    );
+
+    const scoreCards = [
+        {
+            title: "Uniques",
+            value: `${dashboardAggregates.scoreCards.uniqueVisitors.toLocaleString()}`,
+            change: "",
+            changeType: "neutral",
+            changeLabel: "",
+        },
+        {
+            title: "Total Page Views",
+            value: `${dashboardAggregates.scoreCards.totalPageViews.toLocaleString()}`,
+            change: "",
+            changeType: "neutral",
+            changeLabel: "",
+        },
+        {
+            title: "Bounce Rate",
+            value: `${dashboardAggregates.scoreCards.bounceRatePercent.toFixed(1)}%`,
+            change: "",
+            changeType: "neutral",
+            changeLabel: "",
+        },
+        {
+            title: "Conversion Rate",
+            value: `${dashboardAggregates.scoreCards.conversionRatePercent.toFixed(2)}%`,
+            change: "",
+            changeType: "neutral",
+            changeLabel: "",
+        },
+        {
+            title: "Total Events",
+            value: `${dashboardAggregates.scoreCards.nonPageViewEvents.toLocaleString()}`,
+            change: "",
+            changeType: "neutral",
+            changeLabel: "",
+        },
+        {
+            title: "Avg Session Duration",
+            value: formatDuration(dashboardAggregates.scoreCards.avgSessionDurationSeconds),
+            change: "",
+            changeType: "neutral",
+            changeLabel: "",
+        },
+    ] as DashboardResponseData["ScoreCards"];
+
+    return {
+        ok: true,
+        data: {
+            noSiteRecordsExist: dashboardAggregates.totalAllTime === 0,
+            PageViewsData: pageViewsData,
+            EventTypesData: eventTypesData,
+            DeviceGeoData: deviceGeoData,
+            ReferrersData: referrersData,
+            TopPagesData: topPagesData,
+            TopSourcesData: topSourcesData,
+            ScoreCards: scoreCards,
+            BrowserData: browserData.slice(0, 10),
+            OSData: osData.slice(0, 10),
+            Countries: dashboardAggregates.countries,
+            CountryUniques: dashboardAggregates.countryUniques,
+            Pagination: dashboardAggregates.pagination,
+            Regions: dashboardAggregates.regions,
+            EventSummary: eventSummary,
+        },
+    };
+}
+
 export const getDashboardDataRoute = route(
     "/dashboard/data",
     [
@@ -197,7 +447,26 @@ export const getDashboardDataRoute = route(
                     );
                 }
 
-                const { site_id, date_start, date_end, timezone, device_type, country, source, page_url, city, region, event_name, event_summary_offset, event_summary_limit, event_summary_search } = params;
+                const {
+                    site_id,
+                    date_start,
+                    date_end,
+                    timezone,
+                    device_type,
+                    country,
+                    source,
+                    page_url,
+                    city,
+                    region,
+                    event_name,
+                    event_summary_offset,
+                    event_summary_limit,
+                    event_summary_search,
+                    event_summary_type,
+                    event_summary_action,
+                    event_summary_sort_by,
+                    event_summary_sort_direction,
+                } = params;
 
                 const requestedTimezone = typeof timezone === "string" ? timezone.trim() : "";
                 if (requestedTimezone.length > 0 && !isValidTimeZone(requestedTimezone)) {
@@ -287,6 +556,28 @@ export const getDashboardDataRoute = route(
                     typeof event_summary_search === "string"
                         ? event_summary_search.trim()
                         : "";
+                const normalizedEventSummaryType: EventSummaryTypeFilter =
+                    event_summary_type === "autocapture"
+                        || event_summary_type === "event_capture"
+                        || event_summary_type === "page_view"
+                        ? event_summary_type
+                        : "all";
+                const normalizedEventSummaryAction: EventSummaryActionFilter =
+                    event_summary_action === "click"
+                        || event_summary_action === "submit"
+                        || event_summary_action === "change"
+                        || event_summary_action === "rule"
+                        ? event_summary_action
+                        : "all";
+                const normalizedEventSummarySortBy: EventSummarySortBy =
+                    event_summary_sort_by === "first_seen"
+                        || event_summary_sort_by === "last_seen"
+                        ? event_summary_sort_by
+                        : "count";
+                const normalizedEventSummarySortDirection: EventSummarySortDirection =
+                    event_summary_sort_direction === "asc"
+                        ? "asc"
+                        : "desc";
                 const normalizedEventSummaryOffset = Number.isFinite(eventSummaryOffset)
                     ? Math.max(0, eventSummaryOffset)
                     : 0;
@@ -312,6 +603,10 @@ export const getDashboardDataRoute = route(
                     eventSummaryOffset: normalizedEventSummaryOffset,
                     eventSummaryLimit: normalizedEventSummaryLimit,
                     eventSummarySearch,
+                    eventSummaryType: normalizedEventSummaryType,
+                    eventSummaryAction: normalizedEventSummaryAction,
+                    eventSummarySortBy: normalizedEventSummarySortBy,
+                    eventSummarySortDirection: normalizedEventSummarySortDirection,
                     timezone: normalizedTimezone,
                     dbAdapter: ctx.db_adapter,
                 };
@@ -332,202 +627,41 @@ export const getDashboardDataRoute = route(
                     }
                 }
 
-                if (IS_DEV) console.log("🔥🔥🔥 site_id", siteIdValue);
+                const dashboardDataResult = await getDashboardDataCore({
+                    ctx,
+                    requestId,
+                    siteIdValue,
+                    dateStartValue,
+                    dateEndValue,
+                    rawDateEnd: date_end,
+                    normalizedTimezone,
+                    normalizedDeviceType,
+                    normalizedCountry,
+                    normalizedSource,
+                    normalizedPageUrl,
+                    normalizedCity,
+                    normalizedRegion,
+                    normalizedEventName,
+                    normalizedEventSummaryLimit,
+                    normalizedEventSummaryOffset,
+                    eventSummarySearch,
+                    normalizedEventSummaryType,
+                    normalizedEventSummaryAction,
+                    normalizedEventSummarySortBy,
+                    normalizedEventSummarySortDirection,
+                });
 
-                const dashboardOptions: DashboardOptions = {
-                    site_id: siteIdValue,
-                    site_uuid: "",
-                    team_id: ctx.team.id,
-                };
-
-                const endDateIsDateOnly = isDateOnly(date_end);
-                const endDateIsExact = !endDateIsDateOnly || !!normalizedTimezone;
-                if (dateStartValue || dateEndValue) {
-                    dashboardOptions.date = {
-                        start: dateStartValue ?? undefined,
-                        end: dateEndValue ?? undefined,
-                        endIsExact: endDateIsExact,
-                    };
-                }
-
-                //TODO: check if this catches sites updated or newly created
-                const siteDetails = getSiteFromContext(ctx, siteIdValue);
-                if (!siteDetails || !siteDetails.uuid) {
+                if (!dashboardDataResult.ok) {
                     return new Response(
-                        JSON.stringify({ error: "Site not found", requestId }),
+                        JSON.stringify({ error: dashboardDataResult.error, requestId }),
                         {
-                            status: 404,
+                            status: dashboardDataResult.status,
                             headers: { "Content-Type": "application/json" },
                         },
                     );
                 }
 
-                let db_adapter = ctx.db_adapter;
-                dashboardOptions.site_uuid = siteDetails.uuid;
-                if (siteDetails.site_db_adapter != ctx.db_adapter) {
-                    db_adapter = siteDetails.site_db_adapter;
-                }
-
-                if (db_adapter != "sqlite") {
-                    if (siteDetails.external_id > 0) {
-                        //NOTE: THIS MAPS TO POSTGRES ACCOUNT/SITE IF NEEDED TO OVERRIDE
-                        dashboardOptions.site_id = siteDetails.external_id;
-                    }
-
-                    const externalTeamId = ctx.team.external_id ?? 0;
-                    if (externalTeamId > 0) {
-                        //NOTE: THIS MAPS TO POSTGRES ACCOUNT/TEAM IF NEEDED TO OVERRIDE
-                        dashboardOptions.team_id = externalTeamId;
-                    }
-                }
-
-                const eventSummary = await getEventSummaryFromDurableObject({
-                    ...dashboardOptions,
-                    date: {
-                        start: dateStartValue ?? undefined,
-                        end: dateEndValue ?? undefined,
-                        endIsExact: endDateIsExact,
-                    },
-                    limit: normalizedEventSummaryLimit,
-                    offset: normalizedEventSummaryOffset,
-                    search: eventSummarySearch,
-                });
-
-                const dashboardAggregates = await getDashboardAggregatesFromDurableObject({
-                    ...dashboardOptions,
-                    date: {
-                        start: dateStartValue ?? undefined,
-                        end: dateEndValue ?? undefined,
-                        endIsExact: endDateIsExact,
-                    },
-                    timezone: normalizedTimezone ?? undefined,
-                    country: normalizedCountry ?? undefined,
-                    deviceType: normalizedDeviceType ?? undefined,
-                    source: normalizedSource ?? undefined,
-                    pageUrl: normalizedPageUrl ?? undefined,
-                    city: normalizedCity ?? undefined,
-                    region: normalizedRegion ?? undefined,
-                    event: normalizedEventName ?? undefined,
-                });
-
-                if (!dashboardAggregates) {
-                    return new Response(JSON.stringify({ error: "No data found", requestId }), {
-                        status: 404,
-                        headers: { "Content-Type": "application/json" },
-                    });
-                }
-
-                const pageViewsData = getPageViewsData(dashboardAggregates.pageViews);
-
-                const referers = Array.from(
-                    dashboardAggregates.referers.reduce((acc, item) => {
-                        const normalizedReferer = cleanRefererValue(item.id);
-                        const current = acc.get(normalizedReferer) ?? 0;
-                        acc.set(normalizedReferer, current + item.value);
-                        return acc;
-                    }, new Map<string, number>()),
-                )
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([id, value]) => ({ id, value }));
-
-                const topSourcesData = getTopSourcesData(
-                    referers
-                        .slice(0, 10)
-                        .map((a) => ({ name: a.id, visitors: a.value })),
-                );
-
-                const referrersData = getReferrersData(referers.slice(0, 10));
-
-                const eventTypesData = getEventTypesData(dashboardAggregates.events);
-
-                const geoData = dashboardAggregates.cities
-                    .map(([city, details]) => [details.country, city, details.count]) as Array<[string, string, number]>;
-
-                const deviceGeoData = getDeviceGeoData({
-                    geoData,
-                    deviceData: dashboardAggregates.devices,
-                });
-
-                const topPagesData = getTopPagesData(dashboardAggregates.topPages.slice(0, 10));
-
-                const browserData = getDeviceData(
-                    dashboardAggregates.browsers.map((a) => ({
-                        name: a.id,
-                        visitors: a.value,
-                        percentage: "",
-                    })),
-                );
-
-                const osData = getDeviceData(
-                    dashboardAggregates.operatingSystems.map((a) => ({
-                        name: a.id,
-                        visitors: a.value,
-                        percentage: "",
-                    })),
-                );
-
-                const scoreCards = [
-                    {
-                        title: "Uniques",
-                        value: `${dashboardAggregates.scoreCards.uniqueVisitors.toLocaleString()}`,
-                        change: "",
-                        changeType: "neutral",
-                        changeLabel: "",
-                    },
-                    {
-                        title: "Total Page Views",
-                        value: `${dashboardAggregates.scoreCards.totalPageViews.toLocaleString()}`,
-                        change: "",
-                        changeType: "neutral",
-                        changeLabel: "",
-                    },
-                    {
-                        title: "Bounce Rate",
-                        value: `${dashboardAggregates.scoreCards.bounceRatePercent.toFixed(1)}%`,
-                        change: "",
-                        changeType: "neutral",
-                        changeLabel: "",
-                    },
-                    {
-                        title: "Conversion Rate",
-                        value: `${dashboardAggregates.scoreCards.conversionRatePercent.toFixed(2)}%`,
-                        change: "",
-                        changeType: "neutral",
-                        changeLabel: "",
-                    },
-                    {
-                        title: "Total Events",
-                        value: `${dashboardAggregates.scoreCards.nonPageViewEvents.toLocaleString()}`,
-                        change: "",
-                        changeType: "neutral",
-                        changeLabel: "",
-                    },
-                    {
-                        title: "Avg Session Duration",
-                        value: formatDuration(dashboardAggregates.scoreCards.avgSessionDurationSeconds),
-                        change: "",
-                        changeType: "neutral",
-                        changeLabel: "",
-                    },
-                ] as DashboardResponseData["ScoreCards"];
-
-                const responseData: DashboardResponseData = {
-                    noSiteRecordsExist: dashboardAggregates.totalAllTime === 0,
-                    PageViewsData: pageViewsData,
-                    EventTypesData: eventTypesData,
-                    DeviceGeoData: deviceGeoData,
-                    ReferrersData: referrersData,
-                    TopPagesData: topPagesData,
-                    TopSourcesData: topSourcesData,
-                    ScoreCards: scoreCards,
-                    BrowserData: browserData.slice(0, 10),
-                    OSData: osData.slice(0, 10),
-                    Countries: dashboardAggregates.countries,
-                    CountryUniques: dashboardAggregates.countryUniques,
-                    Pagination: dashboardAggregates.pagination,
-                    Regions: dashboardAggregates.regions,
-                    EventSummary: eventSummary,
-                };
+                const responseData = dashboardDataResult.data;
 
                 const headers = new Headers({ "Content-Type": "application/json" });
                 headers.set(

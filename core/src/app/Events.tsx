@@ -13,6 +13,11 @@ type EventSummaryRow = EventSummaryData["summary"][number];
 
 type EventSummaryRowWithShare = EventSummaryRow & { share: number };
 
+type EventTypeFilter = "all" | "autocapture" | "event_capture" | "page_view";
+type EventActionFilter = "all" | "click" | "submit" | "change" | "rule";
+type EventSortBy = "count" | "first_seen" | "last_seen";
+type EventSortDirection = "asc" | "desc";
+
 type DateParts = { year: number; month: number; day: number };
 
 const isValidTimeZone = (value: unknown): value is string => {
@@ -368,6 +373,10 @@ export function EventsPage() {
 
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
+  const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>("all");
+  const [eventActionFilter, setEventActionFilter] = useState<EventActionFilter>("all");
+  const [sortBy, setSortBy] = useState<EventSortBy>("count");
+  const [sortDirection, setSortDirection] = useState<EventSortDirection>("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const hasInitializedDateRange = useRef(false);
   const itemsPerPage = 25;
@@ -388,7 +397,36 @@ export function EventsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateRange.start, dateRange.end, searchTerm]);
+  }, [
+    dateRange.start,
+    dateRange.end,
+    searchTerm,
+    eventTypeFilter,
+    eventActionFilter,
+    sortBy,
+    sortDirection,
+  ]);
+
+  const handleSort = useCallback(
+    (column: EventSortBy) => {
+      if (sortBy === column) {
+        setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+        return;
+      }
+
+      setSortBy(column);
+      setSortDirection("desc");
+    },
+    [sortBy],
+  );
+
+  const getSortArrow = useCallback(
+    (column: EventSortBy) => {
+      if (sortBy !== column) return "↕";
+      return sortDirection === "asc" ? "↑" : "↓";
+    },
+    [sortBy, sortDirection],
+  );
 
   // Fetch event labels for this site
   const labelsQuery = useQuery<EventLabelSelect[], Error>({
@@ -477,6 +515,10 @@ export function EventsPage() {
       offset,
       itemsPerPage,
       searchTerm,
+      eventTypeFilter,
+      eventActionFilter,
+      sortBy,
+      sortDirection,
       effectiveTimezone,
     ],
     queryFn: async () => {
@@ -495,6 +537,10 @@ export function EventsPage() {
           event_summary_offset: offset,
           event_summary_limit: itemsPerPage,
           event_summary_search: searchTerm || undefined,
+          event_summary_type: eventTypeFilter,
+          event_summary_action: eventActionFilter,
+          event_summary_sort_by: sortBy,
+          event_summary_sort_direction: sortDirection,
         }),
       });
 
@@ -567,7 +613,7 @@ export function EventsPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="w-full px-4 py-4 sm:p-6 border-t border-b border-[var(--theme-border-primary)]">
+      <div className="sticky top-0 z-40 w-full border-t border-b border-[var(--theme-border-primary)] bg-[var(--theme-bg-primary)] px-4 py-4 sm:p-6 shadow-[0_6px_14px_rgba(0,0,0,0.12)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="text-[var(--theme-text-primary)] font-semibold">
               <SiteSelector />
@@ -609,6 +655,33 @@ export function EventsPage() {
                   className="w-full sm:w-48 px-3 py-2 text-sm rounded-md border border-[var(--theme-input-border)] bg-[var(--theme-input-bg)] text-[var(--theme-text-primary)]"
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-[var(--theme-text-secondary)]">Type</label>
+                <select
+                  value={eventTypeFilter}
+                  onChange={(event) => setEventTypeFilter(event.target.value as EventTypeFilter)}
+                  className="px-3 py-2 text-sm rounded-md border border-[var(--theme-input-border)] bg-[var(--theme-input-bg)] text-[var(--theme-text-primary)]"
+                >
+                  <option value="all">All types</option>
+                  <option value="autocapture">Auto Capture</option>
+                  <option value="event_capture">Event Capture</option>
+                  <option value="page_view">Page View</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-[var(--theme-text-secondary)]">Action</label>
+                <select
+                  value={eventActionFilter}
+                  onChange={(event) => setEventActionFilter(event.target.value as EventActionFilter)}
+                  className="px-3 py-2 text-sm rounded-md border border-[var(--theme-input-border)] bg-[var(--theme-input-bg)] text-[var(--theme-text-primary)]"
+                >
+                  <option value="all">All actions</option>
+                  <option value="click">Click</option>
+                  <option value="submit">Submit</option>
+                  <option value="change">Change</option>
+                  <option value="rule">Rule</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -623,8 +696,10 @@ export function EventsPage() {
                 </h1>
                 <p className="text-sm text-[var(--theme-text-secondary)]">
                   Captured events grouped by name, including auto-capture and custom events.
-                  <span className="ml-1 text-xs">Hover over events to add custom labels.</span>
                 </p>
+                <div className="mt-2 inline-flex items-center rounded-md border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)] px-2.5 py-1 text-xs text-[var(--theme-text-secondary)]">
+                  Hover over events to add custom labels.
+                </div>
               </div>
               <div className="text-sm text-[var(--theme-text-secondary)]">
                 <span className="font-semibold text-[var(--theme-text-primary)]">
@@ -695,9 +770,25 @@ export function EventsPage() {
                     </th>
                     <th
                       scope="col"
+                      aria-sort={
+                        sortBy === "count"
+                          ? sortDirection === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                      }
                       className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-[var(--theme-text-secondary)] uppercase tracking-wider"
                     >
-                      Count
+                      <button
+                        type="button"
+                        onClick={() => handleSort("count")}
+                        className="inline-flex items-center gap-1 hover:text-[var(--theme-text-primary)]"
+                      >
+                        <span>Count</span>
+                        <span className={sortBy === "count" ? "text-[var(--theme-text-primary)]" : "opacity-60"}>
+                          {getSortArrow("count")}
+                        </span>
+                      </button>
                     </th>
                     <th
                       scope="col"
@@ -707,15 +798,47 @@ export function EventsPage() {
                     </th>
                     <th
                       scope="col"
+                      aria-sort={
+                        sortBy === "first_seen"
+                          ? sortDirection === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                      }
                       className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-[var(--theme-text-secondary)] uppercase tracking-wider"
                     >
-                      First Seen
+                      <button
+                        type="button"
+                        onClick={() => handleSort("first_seen")}
+                        className="inline-flex items-center gap-1 hover:text-[var(--theme-text-primary)]"
+                      >
+                        <span>First Seen</span>
+                        <span className={sortBy === "first_seen" ? "text-[var(--theme-text-primary)]" : "opacity-60"}>
+                          {getSortArrow("first_seen")}
+                        </span>
+                      </button>
                     </th>
                     <th
                       scope="col"
+                      aria-sort={
+                        sortBy === "last_seen"
+                          ? sortDirection === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                      }
                       className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-[var(--theme-text-secondary)] uppercase tracking-wider"
                     >
-                      Last Seen
+                      <button
+                        type="button"
+                        onClick={() => handleSort("last_seen")}
+                        className="inline-flex items-center gap-1 hover:text-[var(--theme-text-primary)]"
+                      >
+                        <span>Last Seen</span>
+                        <span className={sortBy === "last_seen" ? "text-[var(--theme-text-primary)]" : "opacity-60"}>
+                          {getSortArrow("last_seen")}
+                        </span>
+                      </button>
                     </th>
                   </tr>
                 </thead>

@@ -130,7 +130,7 @@ export const lytxTag = (adapter: DBAdapter, route_path = "/lytx.v2.js") => route
   const safeEvents = shouldLoadEvents ? eventsOut : [];
 
   const siteCfg = { site: config.site, tag: config.tag, autocapture: config.autocapture };
-  const script = `//! Copyright ${new Date().getFullYear()} Lytx.io All rights reserved.
+  const script = `//! Copyright ${new Date().getFullYear()} Lytx All rights reserved.
 (function () {
  const ${dataVariableName} = ${JSON.stringify(safeEvents)};
  if (window.${dataVariableName}) {

@@ -1,6 +1,6 @@
 import { route, prefix } from "rwsdk/router";
 import type { RequestInfo } from "rwsdk/worker";
-import type { AppContext } from "@/worker";
+import type { AppContext } from "@/types/app-context";
 import type { UserRole } from "@db/types";
 import { IS_DEV } from "rwsdk/constants";
 import { onlyAllowPost } from "@utilities/route_interuptors";
@@ -13,9 +13,15 @@ import * as schema from "@db/d1/schema";
 import { getSiteFromContext } from "@/api/authMiddleware";
 // import { auth } from "@lib/auth";
 
+type TeamRequestInfo = RequestInfo<any, AppContext>;
+const teamRoute = <TPath extends string>(
+  path: TPath,
+  handlers: Parameters<typeof route<TPath, TeamRequestInfo>>[1],
+) => route<TPath, TeamRequestInfo>(path, handlers);
+
 //PERF:  ALL ROUTES HERE WILL BE PREFIXED WITH /api/team
 export const get_team_members = () =>
-  route<RequestInfo<any, AppContext>>("/members", [
+  teamRoute("/members", [
     async ({ ctx }) => {
       const teamMembers = await getTeamMembers(ctx.team.id)
       if (teamMembers.length === 0) {
@@ -29,13 +35,13 @@ export const get_team_members = () =>
     }
   ]);
 export const get_team_settings = () =>
-  route<RequestInfo<any, AppContext>>("/settings", [
+  teamRoute("/settings", [
     async ({ ctx }) => {
-      const { members, keys, sites } = await getTeamSettings(ctx.team.id);
+      const { members, keys, sites, pendingInvites } = await getTeamSettings(ctx.team.id);
       if (members.length === 0) {
         return new Response("No team members found", { status: 404 });
       } else {
-        return new Response(JSON.stringify({ members, keys, sites }), {
+        return new Response(JSON.stringify({ members, keys, sites, pendingInvites }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
@@ -43,7 +49,7 @@ export const get_team_settings = () =>
     }
   ]);
 type Team_Option = "name";
-const update_team = route<RequestInfo<any, AppContext>>("/update", [
+const update_team = teamRoute("/update", [
   onlyAllowPost,
   async ({ ctx, request }) => {
     if (IS_DEV)
@@ -60,13 +66,16 @@ const update_team = route<RequestInfo<any, AppContext>>("/update", [
     if (!body.option || !body.name)
       return new Response("Invalid request", { status: 400 });
     const checkIfUpdated = await updateTeamName(body.name, ctx.team.id);
+    if (body.option === "name" && IS_DEV) {
+      console.log("Team name updated (billing sync omitted in OSS)", checkIfUpdated, ctx.team);
+    }
     if (IS_DEV) console.log(checkIfUpdated, ctx.team, body.option, body.name);
     return new Response("Ok", { status: 201 });
     //return new Response("Not Found.", { status: 404 });
   },
 ]);
 
-const add_api_key = route<RequestInfo<any, AppContext>>("/add-api-key", [
+const add_api_key = teamRoute("/add-api-key", [
   onlyAllowPost,
   async ({ ctx, request }) => {
     if (IS_DEV)
@@ -109,7 +118,7 @@ const add_api_key = route<RequestInfo<any, AppContext>>("/add-api-key", [
     });
   }
 ]);
-const add_team_member = route<RequestInfo<any, AppContext>>("/add-member", [
+const add_team_member = teamRoute("/add-member", [
   onlyAllowPost,
   async ({ ctx, request }) => {
     if (IS_DEV)
@@ -124,7 +133,29 @@ const add_team_member = route<RequestInfo<any, AppContext>>("/add-member", [
     if (!body.email) {
       return new Response("Missing user_id", { status: 400 });
     }
-    const { create, addToTeam, userDetails } = await userExists(body.email, ctx.team.id);
+    if (ctx.user_role !== "admin") {
+      return new Response("You must be an admin to add team members", { status: 403 });
+    }
+
+    const normalizedEmail = body.email.trim().toLowerCase();
+
+    const existingInvite = await d1_client
+      .select({ id: invited_user.id })
+      .from(invited_user)
+      .where(
+        and(
+          eq(invited_user.team_id, ctx.team.id),
+          eq(invited_user.email, normalizedEmail),
+          eq(invited_user.accepted, false),
+        ),
+      )
+      .limit(1);
+
+    if (existingInvite.length > 0) {
+      return new Response("Invitation already pending for this email", { status: 409 });
+    }
+
+    const { create, addToTeam, userDetails } = await userExists(normalizedEmail, ctx.team.id);
     if (IS_DEV) console.log(create, addToTeam, userDetails);
 
     if (!create && !addToTeam) {
@@ -137,8 +168,8 @@ const add_team_member = route<RequestInfo<any, AppContext>>("/add-member", [
         user_id: userDetails.id,
         role: body.role,
       });
-      await newAccountInviteEmail(body.email, `${domainUrl.host}/login`);
-      return new Response(JSON.stringify({ success: true }), {
+      await newAccountInviteEmail(normalizedEmail, `${domainUrl.host}/login`);
+      return new Response(JSON.stringify({ success: true, inviteSent: true, memberVisible: true }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
       });
@@ -146,14 +177,14 @@ const add_team_member = route<RequestInfo<any, AppContext>>("/add-member", [
     if (create && !userDetails) {
       await d1_client.insert(invited_user).values({
         team_id: ctx.team.id,
-        email: body.email,
+        email: normalizedEmail,
         name: body.name,
         role: body.role,
         accepted: false,
       });
 
-      await sendTeamInviteEmail(body.email, `${domainUrl.host}/signup`);
-      return new Response(JSON.stringify({ success: true }), {
+      await sendTeamInviteEmail(normalizedEmail, `${domainUrl.host}/signup`);
+      return new Response(JSON.stringify({ success: true, inviteSent: true, memberVisible: false }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
       });
@@ -163,7 +194,7 @@ const add_team_member = route<RequestInfo<any, AppContext>>("/add-member", [
   },
 ]);
 
-const create_team = route<RequestInfo<any, AppContext>>("/create", [
+const create_team = teamRoute("/create", [
   onlyAllowPost,
   async ({ ctx, request }) => {
     const requestId = crypto.randomUUID();
@@ -239,7 +270,7 @@ const create_team = route<RequestInfo<any, AppContext>>("/create", [
   },
 ]);
 
-const update_member_sites = route<RequestInfo<any, AppContext>>(
+const update_member_sites = teamRoute(
   "/update-member-sites",
   [
     onlyAllowPost,
@@ -313,7 +344,106 @@ const update_member_sites = route<RequestInfo<any, AppContext>>(
   ],
 );
 
-export const team_dashboard_endpoints = prefix("/team", [
+const update_member_role = teamRoute(
+  "/update-member-role",
+  [
+    onlyAllowPost,
+    async ({ ctx, request }) => {
+      const body = (await request.json()) as {
+        user_id?: string;
+        role?: UserRole;
+      };
+
+      if (!body.user_id || !body.role) {
+        return new Response("Invalid request", { status: 400 });
+      }
+
+      if (!["admin", "editor", "viewer"].includes(body.role)) {
+        return new Response("Invalid role", { status: 400 });
+      }
+
+      if (ctx.user_role !== "admin") {
+        return new Response("You must be an admin to update member roles", {
+          status: 403,
+        });
+      }
+
+      const updated = await d1_client
+        .update(team_member)
+        .set({ role: body.role })
+        .where(
+          and(
+            eq(team_member.team_id, ctx.team.id),
+            eq(team_member.user_id, body.user_id),
+          ),
+        )
+        .returning();
+
+      if (updated.length === 0) {
+        return new Response("Team member not found", { status: 404 });
+      }
+
+      return new Response(JSON.stringify(updated[0]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  ],
+);
+
+const remove_pending_invite = teamRoute(
+  "/remove-pending-invite",
+  [
+    onlyAllowPost,
+    async ({ ctx, request }) => {
+      const body = (await request.json()) as {
+        invite_id?: number;
+      };
+
+      if (!Number.isInteger(body.invite_id)) {
+        return new Response("Invalid invite_id", { status: 400 });
+      }
+
+      if (ctx.user_role !== "admin") {
+        return new Response("You must be an admin to remove pending invites", {
+          status: 403,
+        });
+      }
+
+      const inviteId = body.invite_id as number;
+      const targetInvite = await d1_client
+        .select({ id: invited_user.id })
+        .from(invited_user)
+        .where(
+          and(
+            eq(invited_user.team_id, ctx.team.id),
+            eq(invited_user.id, inviteId),
+          ),
+        )
+        .limit(1);
+
+      if (targetInvite.length === 0) {
+        return new Response("Pending invite not found", { status: 404 });
+      }
+
+      await d1_client
+        .delete(invited_user)
+        .where(
+          and(
+            eq(invited_user.team_id, ctx.team.id),
+            eq(invited_user.id, inviteId),
+          ),
+        );
+
+      return new Response(JSON.stringify({ success: true, invite_id: inviteId }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  ],
+);
+
+export const team_dashboard_endpoints = prefix<"/team", TeamRequestInfo>("/team", [
   get_team_members(),
   update_team,
   create_team,
@@ -321,4 +451,6 @@ export const team_dashboard_endpoints = prefix("/team", [
   get_team_settings(),
   add_api_key,
   update_member_sites,
+  update_member_role,
+  remove_pending_invite,
 ]);

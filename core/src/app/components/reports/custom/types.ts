@@ -1,4 +1,4 @@
-export type ReportChartType = "bar" | "line" | "pie" | "funnel" | "sankey";
+export type ReportChartType = "bar" | "line" | "pie" | "funnel" | "sankey" | "map";
 
 export type ReportAggregation = "count" | "unique_users" | "sum" | "avg";
 
@@ -21,6 +21,8 @@ export type CustomReportWidgetConfig = {
   sourceField: string;
   targetField: string;
   colorPalette: ReportColorPalette;
+  customPrimaryColor?: string | null;
+  customSecondaryColor?: string | null;
   limit: number;
   layout: ReportWidgetLayout;
 };

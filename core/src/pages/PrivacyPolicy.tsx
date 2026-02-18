@@ -32,10 +32,6 @@ export function PrivacyPolicy() {
                   Account information such as name, email address, and login credentials.
                 </li>
                 <li>
-                  Billing and subscription details if you purchase a paid plan, processed by our payment
-                  providers.
-                </li>
-                <li>
                   Usage data about how you use the Services, including feature usage, settings, and
                   performance metrics.
                 </li>
@@ -61,7 +57,6 @@ export function PrivacyPolicy() {
               <ul className="space-y-2 list-disc pl-5">
                 <li>Provide, operate, and maintain the Services.</li>
                 <li>Authenticate users, secure accounts, and prevent abuse.</li>
-                <li>Process payments and manage subscriptions.</li>
                 <li>Improve product performance and user experience.</li>
                 <li>Respond to support requests and send service communications.</li>
               </ul>
@@ -102,10 +97,10 @@ export function PrivacyPolicy() {
                 Miami, FL 33179<br />
                 Email:{" "}
                 <a
-                  href="mailto:legal@lytx.io"
+                  href="mailto:legal@yourdomain.com"
                   className="text-slate-600 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 underline underline-offset-4"
                 >
-                  legal@lytx.io
+                  legal@yourdomain.com
                 </a>
               </p>
             </div>

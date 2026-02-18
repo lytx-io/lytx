@@ -6,7 +6,14 @@ interface AppQueryProviderProps {
 }
 
 export function AppQueryProvider({ children }: AppQueryProviderProps) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 0,
+        gcTime: 0,
+      },
+    },
+  }));
 
   return (
     <QueryClientProvider client={queryClient}>

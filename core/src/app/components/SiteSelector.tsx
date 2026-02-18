@@ -40,28 +40,51 @@ async function updateLastSiteInDB(site_id: number): Promise<void> {
 
 type SiteSelectorProps = {
   callBack?: (opts: { name: string; id: number; tag_id: string }) => void;
+  initialSites?: Array<{ site_id: number; name: string; tag_id: string }>;
+  initialSiteId?: number | null;
+  wrapperClassName?: string;
+  selectClassName?: string;
 };
-export const SiteSelector: React.FC<SiteSelectorProps> = (_props) => {
+export const SiteSelector: React.FC<SiteSelectorProps> = ({
+  initialSites = [],
+  initialSiteId = null,
+  wrapperClassName,
+  selectClassName,
+}) => {
   const {
     data: session,
     current_site,
-    isPending,
     setCurrentSite,
   } = useContext(AuthContext);
 
+  const sites = session?.userSites && session.userSites.length > 0
+    ? session.userSites.map((site) => ({
+      site_id: site.site_id,
+      name: site.name || `Site ${site.site_id}`,
+      tag_id: site.tag_id,
+    }))
+    : initialSites;
+
+  const selectedSiteName = current_site?.name
+    ?? sites.find((site) => site.site_id === initialSiteId)?.name
+    ?? sites[0]?.name
+    ?? "";
+
+  const combinedWrapperClassName = ["relative inline-block", wrapperClassName]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div>
+    <div className={combinedWrapperClassName}>
       <select
-        value={current_site?.name ?? ""}
+        value={selectedSiteName}
         onChange={(e) => {
-          if (!session) return;
-          if (!session.userSites) return;
-          const selectedSite = session.userSites.find(
+          const selectedSite = sites.find(
             (site) => site.name === e.target.value,
           );
           if (selectedSite) {
             setCurrentSite({
-              name: selectedSite.name!,
+              name: selectedSite.name,
               id: selectedSite.site_id,
               tag_id: selectedSite.tag_id,
             });
@@ -71,16 +94,33 @@ export const SiteSelector: React.FC<SiteSelectorProps> = (_props) => {
             updateLastSiteInDB(selectedSite.site_id);
           }
         }}
-        className="bg-[var(--theme-input-bg)] text-sm text-[var(--theme-text-primary)] rounded-md border border-[var(--theme-input-border)] focus:border-[var(--theme-border-primary)] focus:outline-none text-center"
+        className={`appearance-none bg-[var(--theme-input-bg)] pl-4 pr-10 py-2 text-sm text-left text-[var(--theme-text-primary)] rounded-lg border border-[var(--theme-input-border)] focus:border-[var(--theme-border-primary)] focus:outline-none transition-colors ${selectClassName ?? ""}`}
       >
-        {!isPending && session && session.userSites
-          ? session.userSites.map((site) => (
-              <option key={site.site_id} value={site.name!}>
+        {sites.length > 0
+          ? sites.map((site) => (
+              <option key={site.site_id} value={site.name} className="text-left">
                 {site.name}
               </option>
             ))
           : ""}
       </select>
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[var(--theme-text-secondary)]">
+        <svg
+          aria-hidden="true"
+          className="h-4 w-4"
+          viewBox="0 0 20 20"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M5 7.5L10 12.5L15 7.5"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
     </div>
   );
 };

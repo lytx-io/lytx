@@ -10,9 +10,9 @@ export const reportColorPalettes: Record<ReportColorPalette, string[]> = {
 };
 
 export const reportPaletteOptions: Array<{ value: ReportColorPalette; label: string }> = [
-  { value: "primary", label: "Primary" },
-  { value: "secondary", label: "Secondary" },
-  { value: "mixed", label: "Mixed" },
-  { value: "line", label: "Line" },
-  { value: "funnel", label: "Funnel" },
+  { value: "primary", label: "Brand Primary" },
+  { value: "secondary", label: "Brand Secondary" },
+  { value: "mixed", label: "Brand Blend" },
+  { value: "line", label: "Brand Focus" },
+  { value: "funnel", label: "Brand Warm" },
 ];

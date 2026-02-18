@@ -1,12 +1,12 @@
 import { env } from "cloudflare:workers";
 import { route } from "rwsdk/router";
 import type { RequestInfo } from "rwsdk/worker";
-import { generateText, streamText, tool } from "ai";
+import { convertToModelMessages, generateText, streamText, tool } from "ai";
 import { IS_DEV } from "rwsdk/constants";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { z } from "zod";
 
-import type { AppContext } from "@/worker";
+import type { AppContext } from "@/types/app-context";
 import { getSiteFromContext } from "@/api/authMiddleware";
 import {
   getDurableDatabaseStub,
@@ -14,6 +14,11 @@ import {
   getStatsFromDurableObject,
   getTimeSeriesFromDurableObject,
 } from "@db/durable/durableObjectClient";
+import {
+  getTeamAiUsageForUtcDay,
+  trackTeamAiUsage,
+  type TrackTeamAiUsageInput,
+} from "@db/d1/teamAiUsage";
 import { parseDateParam, parseSiteIdParam } from "@/utilities/dashboardParams";
 
 type AiConfig = {
@@ -22,9 +27,25 @@ type AiConfig = {
   apiKey: string;
 };
 
-const DEFAULT_AI_MODEL = "gpt-4o-mini";
+type NivoChartType = "bar" | "line" | "pie";
+
+const DEFAULT_AI_MODEL = "gpt-5-mini";
 const DEFAULT_AI_BASE_URL = "https://api.openai.com/v1";
 const MAX_METRIC_LIMIT = 100;
+
+type TokenUsage = {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+};
+
+type StreamCompletionSummary = {
+  finishReason: string;
+  toolCallCount: number;
+  completionChars: number;
+  stepCount: number;
+  usageFromOnFinish: unknown;
+};
 
 function getAiConfigFromEnv(): AiConfig | null {
   const baseURL = env.AI_BASE_URL?.trim() || DEFAULT_AI_BASE_URL;
@@ -46,6 +67,101 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function asOptionalNonNegativeInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+
+  if (typeof value === "bigint") {
+    if (value < 0n) return 0;
+    if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+    return Number(value);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.max(0, Math.floor(parsed));
+  }
+
+  return null;
+}
+
+function extractTokenUsage(value: unknown): TokenUsage {
+  if (!isRecord(value)) {
+    return {
+      inputTokens: null,
+      outputTokens: null,
+      totalTokens: null,
+    };
+  }
+
+  const inputTokens = asOptionalNonNegativeInt(
+    value.inputTokens
+    ?? value.promptTokens
+    ?? value.prompt_tokens,
+  );
+  const outputTokens = asOptionalNonNegativeInt(
+    value.outputTokens
+    ?? value.completionTokens
+    ?? value.completion_tokens,
+  );
+
+  const explicitTotal = asOptionalNonNegativeInt(
+    value.totalTokens
+    ?? value.total_tokens,
+  );
+
+  const derivedTotal =
+    inputTokens !== null || outputTokens !== null
+      ? (inputTokens ?? 0) + (outputTokens ?? 0)
+      : null;
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: explicitTotal ?? derivedTotal,
+  };
+}
+
+function getAiDailyTokenLimit(): number | null {
+  const rawValue = (env as unknown as Record<string, unknown>).AI_DAILY_TOKEN_LIMIT;
+  const raw = typeof rawValue === "string" ? rawValue.trim() : "";
+  if (!raw) return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.floor(parsed);
+}
+
+async function isTeamOverAiDailyLimit(teamId: number): Promise<{ limited: boolean; usedTokens: number; limit: number | null }> {
+  const limit = getAiDailyTokenLimit();
+  if (!limit) {
+    return { limited: false, usedTokens: 0, limit: null };
+  }
+
+  const totals = await getTeamAiUsageForUtcDay(teamId);
+  return {
+    limited: totals.totalTokens >= limit,
+    usedTokens: totals.totalTokens,
+    limit,
+  };
+}
+
+async function trackAiUsageSafely(input: TrackTeamAiUsageInput) {
+  try {
+    await trackTeamAiUsage(input);
+  } catch (error) {
+    if (IS_DEV) {
+      console.warn("Failed to persist AI usage", {
+        requestId: input.request_id,
+        error,
+      });
+    }
+  }
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -57,6 +173,12 @@ function truncateUtf8(input: string, maxBytes: number): string {
 
   const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes.slice(0, maxBytes));
   return decoded;
+}
+
+function previewText(input: string, maxLength = 140): string {
+  const normalized = input.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength)}...`;
 }
 
 function isPrivateNetworkHostname(hostname: string): boolean {
@@ -141,7 +263,7 @@ Return format:
 - A short validation note if tag is missing.`;
 }
 
-function getAiConfig(teamId?: number | null): AiConfig | null {
+export function getAiConfig(_teamId?: number | null): AiConfig | null {
   return getAiConfigFromEnv();
 }
 
@@ -151,8 +273,12 @@ function getSchemaPrompt() {
 Your job:
 - Answer user questions about their analytics data.
 - If the data is needed, call an available tool to fetch results.
-- If a tool cannot answer, provide an optimized SQL query instead.
-- Prefer concise responses: 2-6 bullet points plus a SQL block when needed.
+- Prefer concise responses: 2-6 bullets with plain-language insights.
+- Do not include SQL unless the user explicitly asks for SQL.
+- Do not mention D1, Durable Object internals, or Postgres unless the user explicitly asks about implementation details.
+- If the user explicitly asks for a chart/graph/visualization, call get_nivo_chart_data.
+- Do not call get_nivo_chart_data unless the user asks for a visual/chart.
+- When you return a chart, also include a short plain-language summary of what the chart shows.
 
 Data schema (core tables):
 
@@ -180,30 +306,39 @@ Conventions:
 Return format:
 - A brief explanation
 - Results summary (if tool data is available)
-- A SQL query only when needed (or multiple options if D1 vs Postgres differ)`;
+- Optional next-step suggestion (only if useful)`;
 }
 
-function getTeamContextPrompt(ctx: AppContext, siteId: number | null) {
-  const site = siteId ? ctx.sites?.find((s) => s.site_id === siteId) : null;
+function getTeamContextPrompt(ctx: AppContext, requestedSiteId: number | null, defaultSiteId: number | null) {
+  const site = defaultSiteId ? ctx.sites?.find((s) => s.site_id === defaultSiteId) : null;
 
   const teamId = ctx.team?.id ?? "unknown";
   const teamExternalId = ctx.team?.external_id ?? 0;
 
   const siteExternalId = site?.external_id ?? 0;
   const siteDomain = site?.domain ?? null;
+  const availableSites = (ctx.sites ?? [])
+    .map((s) => `- ${s.site_id}: ${s.name || s.domain || `Site ${s.site_id}`}${s.domain ? ` (${s.domain})` : ""}`)
+    .join("\n") || "- none";
 
   return `Current request context:
 - team_id: ${teamId}
 - team_external_id (postgres account_id): ${teamExternalId}
-- site_id: ${siteId ?? "none"}
+- requested_site_id_from_client: ${requestedSiteId ?? "none"}
+- default_site_id_for_tools: ${defaultSiteId ?? "none"}
 - site_external_id (postgres site_id): ${siteExternalId}
 - site_domain: ${siteDomain ?? "unknown"}
+
+Accessible sites for this user:
+${availableSites}
 
 Available tools:
 - get_site_stats: summary metrics for a site (counts by event/country/device/referer).
 - get_time_series: time series counts with granularity and optional grouping by event.
 - get_metric_breakdown: top counts for events/countries/devices/referers/pages.
-Use tools when you need real data. If a tool fails or data is missing, explain and provide SQL instead.`;
+- get_nivo_chart_data: returns chart-ready data for Nivo charts when the user asks for a chart.
+Use tools when you need real data. If a tool fails or data is missing, explain the limitation in plain language.
+When a site-specific query is needed, default to default_site_id_for_tools and do not ask for site_id unless user explicitly asks for a different site.`;
 }
 
 export const aiConfigRoute = route(
@@ -424,19 +559,68 @@ export const aiTagSuggestRoute = route(
       });
     }
 
+    const dailyLimitState = await isTeamOverAiDailyLimit(ctx.team.id);
+    if (dailyLimitState.limited) {
+      await trackAiUsageSafely({
+        team_id: ctx.team.id,
+        user_id: ctx.session.user.id,
+        site_id: site.site_id,
+        request_id: requestId,
+        request_type: "site_tag_suggest",
+        provider: aiConfig.baseURL,
+        model: aiConfig.model,
+        status: "error",
+        error_code: "daily_limit_exceeded",
+      });
+      return new Response(
+        JSON.stringify({
+          error: "AI daily usage limit reached for this team. Try again tomorrow UTC.",
+          requestId,
+          used_tokens: dailyLimitState.usedTokens,
+          token_limit: dailyLimitState.limit,
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const modelProvider = createOpenAICompatible({
       baseURL: aiConfig.baseURL,
       name: "team-model",
       apiKey: aiConfig.apiKey,
+      includeUsage: true,
     });
 
     const prompt = `Analyze this page HTML and suggest DOM events to track.\n\nContext:\n- Selected site domain: ${site.domain ?? "unknown"}\n- Target URL: ${url.toString()}\n- Lytx tag id (account): ${tagId}\n- Tag script detected on page: ${tagFound}\n- Tracking events seen recently: ${trackingOk === null ? "unknown" : trackingOk}\n\nHTML (truncated):\n${truncateUtf8(html, 60_000)}`;
+    const aiStartedAt = Date.now();
 
     try {
       const result = await generateText({
         model: modelProvider.chatModel(aiConfig.model),
         system: getSiteTagSystemPrompt(),
         prompt,
+      });
+
+      const usage = extractTokenUsage((result as { usage?: unknown }).usage);
+      void trackAiUsageSafely({
+        team_id: ctx.team.id,
+        user_id: ctx.session.user.id,
+        site_id: site.site_id,
+        request_id: requestId,
+        request_type: "site_tag_suggest",
+        provider: aiConfig.baseURL,
+        model: aiConfig.model,
+        status: "success",
+        input_tokens: usage.inputTokens,
+        output_tokens: usage.outputTokens,
+        total_tokens: usage.totalTokens,
+        tool_calls: 0,
+        message_count: 1,
+        prompt_chars: prompt.length,
+        completion_chars: result.text.length,
+        duration_ms: Date.now() - aiStartedAt,
       });
 
       return new Response(
@@ -457,6 +641,21 @@ export const aiTagSuggestRoute = route(
         },
       );
     } catch (error) {
+      await trackAiUsageSafely({
+        team_id: ctx.team.id,
+        user_id: ctx.session.user.id,
+        site_id: site.site_id,
+        request_id: requestId,
+        request_type: "site_tag_suggest",
+        provider: aiConfig.baseURL,
+        model: aiConfig.model,
+        status: "error",
+        error_code: "ai_request_failed",
+        error_message: truncateUtf8(error instanceof Error ? error.message : "Unknown AI error", 500),
+        message_count: 1,
+        prompt_chars: prompt.length,
+        duration_ms: Date.now() - aiStartedAt,
+      });
       console.error("site-tag-suggest ai error", { requestId, error });
       return new Response(JSON.stringify({ error: "AI request failed", requestId }), {
         status: 500,
@@ -508,6 +707,12 @@ export const aiChatRoute = route(
 
     const messages = Array.isArray(body.messages) ? body.messages : null;
     const siteId = parseSiteIdParam(body.site_id ?? null);
+    const debugStream = IS_DEV && (
+      body.debug_stream === true
+      || request.headers.get("x-ai-debug-stream") === "1"
+      || new URL(request.url).searchParams.get("debug_stream") === "1"
+      || (env as any).AI_STREAM_DEBUG === "1"
+    );
 
     if (!messages) {
       return new Response(JSON.stringify({ error: "messages is required", requestId }), {
@@ -516,24 +721,66 @@ export const aiChatRoute = route(
       });
     }
 
+    const aiRequestStartedAt = Date.now();
+    const trimmedMessages = messages.slice(-20) as any;
+    const promptCharsEstimate = JSON.stringify(trimmedMessages).length;
+    const selectedSite = siteId ? getSiteFromContext(ctx, siteId) : null;
+    const fallbackSite = selectedSite ?? (ctx.sites?.[0] ?? null);
+    const defaultToolSiteId = fallbackSite?.site_id ?? null;
+
+    const dailyLimitState = await isTeamOverAiDailyLimit(ctx.team.id);
+    if (dailyLimitState.limited) {
+      await trackAiUsageSafely({
+        team_id: ctx.team.id,
+        user_id: ctx.session.user.id,
+        site_id: defaultToolSiteId,
+        request_id: requestId,
+        request_type: "chat",
+        provider: aiConfig.baseURL,
+        model: aiConfig.model,
+        status: "error",
+        error_code: "daily_limit_exceeded",
+        message_count: messages.length,
+        prompt_chars: promptCharsEstimate,
+      });
+      return new Response(
+        JSON.stringify({
+          error: "AI daily usage limit reached for this team. Try again tomorrow UTC.",
+          requestId,
+          used_tokens: dailyLimitState.usedTokens,
+          token_limit: dailyLimitState.limit,
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const modelProvider = createOpenAICompatible({
       baseURL: aiConfig.baseURL,
       name: "team-model",
       apiKey: aiConfig.apiKey,
+      includeUsage: true,
     });
 
-    const system = `${getSchemaPrompt()}\n\n${getTeamContextPrompt(ctx, siteId)}`;
+    const system = `${getSchemaPrompt()}\n\n${getTeamContextPrompt(ctx, siteId, defaultToolSiteId)}`;
 
     const tools = {
       get_site_stats: tool({
         description: "Return summary metrics for a site over a date range.",
-        parameters: z.object({
-          site_id: z.number().describe("Site id to query"),
+        inputSchema: z.object({
+          site_id: z.number().optional().describe("Site id to query (optional, defaults to selected site)"),
           startDate: z.string().optional().describe("ISO start date"),
           endDate: z.string().optional().describe("ISO end date"),
         }),
         execute: async ({ site_id, startDate, endDate }) => {
-          const site = getSiteFromContext(ctx, site_id);
+          const effectiveSiteId = site_id ?? defaultToolSiteId;
+          if (!effectiveSiteId) {
+            return { error: "No accessible site available" };
+          }
+
+          const site = getSiteFromContext(ctx, effectiveSiteId);
           if (!site?.uuid) {
             return { error: "Site not found" };
           }
@@ -557,15 +804,20 @@ export const aiChatRoute = route(
       }),
       get_time_series: tool({
         description: "Return time series counts for a site.",
-        parameters: z.object({
-          site_id: z.number().describe("Site id to query"),
+        inputSchema: z.object({
+          site_id: z.number().optional().describe("Site id to query (optional, defaults to selected site)"),
           startDate: z.string().optional().describe("ISO start date"),
           endDate: z.string().optional().describe("ISO end date"),
           granularity: z.enum(["hour", "day", "week", "month"]).optional(),
           byEvent: z.boolean().optional(),
         }),
         execute: async ({ site_id, startDate, endDate, granularity, byEvent }) => {
-          const site = getSiteFromContext(ctx, site_id);
+          const effectiveSiteId = site_id ?? defaultToolSiteId;
+          if (!effectiveSiteId) {
+            return { error: "No accessible site available" };
+          }
+
+          const site = getSiteFromContext(ctx, effectiveSiteId);
           if (!site?.uuid) {
             return { error: "Site not found" };
           }
@@ -591,15 +843,20 @@ export const aiChatRoute = route(
       }),
       get_metric_breakdown: tool({
         description: "Return top metrics for events, countries, devices, referers, or pages.",
-        parameters: z.object({
-          site_id: z.number().describe("Site id to query"),
+        inputSchema: z.object({
+          site_id: z.number().optional().describe("Site id to query (optional, defaults to selected site)"),
           metricType: z.enum(["events", "countries", "devices", "referers", "pages"]),
           limit: z.number().optional().describe("Max number of rows"),
           startDate: z.string().optional().describe("ISO start date"),
           endDate: z.string().optional().describe("ISO end date"),
         }),
         execute: async ({ site_id, metricType, limit, startDate, endDate }) => {
-          const site = getSiteFromContext(ctx, site_id);
+          const effectiveSiteId = site_id ?? defaultToolSiteId;
+          if (!effectiveSiteId) {
+            return { error: "No accessible site available" };
+          }
+
+          const site = getSiteFromContext(ctx, effectiveSiteId);
           if (!site?.uuid) {
             return { error: "Site not found" };
           }
@@ -623,22 +880,269 @@ export const aiChatRoute = route(
           return result;
         },
       }),
+      get_nivo_chart_data: tool({
+        description: "Return chart-ready data for Nivo when user explicitly asks for a chart.",
+        inputSchema: z.object({
+          chartType: z.enum(["bar", "line", "pie"] as [NivoChartType, ...NivoChartType[]]),
+          site_id: z.number().optional().describe("Site id to query (optional, defaults to selected site)"),
+          metricType: z.enum(["events", "countries", "devices", "referers", "pages"]).optional(),
+          startDate: z.string().optional().describe("ISO start date"),
+          endDate: z.string().optional().describe("ISO end date"),
+          granularity: z.enum(["hour", "day", "week", "month"]).optional(),
+          limit: z.number().optional().describe("Max number of rows"),
+          title: z.string().optional().describe("Optional chart title"),
+        }),
+        execute: async ({ chartType, site_id, metricType, startDate, endDate, granularity, limit, title }) => {
+          const effectiveSiteId = site_id ?? defaultToolSiteId;
+          if (!effectiveSiteId) {
+            return { error: "No accessible site available" };
+          }
+
+          const site = getSiteFromContext(ctx, effectiveSiteId);
+          if (!site?.uuid) {
+            return { error: "Site not found" };
+          }
+
+          const defaultMetricType = metricType ?? "events";
+
+          if (chartType === "line") {
+            const timeSeries = await getTimeSeriesFromDurableObject({
+              site_id: site.site_id,
+              site_uuid: site.uuid,
+              team_id: ctx.team?.id ?? 0,
+              date: {
+                start: parseDateParam(startDate) ?? undefined,
+                end: parseDateParam(endDate) ?? undefined,
+              },
+              granularity,
+              byEvent: false,
+            });
+
+            if (!timeSeries) {
+              return { error: "No time series available" };
+            }
+
+            return {
+              kind: "nivo-chart",
+              chartType,
+              title: title || `${site.name || `Site ${site.site_id}`} trend`,
+              metricType: defaultMetricType,
+              siteId: site.site_id,
+              dateRange: timeSeries.dateRange,
+              points: timeSeries.data.map((item) => ({ x: item.date, y: item.count })),
+            };
+          }
+
+          const metricResult = await getMetricsFromDurableObject({
+            site_id: site.site_id,
+            site_uuid: site.uuid,
+            team_id: ctx.team?.id ?? 0,
+            metricType: defaultMetricType,
+            limit: clampLimit(limit, 10),
+            date: {
+              start: parseDateParam(startDate) ?? undefined,
+              end: parseDateParam(endDate) ?? undefined,
+            },
+          });
+
+          if (!metricResult) {
+            return { error: "No metrics available" };
+          }
+
+          return {
+            kind: "nivo-chart",
+            chartType,
+            title: title || `${site.name || `Site ${site.site_id}`} ${defaultMetricType}`,
+            metricType: defaultMetricType,
+            siteId: site.site_id,
+            dateRange: metricResult.dateRange,
+            points: metricResult.data.map((item) => ({
+              x: item.label || "Unknown",
+              y: item.count,
+            })),
+          };
+        },
+      }),
     };
 
     try {
-      const result = streamText({
-        model: modelProvider.chatModel(aiConfig.model),
-        system,
-        messages: messages.slice(-20) as any,
+      const modelMessages = await convertToModelMessages(trimmedMessages, {
         tools,
       });
 
-      return result.toDataStreamResponse({
+      let resolveStreamSummary!: (summary: StreamCompletionSummary) => void;
+      const streamSummaryPromise = new Promise<StreamCompletionSummary>((resolve) => {
+        resolveStreamSummary = resolve;
+      });
+      let hasResolvedStreamSummary = false;
+      const settleStreamSummary = (summary: StreamCompletionSummary) => {
+        if (hasResolvedStreamSummary) return;
+        hasResolvedStreamSummary = true;
+        resolveStreamSummary(summary);
+      };
+
+      const result = streamText({
+        model: modelProvider.chatModel(aiConfig.model),
+        system,
+        messages: modelMessages,
+        tools,
+        // stopWhen can be re-enabled after stream debugging if needed.
+        onChunk: ({ chunk }) => {
+          if (!debugStream) return;
+
+          if (chunk.type === "text-delta") {
+            console.log("[AI stream chunk]", {
+              requestId,
+              type: chunk.type,
+              text: previewText(chunk.text, 80),
+            });
+            return;
+          }
+
+          if (chunk.type === "tool-input-start") {
+            console.log("[AI stream chunk]", {
+              requestId,
+              type: chunk.type,
+              toolName: chunk.toolName,
+            });
+            return;
+          }
+
+          if (chunk.type === "tool-call") {
+            console.log("[AI stream chunk]", {
+              requestId,
+              type: chunk.type,
+              toolName: chunk.toolName,
+            });
+            return;
+          }
+
+          if (chunk.type === "tool-result") {
+            console.log("[AI stream chunk]", {
+              requestId,
+              type: chunk.type,
+              toolName: chunk.toolName,
+            });
+            return;
+          }
+
+        },
+        onStepFinish: (stepResult) => {
+          if (!debugStream) return;
+
+          console.log("[AI step finish]", {
+            requestId,
+            finishReason: stepResult.finishReason,
+            toolCalls: stepResult.toolCalls.map((call) => call.toolName),
+            toolResults: stepResult.toolResults.map((result) => result.toolName),
+            textPreview: previewText(stepResult.text),
+            usage: stepResult.usage,
+          });
+        },
+        onFinish: ({ finishReason, totalUsage, steps }) => {
+          const toolCallCount = steps.reduce((count, stepResult) => {
+            const stepToolCalls = Array.isArray(stepResult.toolCalls) ? stepResult.toolCalls.length : 0;
+            return count + stepToolCalls;
+          }, 0);
+          const completionChars = steps.reduce((count, stepResult) => {
+            return count + (stepResult.text?.length ?? 0);
+          }, 0);
+
+          settleStreamSummary({
+            finishReason,
+            toolCallCount,
+            completionChars,
+            stepCount: steps.length,
+            usageFromOnFinish: totalUsage,
+          });
+
+          if (!debugStream) return;
+
+          console.log("[AI stream finish]", {
+            requestId,
+            finishReason,
+            stepCount: steps.length,
+            totalUsage,
+          });
+        },
+        onError: ({ error: streamError }) => {
+          settleStreamSummary({
+            finishReason: "error",
+            toolCallCount: 0,
+            completionChars: 0,
+            stepCount: 0,
+            usageFromOnFinish: null,
+          });
+
+          if (!debugStream) return;
+          console.error("[AI stream error]", { requestId, error: streamError });
+        },
+      });
+
+      const usagePromise = Promise.resolve(result.usage).then(
+        (usage) => usage,
+        (error: unknown) => {
+          if (debugStream) {
+            console.warn("[AI usage promise failed]", { requestId, error });
+          }
+          return null;
+        },
+      );
+
+      void Promise.all([
+        usagePromise,
+        streamSummaryPromise,
+      ]).then(([usageFromPromise, streamSummary]) => {
+        const usageFromStream = extractTokenUsage(streamSummary.usageFromOnFinish);
+        const usageFromResultPromise = extractTokenUsage(usageFromPromise);
+        const usage = usageFromResultPromise.totalTokens !== null
+          ? usageFromResultPromise
+          : usageFromStream;
+
+        void trackAiUsageSafely({
+          team_id: ctx.team.id,
+          user_id: ctx.session.user.id,
+          site_id: defaultToolSiteId,
+          request_id: requestId,
+          request_type: "chat",
+          provider: aiConfig.baseURL,
+          model: aiConfig.model,
+          status: streamSummary.finishReason === "error" ? "error" : "success",
+          error_code: streamSummary.finishReason === "error" ? "stream_finish_error" : null,
+          input_tokens: usage.inputTokens,
+          output_tokens: usage.outputTokens,
+          total_tokens: usage.totalTokens,
+          tool_calls: streamSummary.toolCallCount,
+          message_count: messages.length,
+          prompt_chars: promptCharsEstimate,
+          completion_chars: streamSummary.completionChars,
+          duration_ms: Date.now() - aiRequestStartedAt,
+        });
+      });
+
+      return result.toUIMessageStreamResponse({
         headers: {
           "x-request-id": requestId,
+          "Cache-Control": "no-cache, no-transform",
+          "Content-Encoding": "identity",
         },
       });
     } catch (error) {
+      await trackAiUsageSafely({
+        team_id: ctx.team.id,
+        user_id: ctx.session.user.id,
+        site_id: defaultToolSiteId,
+        request_id: requestId,
+        request_type: "chat",
+        provider: aiConfig.baseURL,
+        model: aiConfig.model,
+        status: "error",
+        error_code: "chat_request_failed",
+        error_message: truncateUtf8(error instanceof Error ? error.message : "Unknown AI chat error", 500),
+        message_count: messages.length,
+        prompt_chars: promptCharsEstimate,
+        duration_ms: Date.now() - aiRequestStartedAt,
+      });
       console.error("AI chat error", { requestId, error });
       return new Response(
         JSON.stringify({ error: "AI chat failed", requestId }),

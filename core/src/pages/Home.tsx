@@ -4,7 +4,7 @@ import { CheckIcon } from "@/app/components/marketing/CheckIcon";
 
 export function Home() {
   return (
-    <MarketingLayout navLinks={[{ label: "Features", href: "#features" }, { label: "Pricing", href: "/pricing" }, { label: "FAQ", href: "#faq" }]}>
+    <MarketingLayout navLinks={[{ label: "Features", href: "#features" }, { label: "Get Started", href: "/signup" }, { label: "FAQ", href: "#faq" }]}>
 
         {/* Hero Section */}
         <section className="relative pt-28 sm:pt-32 pb-12 sm:pb-20 overflow-hidden">

@@ -99,10 +99,14 @@ export const WorldMapCard = React.memo(function WorldMapCard({
   aggregatedCountries,
   isDark,
   metricLabel = "visitors",
+  height = 380,
+  embedded = false,
 }: {
   aggregatedCountries: Array<[string, number]>;
   isDark: boolean;
   metricLabel?: string;
+  height?: number;
+  embedded?: boolean;
 }) {
   const [geoData, setGeoData] = useState<any>(null);
   const [zoom, setZoom] = useState(1);
@@ -160,10 +164,19 @@ export const WorldMapCard = React.memo(function WorldMapCard({
   }, []);
 
   if (!geoData) {
+    if (embedded) {
+      return (
+        <div
+          style={{ height: `${height}px` }}
+          className="w-full rounded-md bg-[var(--theme-bg-secondary)] animate-pulse"
+        />
+      );
+    }
+
     return (
       <DashboardCard title="Visitor Map" titleAs="h3">
         <div
-          style={{ height: "380px" }}
+          style={{ height: `${height}px` }}
           className="w-full rounded-md bg-[var(--theme-bg-secondary)] animate-pulse"
         />
       </DashboardCard>
@@ -175,142 +188,150 @@ export const WorldMapCard = React.memo(function WorldMapCard({
   const bubbleFill = isDark ? "rgba(249,115,22,0.55)" : "rgba(249,115,22,0.45)";
   const bubbleStroke = isDark ? "rgba(253,186,116,0.8)" : "rgba(234,88,12,0.6)";
 
+  const mapCanvas = (
+    <div className="relative overflow-hidden rounded-md" style={{ height: `${height}px` }}>
+      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={handleZoomIn}
+          className="w-7 h-7 flex items-center justify-center rounded bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text-primary)] hover:bg-[var(--theme-bg-secondary)] transition-colors text-sm font-bold"
+          aria-label="Zoom in"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={handleZoomOut}
+          className="w-7 h-7 flex items-center justify-center rounded bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text-primary)] hover:bg-[var(--theme-bg-secondary)] transition-colors text-sm font-bold"
+          aria-label="Zoom out"
+        >
+          −
+        </button>
+        {zoom > 1 && (
+          <button
+            type="button"
+            onClick={handleReset}
+            className="w-7 h-7 flex items-center justify-center rounded bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-secondary)] transition-colors text-[10px] font-semibold"
+            aria-label="Reset zoom"
+          >
+            ↺
+          </button>
+        )}
+      </div>
+
+      {tooltip && (
+        <div
+          className="pointer-events-none absolute z-20"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: "translate(-50%, -110%)",
+          }}
+        >
+          <div
+            style={{
+              padding: "5px 10px",
+              background: isDark ? "#484743" : "#fff",
+              color: isDark ? "#fff" : "#111827",
+              border: `1px solid ${isDark ? "#575353" : "#E5E7EB"}`,
+              borderRadius: "6px",
+              fontSize: "12px",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {tooltip.name}: {tooltip.value.toLocaleString()} {metricLabel}
+          </div>
+        </div>
+      )}
+
+      <ComposableMap
+        projection="geoEqualEarth"
+        projectionConfig={{ scale: 160 }}
+        width={800}
+        height={height}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <ZoomableGroup
+          zoom={zoom}
+          center={center}
+          onMoveEnd={({ zoom: z, coordinates }: { zoom: number; coordinates: [number, number] | number[] }) => {
+            setZoom(z);
+            if (Array.isArray(coordinates) && coordinates.length === 2) {
+              setCenter([coordinates[0], coordinates[1]]);
+            }
+          }}
+          maxZoom={8}
+        >
+          <Geographies geography={geoData}>
+            {({ geographies }: { geographies: Array<{ rsmKey: string }> }) =>
+              geographies.map((geo: { rsmKey: string }) => (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill={baseFill}
+                  stroke={borderColor}
+                  strokeWidth={0.4}
+                  style={{
+                    default: { outline: "none" },
+                    hover: { outline: "none", fill: baseFill },
+                    pressed: { outline: "none" },
+                  }}
+                />
+              ))
+            }
+          </Geographies>
+
+          {bubbles.map((bubble) => (
+            <Marker key={bubble.iso2} coordinates={bubble.coordinates}>
+              <circle
+                r={getRadius(bubble.value) / zoom}
+                fill={bubbleFill}
+                stroke={bubbleStroke}
+                strokeWidth={1 / zoom}
+                onMouseEnter={(evt) => {
+                  const svg = (evt.target as SVGElement).closest("svg");
+                  if (!svg) return;
+                  const rect = svg.getBoundingClientRect();
+                  setTooltip({
+                    x: evt.clientX - rect.left,
+                    y: evt.clientY - rect.top,
+                    name: bubble.name,
+                    value: bubble.value,
+                  });
+                }}
+                onMouseMove={(evt) => {
+                  const svg = (evt.target as SVGElement).closest("svg");
+                  if (!svg) return;
+                  const rect = svg.getBoundingClientRect();
+                  setTooltip({
+                    x: evt.clientX - rect.left,
+                    y: evt.clientY - rect.top,
+                    name: bubble.name,
+                    value: bubble.value,
+                  });
+                }}
+                onMouseLeave={() => setTooltip(null)}
+                style={{ cursor: "pointer" }}
+              />
+            </Marker>
+          ))}
+        </ZoomableGroup>
+      </ComposableMap>
+    </div>
+  );
+
+  if (embedded) {
+    return mapCanvas;
+  }
+
   return (
     <DashboardCard
       title="Visitor Map"
       titleAs="h3"
       empty={bubbles.length === 0}
     >
-      <div className="relative" style={{ height: "380px" }}>
-        <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
-          <button
-            type="button"
-            onClick={handleZoomIn}
-            className="w-7 h-7 flex items-center justify-center rounded bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text-primary)] hover:bg-[var(--theme-bg-secondary)] transition-colors text-sm font-bold"
-            aria-label="Zoom in"
-          >
-            +
-          </button>
-          <button
-            type="button"
-            onClick={handleZoomOut}
-            className="w-7 h-7 flex items-center justify-center rounded bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text-primary)] hover:bg-[var(--theme-bg-secondary)] transition-colors text-sm font-bold"
-            aria-label="Zoom out"
-          >
-            −
-          </button>
-          {zoom > 1 && (
-            <button
-              type="button"
-              onClick={handleReset}
-              className="w-7 h-7 flex items-center justify-center rounded bg-[var(--theme-card-bg)] border border-[var(--theme-card-border)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-secondary)] transition-colors text-[10px] font-semibold"
-              aria-label="Reset zoom"
-            >
-              ↺
-            </button>
-          )}
-        </div>
-
-        {tooltip && (
-          <div
-            className="pointer-events-none absolute z-20"
-            style={{
-              left: tooltip.x,
-              top: tooltip.y,
-              transform: "translate(-50%, -110%)",
-            }}
-          >
-            <div
-              style={{
-                padding: "5px 10px",
-                background: isDark ? "#484743" : "#fff",
-                color: isDark ? "#fff" : "#111827",
-                border: `1px solid ${isDark ? "#575353" : "#E5E7EB"}`,
-                borderRadius: "6px",
-                fontSize: "12px",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {tooltip.name}: {tooltip.value.toLocaleString()} {metricLabel}
-            </div>
-          </div>
-        )}
-
-        <ComposableMap
-          projection="geoEqualEarth"
-          projectionConfig={{ scale: 160 }}
-          width={800}
-          height={380}
-          style={{ width: "100%", height: "100%" }}
-        >
-          <ZoomableGroup
-            zoom={zoom}
-            center={center}
-            onMoveEnd={({ zoom: z, coordinates }) => {
-              setZoom(z);
-              if (Array.isArray(coordinates) && coordinates.length === 2) {
-                setCenter([coordinates[0], coordinates[1]]);
-              }
-            }}
-            maxZoom={8}
-          >
-            <Geographies geography={geoData}>
-              {({ geographies }) =>
-                geographies.map((geo) => (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill={baseFill}
-                    stroke={borderColor}
-                    strokeWidth={0.4}
-                    style={{
-                      default: { outline: "none" },
-                      hover: { outline: "none", fill: baseFill },
-                      pressed: { outline: "none" },
-                    }}
-                  />
-                ))
-              }
-            </Geographies>
-
-            {bubbles.map((bubble) => (
-              <Marker key={bubble.iso2} coordinates={bubble.coordinates}>
-                <circle
-                  r={getRadius(bubble.value) / zoom}
-                  fill={bubbleFill}
-                  stroke={bubbleStroke}
-                  strokeWidth={1 / zoom}
-                  onMouseEnter={(evt) => {
-                    const svg = (evt.target as SVGElement).closest("svg");
-                    if (!svg) return;
-                    const rect = svg.getBoundingClientRect();
-                    setTooltip({
-                      x: evt.clientX - rect.left,
-                      y: evt.clientY - rect.top,
-                      name: bubble.name,
-                      value: bubble.value,
-                    });
-                  }}
-                  onMouseMove={(evt) => {
-                    const svg = (evt.target as SVGElement).closest("svg");
-                    if (!svg) return;
-                    const rect = svg.getBoundingClientRect();
-                    setTooltip({
-                      x: evt.clientX - rect.left,
-                      y: evt.clientY - rect.top,
-                      name: bubble.name,
-                      value: bubble.value,
-                    });
-                  }}
-                  onMouseLeave={() => setTooltip(null)}
-                  style={{ cursor: "pointer" }}
-                />
-              </Marker>
-            ))}
-          </ZoomableGroup>
-        </ComposableMap>
-      </div>
+      {mapCanvas}
     </DashboardCard>
   );
 });

@@ -35,14 +35,13 @@ export const Document: React.FC<{ children: React.ReactNode }> = ({
       <meta property="og:type" content="website" />
       <meta property="og:title" content="Lytx — Privacy-Friendly Web Analytics" />
       <meta property="og:description" content="Simple, privacy-friendly web analytics. Track what matters without compromising your visitors' privacy." />
-      <meta property="og:image" content="https://lytx.io/images/lytx_dark_dashboard.png" />
-      <meta property="og:url" content="https://lytx.io" />
+      <meta property="og:image" content="/images/lytx_dark_dashboard.png" />
       <meta property="og:site_name" content="Lytx" />
 
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="Lytx — Privacy-Friendly Web Analytics" />
       <meta name="twitter:description" content="Simple, privacy-friendly web analytics. Track what matters without compromising your visitors' privacy." />
-      <meta name="twitter:image" content="https://lytx.io/images/lytx_dark_dashboard.png" />
+      <meta name="twitter:image" content="/images/lytx_dark_dashboard.png" />
       <meta name="mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-status-bar-style" content="default" />

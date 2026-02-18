@@ -30,7 +30,7 @@ export const Button: React.FC<ButtonProps> = ({
 	children,
 	...props
 }) => {
-	const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed';
+	const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg border cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed';
 
 	const variantClasses = buttonVariants[variant];
 	const sizeClasses = buttonSizes[size];
