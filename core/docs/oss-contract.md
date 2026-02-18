@@ -102,6 +102,7 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 ### Domain and environment configuration
 
 - `LYTX_DOMAIN` is the supported domain-facing configuration variable.
+- `LYTX_APP_DOMAIN` and `LYTX_TRACKING_DOMAIN` are supported deployment-level domain config variables in `alchemy.run.ts`.
 - Auth and integration behavior are configured via documented env vars in `README.md`.
 - `createLytxApp(config)` accepts typed `domains.*` and `env.*` values and provides startup validation errors with docs links.
 
@@ -110,6 +111,7 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 - Consumers can mount exported routes under custom prefixes (`prefix("/analytics", [...])`).
 - Consumers can include/exclude route groups and pages by composing exports into their own worker.
 - Consumers can layer additional middleware before/after provided middleware.
+- `createLytxApp({ tagRoutes: { pathPrefix } })` is the supported route-prefix mechanism for tracking/tag endpoints.
 
 ## Deprecation and compatibility policy
 

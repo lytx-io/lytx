@@ -27,6 +27,9 @@ const stagePosition: LytxResourceStagePosition =
     ? stagePositionRaw
     : "none";
 
+const appDomain = process.env.LYTX_APP_DOMAIN?.trim();
+const trackingDomain = process.env.LYTX_TRACKING_DOMAIN?.trim();
+
 const resourceNames = resolveLytxResourceNames({
   stage: app.stage,
   prefix: process.env.LYTX_RESOURCE_PREFIX,
@@ -92,6 +95,16 @@ export const worker = await Redwood(resourceNames.workerName, {
   adopt: false,
   url: false,
   noBundle: false,
+  ...(appDomain
+    ? {
+      domains: [
+        {
+          adopt: adoptMode,
+          domainName: appDomain,
+        },
+      ],
+    }
+    : {}),
   wrangler: {
     main: "src/worker.tsx",
     transform: (spec) => ({
@@ -118,7 +131,7 @@ export const worker = await Redwood(resourceNames.workerName, {
     lytx_sessions: lytx_sessions,
     lytx_core_db: lytxCoreDb,
     SITE_EVENTS_QUEUE: siteEventsQueue,
-    LYTX_DOMAIN: process.env.LYTX_DOMAIN || "localhost:5173",
+    LYTX_DOMAIN: trackingDomain || appDomain || process.env.LYTX_DOMAIN || "localhost:5173",
     EMAIL_FROM: process.env.EMAIL_FROM || "noreply@example.com",
     BETTER_AUTH_SECRET: alchemy.secret(process.env.BETTER_AUTH_SECRET),
     GITHUB_CLIENT_SECRET: alchemy.secret(process.env.GITHUB_CLIENT_SECRET),

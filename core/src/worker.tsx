@@ -67,6 +67,20 @@ const DEFAULT_LEGACY_TAG_SCRIPT_PATH = "/lytx.js";
 const DEFAULT_TRACK_WEB_EVENT_PATH = "/trackWebEvent.v2";
 const DEFAULT_LEGACY_TRACK_WEB_EVENT_PATH = "/trackWebEvent";
 
+const normalizeRoutePrefix = (value?: string): string => {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed === "/") return "";
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+};
+
+const withRoutePrefix = (prefix: string, routePath: string): string => {
+  if (!prefix) return routePath;
+  if (routePath === prefix || routePath.startsWith(`${prefix}/`)) return routePath;
+  const normalizedPath = routePath.startsWith("/") ? routePath : `/${routePath}`;
+  return `${prefix}${normalizedPath}`;
+};
+
 type ToolbarSiteOption = {
   site_id: number;
   name: string;
@@ -160,10 +174,23 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const tagRouteDbAdapter = parsed_config.tagRoutes?.dbAdapter ?? DEFAULT_TAG_DB_ADAPTER;
   const tagRouteQueueIngestionEnabled = parsed_config.tagRoutes?.useQueueIngestion ?? true;
   const includeLegacyTagRoutes = parsed_config.tagRoutes?.includeLegacyRoutes ?? true;
-  const tagScriptPath = parsed_config.tagRoutes?.scriptPath ?? DEFAULT_TAG_SCRIPT_PATH;
-  const legacyTagScriptPath = parsed_config.tagRoutes?.legacyScriptPath ?? DEFAULT_LEGACY_TAG_SCRIPT_PATH;
-  const trackWebEventPath = parsed_config.tagRoutes?.eventPath ?? DEFAULT_TRACK_WEB_EVENT_PATH;
-  const legacyTrackWebEventPath = parsed_config.tagRoutes?.legacyEventPath ?? DEFAULT_LEGACY_TRACK_WEB_EVENT_PATH;
+  const trackingRoutePrefix = normalizeRoutePrefix(parsed_config.tagRoutes?.pathPrefix);
+  const tagScriptPath = withRoutePrefix(
+    trackingRoutePrefix,
+    parsed_config.tagRoutes?.scriptPath ?? DEFAULT_TAG_SCRIPT_PATH,
+  );
+  const legacyTagScriptPath = withRoutePrefix(
+    trackingRoutePrefix,
+    parsed_config.tagRoutes?.legacyScriptPath ?? DEFAULT_LEGACY_TAG_SCRIPT_PATH,
+  );
+  const trackWebEventPath = withRoutePrefix(
+    trackingRoutePrefix,
+    parsed_config.tagRoutes?.eventPath ?? DEFAULT_TRACK_WEB_EVENT_PATH,
+  );
+  const legacyTrackWebEventPath = withRoutePrefix(
+    trackingRoutePrefix,
+    parsed_config.tagRoutes?.legacyEventPath ?? DEFAULT_LEGACY_TRACK_WEB_EVENT_PATH,
+  );
   const reportBuilderEnabled =
     dashboardEnabled && (parsed_config.features?.reportBuilderEnabled ?? isReportBuilderEnabled());
   const askAiEnabled =

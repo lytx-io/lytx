@@ -59,6 +59,7 @@ export default app satisfies ExportedHandler<Env>;
 - `tagRoutes.dbAdapter` (`"sqlite" | "postgres" | "singlestore" | "analytics_engine"`)
 - `tagRoutes.useQueueIngestion` (`true`/`false`)
 - `tagRoutes.includeLegacyRoutes` (`true` by default for `/lytx.js` and `/trackWebEvent` compatibility)
+- `tagRoutes.pathPrefix` (prefix all tracking routes, e.g. `/collect`)
 - `tagRoutes.scriptPath` + `tagRoutes.eventPath` (custom v2 route paths)
 - `features.reportBuilderEnabled` + `features.askAiEnabled`
 - `names.*` (typed resource binding names for D1/KV/Queue/DO)
@@ -320,6 +321,20 @@ LYTX_QUEUE_NAME=
 ```
 
 This keeps naming deterministic across deploys and avoids accidental resource drift between stages.
+
+### Domain and route prefix strategy
+
+Use these env vars in `alchemy.run.ts` to configure app/tracking domains without editing source:
+
+```env
+# Optional custom worker domain
+LYTX_APP_DOMAIN=analytics.example.com
+
+# Optional tracking domain used in LYTX_DOMAIN binding
+LYTX_TRACKING_DOMAIN=collect.example.com
+```
+
+Use `createLytxApp({ tagRoutes: { pathPrefix: "/collect" } })` to prefix tracking script and ingestion endpoints.
 
 ### Environment variables
 

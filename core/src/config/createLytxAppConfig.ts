@@ -12,6 +12,14 @@ const routePathSchema = z
   .refine((value) => value.startsWith("/"), "Route path must start with '/'")
   .refine((value) => !/\s/.test(value), "Route path cannot contain whitespace");
 
+const routePrefixSchema = z
+  .string()
+  .trim()
+  .min(1, "Route prefix is required")
+  .refine((value) => value.startsWith("/"), "Route prefix must start with '/'")
+  .refine((value) => !/\s/.test(value), "Route prefix cannot contain whitespace")
+  .refine((value) => value === "/" || !value.endsWith("/"), "Route prefix must not end with '/' unless it is '/'");
+
 const bindingNameSchema = z
   .string()
   .trim()
@@ -43,6 +51,7 @@ const createLytxAppConfigSchema = z
         dbAdapter: dbAdapterSchema.optional(),
         useQueueIngestion: z.boolean().optional(),
         includeLegacyRoutes: z.boolean().optional(),
+        pathPrefix: routePrefixSchema.optional(),
         scriptPath: routePathSchema.optional(),
         legacyScriptPath: routePathSchema.optional(),
         eventPath: routePathSchema.optional(),
