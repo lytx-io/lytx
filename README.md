@@ -11,6 +11,13 @@ Open-source web analytics platform built on [RedwoodSDK](https://rwsdk.com) and 
 
 See [core/README.md](core/README.md) for full documentation on how to integrate Lytx into your Redwood app.
 
+## Governance
+
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [SECURITY.md](SECURITY.md)
+- [Pull request template](.github/pull_request_template.md)
+- [Issue templates](.github/ISSUE_TEMPLATE/)
+
 ### Quick Start
 
 ```bash
