@@ -11,7 +11,7 @@ The supported public API surface for `@lytx/core` is documented in `core/docs/os
 
 ## How it works
 
-`@lytx/core` exports route, page, component, middleware, and Durable Object building blocks as named exports from the package root. The primary integration path is to import these into your own `src/worker.tsx`, wire them into `defineApp`, and deploy with your existing rwsdk toolchain.
+`@lytx/core` exposes a canonical app factory, `createLytxApp`, from the package root. Use it to bootstrap a full worker without importing internals. For advanced composition, root exports also include route, page, middleware, and Durable Object building blocks.
 
 An experimental pre-wired worker entrypoint also exists at `@lytx/core/worker`; this entrypoint is intentionally not part of the stable API contract.
 
@@ -32,7 +32,39 @@ bun add @lytx/core
 
 > Until this is published to npm, add it as a workspace dependency or link it locally.
 
-## Quick start — full analytics stack
+## Quick start — app factory (recommended)
+
+Use the root app factory to bootstrap the full analytics stack with one import:
+
+```tsx
+// src/worker.tsx
+import type { ExportedHandler } from "cloudflare:workers";
+import { createLytxApp, SyncDurableObject, SiteDurableObject } from "@lytx/core";
+
+const app = createLytxApp({
+  tagRoutes: {
+    dbAdapter: "sqlite",
+    useQueueIngestion: true,
+  },
+});
+
+export { SyncDurableObject, SiteDurableObject };
+
+export default app satisfies ExportedHandler<Env>;
+```
+
+`createLytxApp` supports:
+
+- `tagRoutes.dbAdapter` (`"sqlite" | "postgres" | "singlestore" | "analytics_engine"`)
+- `tagRoutes.useQueueIngestion` (`true`/`false`)
+- `tagRoutes.includeLegacyRoutes` (`true` by default for `/lytx.js` and `/trackWebEvent` compatibility)
+- `tagRoutes.scriptPath` + `tagRoutes.eventPath` (custom v2 route paths)
+- `features.reportBuilderEnabled` + `features.askAiEnabled`
+- `names.*` (typed resource binding names for D1/KV/Queue/DO)
+- `domains.app` + `domains.tracking` (typed host/domain values)
+- `startupValidation.*` + `env.*` (startup env requirement checks with field-level errors)
+
+## Quick start — manual composition (advanced)
 
 This drops the entire Lytx analytics platform into your Redwood app. Copy-paste into your `src/worker.tsx` and adjust as needed.
 
@@ -313,6 +345,12 @@ bun run cli/seed-data.ts --team-id 1 --site-id 1 --durable-only --events 50 --se
 ```
 
 ## What's included
+
+### App Factory
+
+| Export | Description |
+|---|---|
+| `createLytxApp` | Canonical factory that returns a worker handler (`fetch` + `queue`) with configurable tag routes and feature toggles |
 
 ### API Routes
 

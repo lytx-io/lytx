@@ -48,6 +48,9 @@ export { checkIfTeamSetupSites, onlyAllowGetPost } from "./src/utilities/route_i
 export { SyncDurableObject } from "./src/session/durableObject";
 export { SiteDurableObject } from "./db/durable/siteDurableObject";
 
+export { createLytxApp } from "./src/worker";
+export type { CreateLytxAppConfig } from "./src/worker";
+
 export type { AppContext } from "./src/worker";
 export type { DBAdapter, UserRole } from "./db/types";
 export type { SitesContext, TeamContext } from "./db/d1/sites";

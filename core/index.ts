@@ -6,9 +6,9 @@
 //
 //   import { DashboardPage, eventsApi, authMiddleware } from "@lytx/core";
 //
-// The Cloudflare fetch/queue handler is intentionally NOT exported here.
-// Users wire up their own `defineApp` and `export default { fetch }` using
-// whichever routes, pages, and middleware they choose from the exports below.
+// The package does not export one static fetch/queue handler singleton.
+// Consumers can either call `createLytxApp(...)` or wire up their own
+// `defineApp` using whichever routes, pages, and middleware they choose.
 // ---------------------------------------------------------------------------
 
 // ── Pages (public / unauthenticated) ────────────────────────────────────────
@@ -69,6 +69,10 @@ export { checkIfTeamSetupSites, onlyAllowGetPost } from "./src/utilities/route_i
 // ── Durable Objects ─────────────────────────────────────────────────────────
 export { SyncDurableObject } from "./src/session/durableObject";
 export { SiteDurableObject } from "./db/durable/siteDurableObject";
+
+// ── App factory ─────────────────────────────────────────────────────────────
+export { createLytxApp } from "./src/worker";
+export type { CreateLytxAppConfig } from "./src/worker";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 export type { AppContext } from "./src/worker";

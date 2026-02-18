@@ -38,6 +38,8 @@ import { IS_DEV } from "rwsdk/constants";
 import type { AppContext, AppRequestInfo } from "@/types/app-context";
 import { handleQueueMessage } from "@/api/queueWorker";
 import { isAskAiEnabled, isReportBuilderEnabled } from "@/lib/featureFlags";
+import { parseCreateLytxAppConfig } from "@/config/createLytxAppConfig";
+import type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
 import type { DashboardResponseData } from "@db/tranformReports";
 import { parseDateParam } from "@/utilities/dashboardParams";
 import { getTeamSettings } from "@db/d1/teams";
@@ -49,10 +51,13 @@ export { SiteDurableObject } from "@db/durable/siteDurableObject";
 
 //TODO: Define things on context and create a middleware function where users can set adapters and override defaults
 export type { AppContext };
+export type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
 
-//PERF: for the lib these need to be passed as options
-const tagRouteDbAdapter: DBAdapter = "sqlite";
-const tagRouteQueueIngestionEnabled = true;
+const DEFAULT_TAG_DB_ADAPTER: DBAdapter = "sqlite";
+const DEFAULT_TAG_SCRIPT_PATH = "/lytx.v2.js";
+const DEFAULT_LEGACY_TAG_SCRIPT_PATH = "/lytx.js";
+const DEFAULT_TRACK_WEB_EVENT_PATH = "/trackWebEvent.v2";
+const DEFAULT_LEGACY_TRACK_WEB_EVENT_PATH = "/trackWebEvent";
 
 type ToolbarSiteOption = {
   site_id: number;
@@ -136,22 +141,52 @@ const appRoute = <TPath extends string>(
   path: TPath,
   handlers: Parameters<typeof route<TPath, AppRequestInfo>>[1],
 ) => route<TPath, AppRequestInfo>(path, handlers);
-const reportBuilderEnabled = isReportBuilderEnabled();
-const askAiEnabled = reportBuilderEnabled && isAskAiEnabled();
+export function createLytxApp(config: CreateLytxAppConfig = {}) {
+  const parsed_config = parseCreateLytxAppConfig(config);
+  const enableRequestLogging = parsed_config.enableRequestLogging ?? IS_DEV;
+  const tagRouteDbAdapter = parsed_config.tagRoutes?.dbAdapter ?? DEFAULT_TAG_DB_ADAPTER;
+  const tagRouteQueueIngestionEnabled = parsed_config.tagRoutes?.useQueueIngestion ?? true;
+  const includeLegacyTagRoutes = parsed_config.tagRoutes?.includeLegacyRoutes ?? true;
+  const tagScriptPath = parsed_config.tagRoutes?.scriptPath ?? DEFAULT_TAG_SCRIPT_PATH;
+  const legacyTagScriptPath = parsed_config.tagRoutes?.legacyScriptPath ?? DEFAULT_LEGACY_TAG_SCRIPT_PATH;
+  const trackWebEventPath = parsed_config.tagRoutes?.eventPath ?? DEFAULT_TRACK_WEB_EVENT_PATH;
+  const legacyTrackWebEventPath = parsed_config.tagRoutes?.legacyEventPath ?? DEFAULT_LEGACY_TRACK_WEB_EVENT_PATH;
+  const reportBuilderEnabled = parsed_config.features?.reportBuilderEnabled ?? isReportBuilderEnabled();
+  const askAiEnabled = parsed_config.features?.askAiEnabled ?? (reportBuilderEnabled && isAskAiEnabled());
 
-const app = defineApp<AppRequestInfo>([
-  ({ request }) => {
-    if (IS_DEV) console.log("🔥🔥🔥", request.method, request.url);
-  },
-  //NOTE: API ROUTES / no component or html rendering
-  legacyContainerRoute,
-  lytxTag(tagRouteDbAdapter),
-  lytxTag(tagRouteDbAdapter, "/lytx.js"),
-  trackWebEvent(tagRouteDbAdapter, "/trackWebEvent.v2", { useQueue: tagRouteQueueIngestionEnabled }),
-  trackWebEvent(tagRouteDbAdapter, "/trackWebEvent", { useQueue: tagRouteQueueIngestionEnabled }),
-        eventsApi,
-        seedApi,
-        route("/api/auth/*", (r) => authMiddleware(r)),
+  const tagRoutes: Array<
+    typeof legacyContainerRoute | ReturnType<typeof lytxTag> | ReturnType<typeof trackWebEvent>
+  > = [];
+
+  if (includeLegacyTagRoutes) {
+    tagRoutes.push(legacyContainerRoute);
+  }
+
+  tagRoutes.push(
+    lytxTag(tagRouteDbAdapter, tagScriptPath),
+    trackWebEvent(tagRouteDbAdapter, trackWebEventPath, { useQueue: tagRouteQueueIngestionEnabled }),
+  );
+
+  if (includeLegacyTagRoutes) {
+    if (legacyTagScriptPath !== tagScriptPath) {
+      tagRoutes.push(lytxTag(tagRouteDbAdapter, legacyTagScriptPath));
+    }
+    if (legacyTrackWebEventPath !== trackWebEventPath) {
+      tagRoutes.push(
+        trackWebEvent(tagRouteDbAdapter, legacyTrackWebEventPath, { useQueue: tagRouteQueueIngestionEnabled }),
+      );
+    }
+  }
+
+  const app = defineApp<AppRequestInfo>([
+    ({ request }) => {
+      if (enableRequestLogging) console.log("🔥🔥🔥", request.method, request.url);
+    },
+    //NOTE: API ROUTES / no component or html rendering
+    ...tagRoutes,
+    eventsApi,
+    seedApi,
+    route("/api/auth/*", (r) => authMiddleware(r)),
   resendVerificationEmailRoute,
   userApiRoutes,
   render<AppRequestInfo>(Document, [
@@ -595,7 +630,12 @@ const app = defineApp<AppRequestInfo>([
   ]),
 ]);
 
-export default {
-  fetch: app.fetch,
-  queue: handleQueueMessage,
-};
+  return {
+    fetch: app.fetch,
+    queue: handleQueueMessage,
+  };
+}
+
+const defaultApp = createLytxApp();
+
+export default defaultApp;

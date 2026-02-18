@@ -1,5 +1,12 @@
-import worker from "@lytx/core/worker";
+import { createLytxApp, SyncDurableObject, SiteDurableObject } from "@lytx/core";
 
-export { SyncDurableObject, SiteDurableObject } from "@lytx/core/worker";
+export { SyncDurableObject, SiteDurableObject };
 
-export default worker;
+const app = createLytxApp({
+  tagRoutes: {
+    dbAdapter: "sqlite",
+    useQueueIngestion: true,
+  },
+});
+
+export default app;

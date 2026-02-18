@@ -37,6 +37,7 @@ The following are supported under semantic versioning guarantees (see policy bel
 
 ### Middleware, auth, durable objects, and types
 
+- `createLytxApp`, `CreateLytxAppConfig`
 - `authMiddleware`, `sessionMiddleware`
 - `auth`
 - `checkIfTeamSetupSites`, `onlyAllowGetPost`
@@ -74,6 +75,7 @@ The following are not supported for external consumers and can change at any tim
 
 - `REPORT_BUILDER`: enables report-builder routes and UI.
 - `ASK_AI`: toggles Ask AI surfaces when report builder is enabled.
+- `createLytxApp(config)` validates feature overrides at startup and fails fast on invalid combinations.
 
 ### Resource naming and bindings
 
@@ -86,10 +88,13 @@ The contract supports configuring and binding these Cloudflare resources in cons
 
 Consumers may choose deployment-level names, but the runtime bindings exposed to the worker must match the expected binding keys above.
 
+`createLytxApp(config)` includes typed `names.*` validation for resource/binding naming, with field-level startup errors when invalid.
+
 ### Domain and environment configuration
 
 - `LYTX_DOMAIN` is the supported domain-facing configuration variable.
 - Auth and integration behavior are configured via documented env vars in `README.md`.
+- `createLytxApp(config)` accepts typed `domains.*` and `env.*` values and provides startup validation errors with docs links.
 
 ### Composition and routing
 
@@ -118,4 +123,4 @@ These items are intentionally tracked as follow-up work and are not changed sile
 
 1. Add a dedicated deprecated compatibility note in package metadata for `@lytx/core/db/durable/siteDurableObject` and document removal target version.
 2. Add CI checks that block new deep-import usage in docs/examples (only `@lytx/core` and documented subpaths allowed).
-3. Revisit whether `@lytx/core/worker` should be promoted to stable or deprecated in favor of the composition-first root API.
+3. Revisit whether `@lytx/core/worker` should be promoted to stable or deprecated in favor of `createLytxApp` on the root API.
