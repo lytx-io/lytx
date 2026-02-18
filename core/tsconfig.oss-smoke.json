@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/config/createLytxAppConfig.ts",
+    "src/config/resourceNames.ts",
+    "src/lib/featureFlags.ts",
+    "src/worker.tsx",
+    "index.ts"
+  ]
+}

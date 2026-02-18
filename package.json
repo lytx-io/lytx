@@ -5,6 +5,10 @@
     "demo"
   ],
   "scripts": {
-    "dev": "bun --filter core dev"
+    "dev": "bun --filter core dev",
+    "ci:oss:typecheck:core": "bunx tsc -p core/tsconfig.oss-smoke.json --noEmit",
+    "ci:oss:smoke:baseline": "bun core/scripts/ci-smoke-profiles.ts baseline",
+    "ci:oss:smoke:customized": "bun core/scripts/ci-smoke-profiles.ts customized",
+    "ci:oss": "bun run ci:oss:typecheck:core && bun run ci:oss:smoke:baseline && bun run ci:oss:smoke:customized"
   }
 }
