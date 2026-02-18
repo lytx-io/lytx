@@ -1,8 +1,5 @@
-import {
-	resolveLytxResourceNames,
-	type LytxResourceStagePosition,
-	type SiteDurableObject,
-} from "@lytx/core";
+import type { SiteDurableObject } from "@lytx/core";
+import { resolveLytxResourceNames, type LytxResourceStagePosition } from "@lytx/core/resource-names";
 
 import alchemy from "alchemy";
 import {

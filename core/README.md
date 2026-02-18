@@ -69,7 +69,7 @@ export default app satisfies ExportedHandler<Env>;
 - `domains.app` + `domains.tracking` (typed host/domain values)
 - `startupValidation.*` + `env.*` (startup env requirement checks with field-level errors)
 
-For deployment scripts, use `resolveLytxResourceNames(...)` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
+For deployment scripts, use `resolveLytxResourceNames(...)` from `@lytx/core/resource-names` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
 
 ## Quick start — manual composition (advanced)
 
@@ -305,7 +305,7 @@ Your `wrangler.jsonc` (or `alchemy.run.ts`) needs these bindings for the full st
 
 ### Resource naming strategy
 
-Resource binding keys in worker code stay fixed (`LYTX_EVENTS`, `lytx_config`, etc.), but physical Cloudflare resource names can be configured deterministically in `alchemy.run.ts` via `resolveLytxResourceNames`.
+Resource binding keys in worker code stay fixed (`LYTX_EVENTS`, `lytx_config`, etc.), but physical Cloudflare resource names can be configured deterministically in `alchemy.run.ts` via `resolveLytxResourceNames` (`@lytx/core/resource-names`).
 
 Supported naming env vars:
 

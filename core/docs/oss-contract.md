@@ -46,6 +46,8 @@ The following are supported under semantic versioning guarantees (see policy bel
 - `SyncDurableObject`, `SiteDurableObject`
 - `DashboardPageProps`, `AuthUserSession`, `AppContext`, `DBAdapter`, `UserRole`, `SitesContext`, `TeamContext`
 
+For Node/Alchemy deployment scripts, prefer importing naming helpers from `@lytx/core/resource-names` to avoid loading worker-only modules.
+
 ## Supported public exports (experimental / unstable)
 
 These are allowed for consumers but may change in minor releases and may be removed after deprecation notice.
@@ -56,6 +58,8 @@ These are allowed for consumers but may change in minor releases and may be remo
 - `@lytx/core/db/durable/siteDurableObject`
   - Legacy typed subpath export.
   - Prefer `SiteDurableObject` from `@lytx/core`.
+- `@lytx/core/resource-names`
+  - Node-safe subpath for deployment naming helpers (`resolveLytxResourceNames`, related types/constants).
 
 ## Internal/private modules (not supported)
 

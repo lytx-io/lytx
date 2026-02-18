@@ -10,7 +10,7 @@ Template files:
 - `demo/vite.config.ts`
 - `demo/alchemy.run.ts`
 
-The starter uses only public root exports from `@lytx/core` (`createLytxApp`, `SiteDurableObject`, `SyncDurableObject`, and `resolveLytxResourceNames`).
+The starter uses only documented public `@lytx/core` entrypoints (`createLytxApp`, `SiteDurableObject`) and the documented naming helper subpath (`@lytx/core/resource-names`).
 
 ## Quick start
 

@@ -46,6 +46,11 @@
       "import": "./db/durable/siteDurableObject.ts",
       "default": "./db/durable/siteDurableObject.ts"
     },
+    "./resource-names": {
+      "types": "./src/config/resourceNames.ts",
+      "import": "./src/config/resourceNames.ts",
+      "default": "./src/config/resourceNames.ts"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
