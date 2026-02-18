@@ -132,6 +132,18 @@ Inspired by [TigerStyle](https://github.com/tigerbeetle/tigerbeetle/blob/main/do
 - Ask the human user to run dev servers and share output/screenshots/logs when needed.
 - If runtime verification is required, provide exact commands for the human to run instead of running them directly.
 
+## Demo Browser Session
+
+- For local demo QA with `agent-browser`, use session name `opendemolytx`.
+- Saved browser state file: `demo/.agent-browser/opendemolytx.json`.
+- Typical restore flow:
+  ```bash
+  agent-browser --session opendemolytx state load demo/.agent-browser/opendemolytx.json
+  agent-browser --session opendemolytx open http://localhost:5173/dashboard
+  ```
+- Local demo login credentials should come from your local secrets manager/env.
+- Do not store plaintext passwords in repository docs; keep local test passwords in your local secrets manager/env.
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.

@@ -321,10 +321,6 @@ const GEO_LIST_VISIBLE_ROWS = 10;
 const GEO_LIST_ROW_HEIGHT_PX = 36;
 const GEO_LIST_MAX_HEIGHT = GEO_LIST_VISIBLE_ROWS * GEO_LIST_ROW_HEIGHT_PX;
 
-type BillingSummaryLite = {
-  hasSubscription: boolean;
-};
-
 // --- DashboardPage (fetches its own data) ---
 export function DashboardPage(props: DashboardPageProps) {
   const isSmallScreen = useMediaQuery("(max-width: 640px)");
@@ -593,27 +589,6 @@ export function DashboardPage(props: DashboardPageProps) {
     staleTime: dashboardStaleTime,
     gcTime: dashboardGcTime,
   });
-
-  const { data: billingSummary } = useQuery({
-    queryKey: ["billingSummaryLite", session?.team?.id],
-    queryFn: async () => {
-      const response = await fetch("/api/billing/summary", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to load billing summary");
-      }
-
-      return (await response.json()) as BillingSummaryLite;
-    },
-    enabled: isClientReady && !isSessionLoading && !!session?.team?.id,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
-
-  const requiresSubscriptionActivation = billingSummary?.hasSubscription === false;
 
   const labelsQuery = useQuery<EventLabelSelect[], Error>({
     queryKey: ["event-labels", effectiveSiteId],
@@ -928,45 +903,6 @@ export function DashboardPage(props: DashboardPageProps) {
                   ))}
                 </section>
               </>
-            ) : requiresSubscriptionActivation ? (
-              <div className="flex flex-col items-center justify-center gap-6 w-full">
-                <div className="text-center w-full max-w-4xl px-4">
-                  <h2 className="text-2xl font-bold mb-2 text-(--theme-text-primary)">
-                    Dashboard inactive until billing is active
-                  </h2>
-                  <p className="text-(--theme-text-secondary) mb-2">
-                    Your site tag can keep collecting events, but reports stay locked until a payment method and subscription are added.
-                  </p>
-                  {apiData?.noSiteRecordsExist ? (
-                    <p className="text-xs text-(--theme-text-secondary) mb-6">
-                      Install the Lytx site tag now, then add billing to unlock dashboard reporting.
-                    </p>
-                  ) : (
-                    <p className="text-xs text-(--theme-text-secondary) mb-6">
-                      We have data for this site and will unlock all dashboard cards as soon as billing is active.
-                    </p>
-                  )}
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <a
-                      href="/dashboard/settings#billing"
-                      className="inline-flex items-center px-4 py-2 bg-(--theme-button-bg) text-white rounded hover:bg-(--theme-button-hover) transition-colors focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
-                    >
-                      Add payment method
-                    </a>
-                    <a
-                      href="/dashboard/settings"
-                      className="inline-flex items-center px-4 py-2 bg-(--theme-input-bg) text-(--theme-text-primary) border border-(--theme-input-border) rounded hover:bg-(--theme-bg-secondary) transition-colors focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
-                    >
-                      Open settings
-                    </a>
-                  </div>
-                </div>
-                {apiData?.noSiteRecordsExist && currentSiteTag ? (
-                  <div id="site-tag-install" className="w-full max-w-5xl mx-auto">
-                    <SiteTagInstallCard site={currentSiteTag} />
-                  </div>
-                ) : null}
-              </div>
             ) : (apiData && apiData.noSiteRecordsExist) ? (
               <div className="flex flex-col items-center justify-center gap-6 w-full">
                 <div className="text-center w-full max-w-4xl px-4">

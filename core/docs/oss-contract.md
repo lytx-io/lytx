@@ -17,7 +17,6 @@ The following are supported under semantic versioning guarantees (see policy bel
 ### Pages and shells
 
 - `Document`
-- `Home`, `GetStarted`, `PrivacyPolicy`, `TermsOfService`
 - `Signup`, `Login`, `VerifyEmail`
 - `AppLayout`
 - `DashboardPage`, `EventsPage`, `ExplorePage`, `SettingsPage`
@@ -109,6 +108,7 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 - `LYTX_APP_DOMAIN` and `LYTX_TRACKING_DOMAIN` are supported deployment-level domain config variables in `alchemy.run.ts`.
 - Auth and integration behavior are configured via documented env vars in `README.md`.
 - `createLytxApp(config)` accepts typed `domains.*` and `env.*` values and provides startup validation errors with docs links.
+- Email workflows require a valid sender (`EMAIL_FROM`), configurable via environment bindings or `createLytxApp({ env: { EMAIL_FROM } })`.
 
 ### Composition and routing
 

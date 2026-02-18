@@ -1,7 +1,3 @@
-export { Home } from "./src/pages/Home";
-export { GetStarted } from "./src/pages/GetStarted";
-export { PrivacyPolicy } from "./src/pages/PrivacyPolicy";
-export { TermsOfService } from "./src/pages/TermsOfService";
 export { Signup } from "./src/pages/Signup";
 export { Login } from "./src/pages/Login";
 export { VerifyEmail } from "./src/pages/VerifyEmail";

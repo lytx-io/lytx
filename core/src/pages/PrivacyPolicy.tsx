@@ -66,7 +66,7 @@ export function PrivacyPolicy() {
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Sharing of information</h2>
               <p>
               We share information only with service providers needed to deliver the Services (such
-              as hosting, email, and payments), to comply with legal obligations, or in connection
+              as hosting and email), to comply with legal obligations, or in connection
               with a business transfer. We do not sell your data.
               </p>
             </div>

@@ -53,35 +53,6 @@ export type SettingsInitialSite = {
   tag_id: string;
 };
 
-type BillingSummary = {
-  planName: string | null;
-  status: string | null;
-  currentPeriodEnd: string | null;
-  amount: number | null;
-  currency: string | null;
-  interval: string | null;
-  portalAvailable: boolean;
-  hasSubscription: boolean;
-  usageMode: "metered" | "capped" | "none";
-  usageCap: number | null;
-  currentPeriodEvents: number | null;
-  currentPeriodBillableEvents: number | null;
-  projectedInvoiceCents: number | null;
-  projectedMaxInvoiceCents: number | null;
-};
-
-const USAGE_CAP_MIN = 1_000_000;
-const USAGE_CAP_MAX = 50_000_000;
-const USAGE_CAP_STEP = 500_000;
-
-function formatUsageNumber(value: number) {
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`;
-  }
-  return `${(value / 1_000).toFixed(0)}K`;
-}
-
-
 ///team/settings
 function TeamSettings(props: {
   team_id?: number;
@@ -541,31 +512,6 @@ function TeamSettings(props: {
   );
 }
 
-function formatBillingStatus(status?: string | null) {
-  if (!status) return "Active";
-  return status
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (match) => match.toUpperCase());
-}
-
-function formatBillingAmount(amount?: number | null, currency?: string | null) {
-  if (typeof amount !== "number") return null;
-  const currencyCode = currency?.trim().toUpperCase() || "USD";
-  const locale = currencyCode === "USD" ? "en-US" : undefined;
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: currencyCode,
-      maximumFractionDigits: 2,
-    }).format(amount / 100);
-  } catch {
-    const normalizedAmount = (amount / 100).toFixed(2);
-    return currencyCode === "USD"
-      ? `$${normalizedAmount}`
-      : `${currencyCode} ${normalizedAmount}`;
-  }
-}
-
 function useAutoDismiss<T>(
   value: T | null,
   setValue: (next: T | null) => void,
@@ -589,416 +535,11 @@ function useAlertState() {
   return [alert, setAlert] as const;
 }
 
-function BillingSection(props: {
-  teamId?: number;
-  isSessionLoading: boolean;
-  canManage: boolean;
-  initialSummary?: BillingSummary | null;
-}) {
-  const queryClient = useQueryClient();
-  const [portalError, setPortalError] = useState<string | null>(null);
-  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
-  const [subscribeError, setSubscribeError] = useState<string | null>(null);
-  const [isStartingSubscription, setIsStartingSubscription] = useState(false);
-  const [capEnabled, setCapEnabled] = useState(false);
-  const [capEvents, setCapEvents] = useState(5_000_000);
-  const [capDirty, setCapDirty] = useState(false);
-  const [capError, setCapError] = useState<string | null>(null);
-  const [capWarning, setCapWarning] = useState<string | null>(null);
-  const [isSavingCap, setIsSavingCap] = useState(false);
-
-  useAutoDismiss(portalError, setPortalError);
-  useAutoDismiss(subscribeError, setSubscribeError);
-  useAutoDismiss(capError, setCapError);
-  useAutoDismiss(capWarning, setCapWarning);
-
-  const {
-    data: billingSummary,
-    isLoading: isBillingLoading,
-    error: billingError,
-  } = useQuery({
-    queryKey: ["billingSummary", props.teamId],
-    queryFn: async () => {
-      const response = await fetch("/api/billing/summary", {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error || response.statusText || "Failed to load billing");
-      }
-
-      const data = (await response.json()) as BillingSummary;
-      return data;
-    },
-    enabled: !props.isSessionLoading && !!props.teamId,
-    initialData: props.initialSummary ?? undefined,
-    staleTime: 0,
-    gcTime: 0,
-  });
-
-  const hasSubscription = Boolean(billingSummary?.hasSubscription);
-  const planName = hasSubscription
-    ? billingSummary?.planName ?? "Paid plan"
-    : "Subscription required";
-  const statusLabel = hasSubscription
-    ? formatBillingStatus(billingSummary?.status)
-    : "Not subscribed";
-  const amountLabel = formatBillingAmount(billingSummary?.amount, billingSummary?.currency);
-  const intervalLabel = billingSummary?.interval ? `/${billingSummary.interval}` : "";
-  const renewalLabel = billingSummary?.currentPeriodEnd
-    ? new Date(billingSummary.currentPeriodEnd).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-    : "—";
-  const portalAvailable = Boolean(billingSummary?.portalAvailable);
-  const billingErrorMessage = billingError instanceof Error
-    ? billingError.message
-    : "Failed to load billing";
-  const showStartSubscription = props.canManage && !hasSubscription;
-  const storedCapEnabled = Boolean(
-    billingSummary?.usageMode === "capped" && typeof billingSummary?.usageCap === "number",
-  );
-  const storedCap = billingSummary?.usageCap ?? 5_000_000;
-  const capHasChanges = capEnabled !== storedCapEnabled || (capEnabled && capEvents !== storedCap);
-  const projectionCurrency = billingSummary?.currency ?? "usd";
-  const currencyCode = projectionCurrency.toUpperCase();
-  const currencyHint = currencyCode === "USD"
-    ? "All billing amounts are shown in $ USD."
-    : `All billing amounts are shown in ${currencyCode}.`;
-  const projectedInvoiceLabel =
-    typeof billingSummary?.projectedInvoiceCents === "number"
-      ? formatBillingAmount(billingSummary.projectedInvoiceCents, projectionCurrency)
-      : null;
-  const projectedMaxInvoiceLabel =
-    typeof billingSummary?.projectedMaxInvoiceCents === "number"
-      ? formatBillingAmount(billingSummary.projectedMaxInvoiceCents, projectionCurrency)
-      : null;
-  const observedEvents = billingSummary?.currentPeriodEvents;
-  const billableEvents = billingSummary?.currentPeriodBillableEvents;
-  const hasCapActive = billingSummary?.usageMode === "capped" && typeof billingSummary?.usageCap === "number";
-  const capReached =
-    hasCapActive
-    && typeof observedEvents === "number"
-    && typeof billableEvents === "number"
-    && observedEvents > billableEvents;
-
-  useEffect(() => {
-    if (!billingSummary || capDirty) return;
-    setCapEnabled(storedCapEnabled);
-    setCapEvents(storedCap);
-  }, [billingSummary, capDirty, storedCapEnabled, storedCap]);
-
-  async function handleManageBilling() {
-    setPortalError(null);
-    setIsOpeningPortal(true);
-
-    try {
-      const response = await fetch("/api/billing/portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error || response.statusText || "Failed to open billing portal");
-      }
-
-      const data = (await response.json()) as { url?: string };
-      if (!data.url) {
-        throw new Error("Billing portal unavailable");
-      }
-
-      window.location.href = data.url;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to open billing portal";
-      setPortalError(message);
-    } finally {
-      setIsOpeningPortal(false);
-    }
-  }
-
-  async function handleStartSubscription() {
-    setSubscribeError(null);
-    setIsStartingSubscription(true);
-
-    try {
-      const response = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error || response.statusText || "Failed to start checkout");
-      }
-
-      const data = (await response.json()) as { url?: string };
-      if (!data.url) {
-        throw new Error("Stripe checkout unavailable");
-      }
-
-      window.location.href = data.url;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to start checkout";
-      setSubscribeError(message);
-    } finally {
-      setIsStartingSubscription(false);
-    }
-  }
-
-  async function handleSaveUsageCap() {
-    setCapError(null);
-    setCapWarning(null);
-    setIsSavingCap(true);
-
-    try {
-      const response = await fetch("/api/billing/usage-cap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          capEnabled,
-          usageCap: capEvents,
-        }),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error || response.statusText || "Failed to update usage cap");
-      }
-
-      const data = (await response.json()) as {
-        usageMode?: "metered" | "capped" | "none";
-        usageCap?: number | null;
-        warning?: string | null;
-      };
-
-      setCapEnabled(data.usageMode === "capped");
-      if (typeof data.usageCap === "number") {
-        setCapEvents(data.usageCap);
-      }
-      setCapDirty(false);
-      setCapWarning(data.warning ?? null);
-      await queryClient.invalidateQueries({ queryKey: ["billingSummary", props.teamId] });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to update usage cap";
-      setCapError(message);
-    } finally {
-      setIsSavingCap(false);
-    }
-  }
-
-  return (
-    <div id="billing">
-      <Card className="p-4 sm:p-6">
-      <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <h2 className="text-xl font-semibold text-[var(--theme-text-primary)]">
-              Billing
-            </h2>
-            {hasSubscription ? (
-              <span className="inline-flex items-center rounded-full border border-emerald-500/60 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600">
-                Billing active
-              </span>
-            ) : null}
-          </div>
-          <p className="text-sm text-[var(--theme-text-secondary)]">
-            View your current plan and manage billing in Stripe.
-          </p>
-        </div>
-        {props.canManage ? (
-          <div className="flex flex-wrap gap-2">
-            {showStartSubscription ? (
-              <Button
-                variant="primary"
-                onClick={handleStartSubscription}
-                disabled={isStartingSubscription || isBillingLoading}
-              >
-                {isStartingSubscription ? "Starting…" : "Start subscription"}
-              </Button>
-            ) : null}
-            <Button
-              variant={showStartSubscription ? "secondary" : "primary"}
-              onClick={handleManageBilling}
-              disabled={isOpeningPortal || isBillingLoading || !portalAvailable}
-            >
-              {isOpeningPortal ? "Opening…" : "Manage billing"}
-            </Button>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-lg border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)] p-4">
-          <p className="text-xs uppercase tracking-wide text-[var(--theme-text-secondary)]">
-            Current plan
-          </p>
-          <p className="text-lg font-semibold text-[var(--theme-text-primary)] mt-2">
-            {isBillingLoading ? "Loading..." : planName}
-          </p>
-          <p className="text-sm text-[var(--theme-text-secondary)] mt-1">
-            {isBillingLoading
-              ? "—"
-              : amountLabel
-                ? `${amountLabel}${intervalLabel}`
-                : hasSubscription
-                  ? "Contact support for pricing"
-                  : "Complete checkout to activate"}
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)] p-4">
-          <p className="text-xs uppercase tracking-wide text-[var(--theme-text-secondary)]">
-            Status
-          </p>
-          <p className="text-lg font-semibold text-[var(--theme-text-primary)] mt-2">
-            {isBillingLoading ? "Loading..." : statusLabel}
-          </p>
-          <p className="text-sm text-[var(--theme-text-secondary)] mt-1">
-            {isBillingLoading
-              ? "Checking Stripe"
-              : portalAvailable
-                ? "Stripe linked"
-                : "Stripe not linked"}
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)] p-4">
-          <p className="text-xs uppercase tracking-wide text-[var(--theme-text-secondary)]">
-            Renewal date
-          </p>
-          <p className="text-lg font-semibold text-[var(--theme-text-primary)] mt-2">
-            {isBillingLoading ? "Loading..." : renewalLabel}
-          </p>
-          <p className="text-sm text-[var(--theme-text-secondary)] mt-1">
-            Manage payment methods in Stripe
-          </p>
-        </div>
-      </div>
-
-      <p className="text-xs text-[var(--theme-text-secondary)]">
-        {currencyHint}
-      </p>
-
-      <div className="mt-6 rounded-lg border border-[var(--theme-border-primary)] bg-[var(--theme-bg-secondary)]/30 p-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-[var(--theme-text-primary)]">
-              Usage cap
-            </p>
-            <p className="text-xs text-[var(--theme-text-secondary)]">
-              Stop Stripe billing after a monthly event limit. Lytx continues ingesting events.
-            </p>
-          </div>
-          <label className="inline-flex items-center gap-2 text-sm text-[var(--theme-text-primary)]">
-            <input
-              type="checkbox"
-              checked={capEnabled}
-              onChange={(event) => {
-                setCapEnabled(event.target.checked);
-                setCapDirty(true);
-              }}
-              disabled={!props.canManage || isBillingLoading}
-              className="h-4 w-4"
-            />
-            Enable cap
-          </label>
-        </div>
-
-        <div className={`mt-4 ${capEnabled ? "" : "opacity-60 pointer-events-none"}`}>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs text-[var(--theme-text-secondary)]">Monthly cap</span>
-            <span className="text-sm font-semibold text-[var(--theme-text-primary)]">
-              {formatUsageNumber(capEvents)} events
-            </span>
-          </div>
-          <input
-            type="range"
-            min={USAGE_CAP_MIN}
-            max={USAGE_CAP_MAX}
-            step={USAGE_CAP_STEP}
-            value={capEvents}
-            onChange={(event) => {
-              setCapEvents(Number(event.target.value));
-              setCapDirty(true);
-            }}
-            className="w-full h-2 rounded-lg bg-[var(--theme-input-bg)] accent-[var(--theme-text-primary)]"
-          />
-          <div className="flex justify-between text-xs text-[var(--theme-text-secondary)] mt-1">
-            <span>{formatUsageNumber(USAGE_CAP_MIN)}</span>
-            <span>{formatUsageNumber(USAGE_CAP_MAX)}+</span>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs text-[var(--theme-text-secondary)]">
-              {projectedInvoiceLabel && typeof observedEvents === "number"
-                ? `Projected this period: ${projectedInvoiceLabel} (${observedEvents.toLocaleString()} observed events${typeof billableEvents === "number" ? `, ${billableEvents.toLocaleString()} billable` : ""}).`
-                : "Projected this period: unavailable until current period usage is loaded."}
-            </p>
-            {projectedMaxInvoiceLabel ? (
-              <p className="text-xs text-[var(--theme-text-secondary)]">
-                {`Max with cap: ${projectedMaxInvoiceLabel} this month${capReached ? " (cap reached)" : ""}.`}
-              </p>
-            ) : null}
-            <p className="text-xs text-[var(--theme-text-secondary)]">
-              {capEnabled
-                ? "Billing stops at the cap until next period."
-                : "No cap applied; billing is based on actual usage."}
-            </p>
-            <p
-              className="text-xs text-[var(--theme-text-secondary)]"
-              title="Observed events are total ingested events this period. Billable events are the portion Stripe bills after applying your billing mode and usage cap."
-            >
-              Observed events are ingested volume; billable events are what Stripe charges after cap rules.
-            </p>
-          </div>
-          {props.canManage ? (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSaveUsageCap}
-              disabled={isSavingCap || isBillingLoading || !capHasChanges}
-            >
-              {isSavingCap ? "Saving…" : "Save cap"}
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      {billingError ? (
-        <p className="text-sm text-red-500 mt-3">{billingErrorMessage}</p>
-      ) : null}
-      {portalError ? (
-        <p className="text-sm text-red-500 mt-2">{portalError}</p>
-      ) : null}
-      {subscribeError ? (
-        <p className="text-sm text-red-500 mt-2">{subscribeError}</p>
-      ) : null}
-      {capError ? (
-        <p className="text-sm text-red-500 mt-2">{capError}</p>
-      ) : null}
-      {capWarning ? (
-        <p className="text-sm text-amber-500 mt-2">{capWarning}</p>
-      ) : null}
-      </div>
-      </Card>
-    </div>
-  );
-}
-
 type SettingsPageProps = {
   initialSession?: SettingsInitialSession | null;
   initialCurrentSite?: SettingsInitialCurrentSite | null;
   initialSites?: SettingsInitialSite[];
   initialTeamSettings?: Awaited<GetTeamSettings> | null;
-  initialBillingSummary?: BillingSummary | null;
 };
 
 export function SettingsPage({
@@ -1006,7 +547,6 @@ export function SettingsPage({
   initialCurrentSite = null,
   initialSites = [],
   initialTeamSettings = null,
-  initialBillingSummary = null,
 }: SettingsPageProps) {
   const auth = useContext(AuthContext) || null;
   const authSession = auth?.data ?? null;
@@ -1042,10 +582,6 @@ export function SettingsPage({
   });
   const [isAddingApiKey, setIsAddingApiKey] = useState(false);
   const [teamMembersData, setTeamMembersData] = useState<Awaited<GetTeamSettings> | null>(initialTeamSettings);
-  const [checkoutMessage, setCheckoutMessage] = useState<null | {
-    type: "success" | "error";
-    text: string;
-  }>(null);
 
   useEffect(() => {
     if (!isSessionLoading && sessionTeamName) {
@@ -1054,28 +590,6 @@ export function SettingsPage({
       setTeamName("");
     }
   }, [isSessionLoading, session?.team?.id, sessionTeamName]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    const checkoutStatus = url.searchParams.get("checkout");
-    if (!checkoutStatus) return;
-
-    if (checkoutStatus === "success") {
-      setCheckoutMessage({
-        type: "success",
-        text: "Subscription started. Stripe will confirm your billing details shortly.",
-      });
-    } else if (checkoutStatus === "cancel") {
-      setCheckoutMessage({
-        type: "error",
-        text: "Checkout canceled. Your subscription was not started.",
-      });
-    }
-
-    url.searchParams.delete("checkout");
-    window.history.replaceState({}, "", url.toString());
-  }, []);
 
   // Add site form state
   const [showAddSiteForm, setShowAddSiteForm] = useState(false);
@@ -1300,17 +814,6 @@ export function SettingsPage({
         <h1 className="text-3xl font-bold text-[var(--theme-text-primary)] mb-8">
           Settings
         </h1>
-        {checkoutMessage ? (
-          <div
-            className={`rounded-lg border px-4 py-3 text-sm font-medium ${checkoutMessage.type === "success"
-              ? "border-green-500/60 bg-green-500/10 text-green-600"
-              : "border-red-500/60 bg-red-500/10 text-red-500"
-              }`}
-          >
-            {checkoutMessage.text}
-          </div>
-        ) : null}
-
         {/* User Profile Section */}
         <Card className="p-4 sm:p-6">
           <h2 className="text-xl font-semibold text-[var(--theme-text-primary)] mb-4">
@@ -1412,12 +915,6 @@ export function SettingsPage({
           ) : null}
         </Card>
 
-        <BillingSection
-          teamId={session?.team?.id}
-          isSessionLoading={isSessionLoading}
-          canManage={session?.role === "admin"}
-          initialSummary={initialBillingSummary}
-        />
 
         {/* Team Settings Section */}
         <Card className="p-4 sm:p-6">

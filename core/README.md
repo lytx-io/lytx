@@ -68,6 +68,7 @@ export default app satisfies ExportedHandler<Env>;
 - `names.*` (typed resource binding names for D1/KV/Queue/DO)
 - `domains.app` + `domains.tracking` (typed host/domain values)
 - `startupValidation.*` + `env.*` (startup env requirement checks with field-level errors)
+- `env.EMAIL_FROM` (optional factory override for outgoing email sender)
 
 For deployment scripts, use `resolveLytxResourceNames(...)` from `@lytx/core/resource-names` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
 
@@ -87,13 +88,9 @@ import {
   Document,
 
   // Public pages
-  Home,
   Signup,
   Login,
   VerifyEmail,
-  GetStarted,
-  PrivacyPolicy,
-  TermsOfService,
 
   // Authenticated app pages
   AppLayout,
@@ -173,12 +170,9 @@ const app = defineApp<AppRequestInfo>([
 
   // ── Rendered pages ──
   render<AppRequestInfo>(Document, [
-    route("/", [onlyAllowGetPost, () => <Home />]),
+    route("/", [onlyAllowGetPost, ({ request }) => Response.redirect(new URL("/login", request.url).toString(), 308)]),
     route("/signup", [onlyAllowGetPost, () => <Signup />]),
     route("/login", [onlyAllowGetPost, () => <Login />]),
-    route("/get-started", [onlyAllowGetPost, () => <GetStarted />]),
-    route("/privacy", [onlyAllowGetPost, () => <PrivacyPolicy />]),
-    route("/terms", [onlyAllowGetPost, () => <TermsOfService />]),
     route("/verify-email", [
       onlyAllowGetPost,
       async ({ request }) => {
@@ -359,7 +353,8 @@ GITHUB_CLIENT_SECRET=...
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 
-# Email (optional — needed for verification emails)
+# Email (required for verification/invite emails)
+EMAIL_FROM=noreply@yourdomain.com
 RESEND_API_KEY=...
 
 # AI features (optional)
@@ -386,6 +381,8 @@ LYTX_DOMAIN=localhost:5173
 ENVIRONMENT=development
 SEED_DATA_SECRET=<random-secret>
 ```
+
+If `EMAIL_FROM` is missing (or left as the placeholder `noreply@example.com`), email send attempts fail with a clear runtime error explaining how to configure it.
 
 ## Database setup
 
@@ -434,7 +431,7 @@ bun run cli/seed-data.ts --team-id 1 --site-id 1 --durable-only --events 50 --se
 | `EventsPage` | Event explorer / raw event viewer |
 | `ExplorePage` | SQL explorer with Monaco editor |
 | `SettingsPage` | Team settings, API keys, site tag install |
-| `Home`, `Signup`, `Login` | Marketing / auth pages |
+| `Signup`, `Login`, `VerifyEmail` | Auth pages |
 | `AppLayout` | Authenticated app shell with nav |
 | `Document` | HTML document wrapper |
 

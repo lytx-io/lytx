@@ -14,12 +14,16 @@ export const emailSignUp = async (
   password: string,
   name: string,
 ) => {
-  await authClient.signUp.email({
+  const result = await authClient.signUp.email({
     email: email,
     password: password,
     name: name,
     // callbackURL: "/dashboard"
   });
+
+  if (result.error) {
+    throw new Error(result.error.message || "Sign up failed");
+  }
 };
 
 export const signIn = async (

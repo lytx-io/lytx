@@ -286,7 +286,7 @@ export const NewSiteSetup: React.FC<NewSiteSetupProps> = ({
                   3
                 </div>
                 <span className="text-[var(--theme-text-secondary)]">
-                  Add a payment method to activate the dashboard while your tag continues collecting data
+                  Open the dashboard to confirm ingestion and continue setup
                 </span>
               </div>
             </div>

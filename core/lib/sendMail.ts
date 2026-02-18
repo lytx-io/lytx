@@ -1,9 +1,26 @@
 "use server";
 
 import { env } from "cloudflare:workers";
+import { IS_DEV } from "rwsdk/constants";
+
+const DEFAULT_EMAIL_FROM_PLACEHOLDER = "noreply@example.com";
+let email_from_override: string | undefined;
+
+export function setEmailFromAddress(value?: string) {
+	email_from_override = value?.trim() || undefined;
+}
 
 function getFromAddress(): string {
-	return env.EMAIL_FROM ?? "noreply@example.com";
+	const from = email_from_override ?? env.EMAIL_FROM ?? DEFAULT_EMAIL_FROM_PLACEHOLDER;
+	const normalized = from.trim();
+
+	if (!normalized || normalized.toLowerCase() === DEFAULT_EMAIL_FROM_PLACEHOLDER) {
+		throw new Error(
+			"EMAIL_FROM is not configured. Set EMAIL_FROM in your environment bindings or pass createLytxApp({ env: { EMAIL_FROM: \"noreply@yourdomain.com\" } }).",
+		);
+	}
+
+	return normalized;
 }
 
 interface SendEmailOptions {
@@ -19,7 +36,30 @@ interface SendEmailOptions {
 	tags?: Array<{ name: string; value: string }>;
 }
 
+function normalizeRecipients(value: string | string[]): string[] {
+	return Array.isArray(value) ? value : [value];
+}
+
+function redactRecipient(value: string): string {
+	const [local, domain] = value.split("@");
+	if (!domain) return "invalid-recipient";
+	const local_prefix = local?.slice(0, 2) ?? "";
+	return `${local_prefix}***@${domain}`;
+}
+
+function logEmailDebug(event: string, details: Record<string, unknown>) {
+	if (!IS_DEV) return;
+	console.log("[email][dev]", event, details);
+}
+
 async function sendEmail(options: SendEmailOptions) {
+	logEmailDebug("attempt", {
+		from: options.from,
+		to: normalizeRecipients(options.to).map(redactRecipient),
+		subject: options.subject,
+		hasResendApiKey: Boolean(env.RESEND_API_KEY),
+	});
+
 	const response = await fetch("https://api.resend.com/emails", {
 		method: "POST",
 		headers: {
@@ -31,10 +71,20 @@ async function sendEmail(options: SendEmailOptions) {
 
 	if (!response.ok) {
 		const error = await response.text();
+		logEmailDebug("failed", {
+			status: response.status,
+			error,
+		});
 		throw new Error(`Resend API error: ${response.status} - ${error}`);
 	}
 
-	return response.json();
+	const data = await response.json();
+	logEmailDebug("sent", {
+		status: response.status,
+		response: data,
+	});
+
+	return data;
 }
 
 interface EmailTemplateOptions {

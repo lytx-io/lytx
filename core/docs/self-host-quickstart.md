@@ -50,9 +50,11 @@ Minimum required:
 
 Optional but common:
 
-- `RESEND_API_KEY` (verification emails)
+- `EMAIL_FROM`, `RESEND_API_KEY` (verification/invite emails)
 - `AI_API_KEY`, `AI_MODEL`, `AI_BASE_URL`, `AI_DAILY_TOKEN_LIMIT` (AI features)
 - `REPORT_BUILDER`, `ASK_AI` (feature toggles)
+
+Important: `EMAIL_FROM` must be a real sender address for email workflows. If it is missing (or left as `noreply@example.com`), email send attempts fail with a configuration error.
 
 Domain and naming options:
 

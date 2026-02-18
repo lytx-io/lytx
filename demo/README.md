@@ -34,6 +34,8 @@ cp .env.example .env
 
 4. Fill required secrets in `.env`.
 
+If you use verification/invite emails, set `EMAIL_FROM` to a real sender address and set `RESEND_API_KEY`.
+
 Important: set `BETTER_AUTH_URL` to the exact origin your app is served from (for example `http://localhost:5173` locally and your production URL in deployed environments).
 
 5. Run locally:

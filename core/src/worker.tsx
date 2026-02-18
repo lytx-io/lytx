@@ -4,10 +4,6 @@ import { Document } from "@/Document";
 import { DashboardPage } from "@/app/Dashboard";
 import { EventsPage } from "@/app/Events";
 import { ExplorePage } from "@/app/Explore";
-import { Home } from "@/pages/Home";
-import { GetStarted } from "@/pages/GetStarted";
-import { PrivacyPolicy } from "@/pages/PrivacyPolicy";
-import { TermsOfService } from "@/pages/TermsOfService";
 import { AppLayout } from "@/app/Layout";
 import { eventsApi } from "@api/events_api";
 import { seedApi } from "@api/seed_api";
@@ -48,6 +44,7 @@ import {
 } from "@/lib/featureFlags";
 import { parseCreateLytxAppConfig } from "@/config/createLytxAppConfig";
 import type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
+import { setEmailFromAddress } from "@lib/sendMail";
 import type { DashboardResponseData } from "@db/tranformReports";
 import { parseDateParam } from "@/utilities/dashboardParams";
 import { getTeamSettings } from "@db/d1/teams";
@@ -165,6 +162,7 @@ const appRoute = <TPath extends string>(
 ) => route<TPath, AppRequestInfo>(path, handlers);
 export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
+  setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
   const enableRequestLogging = parsed_config.enableRequestLogging ?? IS_DEV;
   const authEnabled = parsed_config.features?.auth ?? isAuthEnabled();
   const dashboardEnabled = authEnabled && (parsed_config.features?.dashboard ?? isDashboardEnabled());
@@ -240,8 +238,8 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
       : []),
   render<AppRequestInfo>(Document, [
     route("/", [
-      onlyAllowGetPost, () => {
-        return <Home />;
+      onlyAllowGetPost, ({ request }) => {
+        return Response.redirect(new URL("/login", request.url).toString(), 308);
       },
     ]),
     ...(authEnabled
@@ -253,21 +251,6 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
         ]),
       ]
       : []),
-    route("/get-started", [
-      onlyAllowGetPost, () => {
-        return <GetStarted />;
-      },
-    ]),
-    route("/privacy", [
-      onlyAllowGetPost, () => {
-        return <PrivacyPolicy />;
-      },
-    ]),
-    route("/terms", [
-      onlyAllowGetPost, () => {
-        return <TermsOfService />;
-      },
-    ]),
     ...(authEnabled
       ? [
         route("/login", [

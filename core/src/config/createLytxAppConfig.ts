@@ -97,6 +97,7 @@ const createLytxAppConfigSchema = z
         AI_API_KEY: envKeySchema.optional(),
         AI_MODEL: envKeySchema.optional(),
         LYTX_DOMAIN: domainSchema.optional(),
+        EMAIL_FROM: z.string().trim().email("EMAIL_FROM must be a valid email address").optional(),
       })
       .strict()
       .optional(),

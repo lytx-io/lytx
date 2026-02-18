@@ -67,7 +67,7 @@ const update_team = teamRoute("/update", [
       return new Response("Invalid request", { status: 400 });
     const checkIfUpdated = await updateTeamName(body.name, ctx.team.id);
     if (body.option === "name" && IS_DEV) {
-      console.log("Team name updated (billing sync omitted in OSS)", checkIfUpdated, ctx.team);
+      console.log("Team name updated", checkIfUpdated, ctx.team);
     }
     if (IS_DEV) console.log(checkIfUpdated, ctx.team, body.option, body.name);
     return new Response("Ok", { status: 201 });
