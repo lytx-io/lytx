@@ -1,10 +1,45 @@
 {
   "name": "@lytx/core",
   "version": "0.3.0",
-  "private": true,
+  "private": false,
+  "license": "MIT",
+  "types": "./index.d.ts",
+  "main": "index.ts",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lytx-io/kit.git",
+    "directory": "core"
+  },
+  "homepage": "https://github.com/lytx-io/kit#readme",
+  "files": [
+    "src/",
+    "lib/",
+    "db/",
+    "cli/",
+    "endpoints/",
+    "public/",
+    "types/",
+    "vite/",
+    "index.ts",
+    "README.md",
+    "tsconfig.json",
+    "vite.config.ts",
+    "alchemy.run.ts",
+    ".env.example",
+    "worker-configuration.d.ts",
+    "index.d.ts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
-    "lytx-setup": "./cli/setup.ts"
+    "lytx-setup": "./cli/setup.js"
   },
   "scripts": {
     "dev": "bun alchemy dev --stage dev",
@@ -33,6 +68,7 @@
     "drizzle-kit": "^0.31.8",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.3.2",
+    "blinkx.io-sveltekit": "^1.0.10",
     "wrangler": "^4.59.3"
   },
   "dependencies": {
@@ -55,7 +91,6 @@
     "alchemy": "^0.84.0",
     "better-auth": "^1.2.9",
     "better-sqlite3": "^11.10.0",
-    "blinkx.io-sveltekit": "^1.0.10",
     "country-flag-icons": "^1.6.12",
     "device-detector-js": "^3.0.3",
     "drizzle-orm": "^0.44.7",

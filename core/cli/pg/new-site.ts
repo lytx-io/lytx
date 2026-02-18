@@ -28,7 +28,7 @@ function createLytxTag(opts: { apiKey: string, domain?: string, lytxDomain?: str
   const safeDomain = domain ? domain.replace(/"/g, '') : undefined;
   let domainAttribute = safeDomain ? `data-domain="${safeDomain}"` : '';
   const safeApiKey = encodeURIComponent(apiKey);
-  return `<script defer ${domainAttribute} src="${lytxDomain ?? 'https://lytx.io'}/lytx.js?account=${safeApiKey}"></script>`;
+  return `<script defer ${domainAttribute} src="${lytxDomain ?? 'http://localhost:5173'}/lytx.js?account=${safeApiKey}"></script>`;
 }
 async function getAccountId(accountId: number) {
   const [account] = await client

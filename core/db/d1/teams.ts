@@ -1,6 +1,6 @@
 import { d1_client } from "@db/d1/client";
-import { team_member, team, user, api_key, sites, type ApiKeyInsert, Permissions, AllowedMembers } from "@db/d1/schema";
-import { eq } from "drizzle-orm";
+import { team_member, team, user, api_key, sites, invited_user, Permissions, AllowedMembers } from "@db/d1/schema";
+import { and, desc, eq } from "drizzle-orm";
 
 export async function updateTeamName(name: string, id: number) {
   const team_vals = await d1_client
@@ -91,13 +91,35 @@ export async function getTeamSites(team_id: number) {
   return team_sites;
 }
 
+export async function getTeamPendingInvites(team_id: number) {
+  const pendingInvites = await d1_client
+    .select({
+      id: invited_user.id,
+      name: invited_user.name,
+      email: invited_user.email,
+      role: invited_user.role,
+      createdAt: invited_user.createdAt,
+    })
+    .from(invited_user)
+    .where(
+      and(
+        eq(invited_user.team_id, team_id),
+        eq(invited_user.accepted, false),
+      ),
+    )
+    .orderBy(desc(invited_user.createdAt));
+
+  return pendingInvites;
+}
+
 export async function getTeamSettings(team_id: number) {
-  const [members, keys, team_sites] = await Promise.all([
+  const [members, keys, team_sites, pendingInvites] = await Promise.all([
     getTeamMembers(team_id),
     getApiKeys(team_id),
     getTeamSites(team_id),
+    getTeamPendingInvites(team_id),
   ]);
-  return { members, keys, sites: team_sites };
+  return { members, keys, sites: team_sites, pendingInvites };
 }
 
 export type GetTeamMembers = ReturnType<typeof getTeamMembers>;

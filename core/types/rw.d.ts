@@ -1,4 +1,7 @@
-// Stub declarations used by tsconfig.json
-// Runtime types are generated via `bun run cf-types` (worker-configuration.d.ts).
+import type { AppContext } from "../src/types/app-context";
+
+declare module "rwsdk/worker" {
+  interface DefaultAppContext extends AppContext {}
+}
 
 export {};

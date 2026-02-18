@@ -1,8 +1,6 @@
 import { getDashboardDataFromDurableObject, getSiteInfo } from "@db/durable/durableObjectClient";
 import { processDirectSiteEvents, batchProcessSiteEvents } from "@/api/queueWorker";
-import { getSiteForTag } from "@db/d1/sites";
 
-import { getDashboardData as getPostgresDashboardData } from "@db/postgres/sites";
 import type { DashboardOptions, DBAdapter } from "@db/types";
 import type { SiteEventInput } from "@/session/siteSchema";
 import { IS_DEV } from "rwsdk/constants";
@@ -118,7 +116,12 @@ export async function batchInsertSiteEvents(
 
   // Process sqlite sites directly (parallel)
   const sqlitePromises = Array.from(sqliteSites.entries()).map(async ([siteId, events]) => {
-    const result = await processDirectSiteEvents(siteId, events, env);
+    const siteInfo = await getSiteInfo(siteId, env);
+    if (!siteInfo) {
+      return [siteId, { success: false, error: `Site ${siteId} not found` }] as const;
+    }
+
+    const result = await processDirectSiteEvents(siteId, siteInfo.tag_id, events);
     return [siteId, result] as const;
   });
 
@@ -135,7 +138,7 @@ export async function batchInsertSiteEvents(
   // Process queue sites in batch
   if (queueSites.size > 0) {
     try {
-      await batchProcessSiteEvents(queueSites, env);
+      await batchProcessSiteEvents(queueSites);
       // Mark all queue sites as successful
       for (const [siteId, { events }] of queueSites) {
         results.set(siteId, { success: true, inserted: events.length });

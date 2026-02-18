@@ -305,16 +305,18 @@ export const worker = await Redwood("${c.workerName}", {
     GITHUB_CLIENT_SECRET: alchemy.secret(process.env.GITHUB_CLIENT_SECRET),
     GOOGLE_CLIENT_SECRET: alchemy.secret(process.env.GOOGLE_CLIENT_SECRET),
     RESEND_API_KEY: alchemy.secret(process.env.RESEND_API_KEY),
-    BLINK_API_KEY: alchemy.secret(process.env.BLINK_API_KEY),
     ENCRYPTION_KEY: alchemy.secret(process.env.ENCRYPTION_KEY),
     AI_API_KEY: alchemy.secret(process.env.AI_API_KEY),
     SEED_DATA_SECRET: alchemy.secret(process.env.SEED_DATA_SECRET),
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     GITHUB_CLIENT_ID: alchemy.secret(process.env.GITHUB_CLIENT_ID),
     GOOGLE_CLIENT_ID: alchemy.secret(process.env.GOOGLE_CLIENT_ID),
+    REPORT_BUILDER: process.env.REPORT_BUILDER || "false",
+    ASK_AI: process.env.ASK_AI || "true",
     ENVIRONMENT: process.env.ENVIRONMENT ?? "development",
     AI_BASE_URL: process.env.AI_BASE_URL ?? "",
     AI_MODEL: process.env.AI_MODEL ?? "",
+    AI_DAILY_TOKEN_LIMIT: process.env.AI_DAILY_TOKEN_LIMIT ?? "",
   },
 });
 ${apiWorkerBlock}
@@ -350,26 +352,12 @@ EMAIL_FROM=noreply@yourdomain.com
 AI_API_KEY=
 AI_BASE_URL=
 AI_MODEL=
+AI_DAILY_TOKEN_LIMIT=
+REPORT_BUILDER=false
+ASK_AI=true
 
 # Misc
-BLINK_API_KEY=
 SEED_DATA_SECRET=change-me-${crypto.randomUUID().slice(0, 8)}
-ENVIRONMENT=development
-`;
-}
-
-function generateDevVarsFile(c: SetupConfig): string {
-  const domain =
-    c.domains.length > 0 ? c.domains[0] : "localhost:5173";
-
-  return `# ── Lytx – .dev.vars (local dev secrets) ──
-# Cloudflare Workers local dev reads secrets from this file.
-
-LYTX_DOMAIN=${domain}
-BETTER_AUTH_SECRET=local-dev-secret
-BETTER_AUTH_URL=http://localhost:5173
-ENCRYPTION_KEY=local-dev-encryption-key
-SEED_DATA_SECRET=local-dev-seed-secret
 ENVIRONMENT=development
 `;
 }
@@ -449,12 +437,6 @@ async function main() {
     console.log("  ·  .env already exists, skipping (won't overwrite secrets)");
   }
 
-  if (!existsSync(".dev.vars")) {
-    safeWrite(".dev.vars", generateDevVarsFile(config), ".dev.vars");
-  } else {
-    console.log("  ·  .dev.vars already exists, skipping");
-  }
-
   saveSetupConfig(config);
 
   console.log(`
@@ -462,7 +444,7 @@ async function main() {
 
 Next steps:
 
-  1. Review and fill in secrets in .env / .dev.vars
+  1. Review and fill in secrets in .env
   2. Install dependencies:     bun install
   3. Run locally:              bun run dev
   4. Deploy to Cloudflare:     bun run deploy

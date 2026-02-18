@@ -12,9 +12,9 @@
  *   3. Remove after migration is complete
  */
 
-import { writeToDurableObject } from '@/session/durableObjectClient';
+import { writeToDurableObject } from '@db/durable/durableObjectClient';
 import { drizzle } from 'drizzle-orm/d1';
-import { siteEvents as d1SiteEvents } from '@db/d1/schema';
+import { siteEvents as d1SiteEvents, sites as d1Sites } from '@db/d1/schema';
 import { eq } from 'drizzle-orm';
 import type { SiteEventInput } from '@/session/siteSchema';
 
@@ -76,6 +76,24 @@ async function migrateSiteEvents(
   const errors: string[] = [];
   
   try {
+    const siteRecord = await db
+      .select({ uuid: d1Sites.uuid })
+      .from(d1Sites)
+      .where(eq(d1Sites.site_id, siteId))
+      .limit(1);
+
+    const siteUuid = siteRecord[0]?.uuid;
+    if (!siteUuid) {
+      return {
+        success: false,
+        siteId,
+        totalEvents: 0,
+        migratedEvents: 0,
+        batches: 0,
+        errors: [`Site ${siteId} not found`],
+      };
+    }
+
     // Get all events for this site from D1
     const events = await db
       .select()
@@ -121,7 +139,7 @@ async function migrateSiteEvents(
       console.log(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} events) for site ${siteId}`);
 
       try {
-        const result = await writeToDurableObject(siteId, batch, env);
+        const result = await writeToDurableObject(siteId, siteUuid, batch);
         
         if (result.success) {
           migratedCount += result.inserted || batch.length;

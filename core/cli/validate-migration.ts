@@ -147,7 +147,7 @@ Options:
     if (siteId) {
       // Validate single site
       totalSites = 1;
-      const passed = await validateSite(siteId, config, env);
+      const passed = await validateSite(siteId, config, env as unknown as Env);
       if (passed) passedSites = 1;
       allPassed = passed;
       
@@ -159,7 +159,7 @@ Options:
       console.log(`Found ${siteIds.length} sites to validate.`);
       
       for (const id of siteIds) {
-        const passed = await validateSite(id, config, env);
+        const passed = await validateSite(id, config, env as unknown as Env);
         if (passed) {
           passedSites++;
         } else {

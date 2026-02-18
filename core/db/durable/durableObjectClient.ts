@@ -42,6 +42,30 @@ export interface DashboardAggregates {
   dateRange: { start?: string; end?: string };
 }
 
+function asNumberTupleRows(value: unknown): Array<[string, number]> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((row): row is [unknown, unknown] => Array.isArray(row) && row.length >= 2)
+    .map((row) => [String(row[0]), Number(row[1]) || 0] as [string, number]);
+}
+
+function asCityTupleRows(value: unknown): Array<[string, { count: number; country: string }]> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((row): row is [unknown, unknown] => Array.isArray(row) && row.length >= 2)
+    .map((row) => {
+      const city = String(row[0]);
+      const payload = row[1] as { count?: unknown; country?: unknown };
+      return [
+        city,
+        {
+          count: Number(payload?.count) || 0,
+          country: typeof payload?.country === "string" ? payload.country : "Unknown",
+        },
+      ] as [string, { count: number; country: string }];
+    });
+}
+
 export async function getDurableDatabaseStub(site_uuid: string, site_id: number) {
 
   const doId = env.SITE_DURABLE_OBJECT.idFromName(site_uuid);
@@ -146,9 +170,9 @@ export async function getDashboardAggregatesFromDurableObject(
       ...result,
       siteId: result.siteId ?? options.site_id,
       pageViews: result.pageViews ?? [],
-      events: result.events ?? [],
-      devices: result.devices ?? [],
-      cities: result.cities ?? [],
+      events: asNumberTupleRows(result.events),
+      devices: asNumberTupleRows(result.devices),
+      cities: asCityTupleRows(result.cities),
       countries: result.countries ?? [],
       countryUniques: result.countryUniques ?? [],
       referers: result.referers ?? [],
@@ -398,6 +422,10 @@ export async function getEventSummaryFromDurableObject(
     limit?: number;
     offset?: number;
     search?: string;
+    type?: "all" | "autocapture" | "event_capture" | "page_view";
+    action?: "all" | "click" | "submit" | "change" | "rule";
+    sortBy?: "count" | "first_seen" | "last_seen";
+    sortDirection?: "asc" | "desc";
   }
 ): Promise<{
   summary: Array<{ event: string | null; count: number; firstSeen: string | null; lastSeen: string | null }>;
@@ -416,7 +444,11 @@ export async function getEventSummaryFromDurableObject(
       endDateIsExact: options.date?.endIsExact,
       limit: options.limit,
       offset: options.offset,
-      search: options.search
+      search: options.search,
+      type: options.type,
+      action: options.action,
+      sortBy: options.sortBy,
+      sortDirection: options.sortDirection,
     });
 
     if (result.error) {

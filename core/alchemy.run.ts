@@ -96,7 +96,6 @@ export const worker = await Redwood("lytx-app", {
     GITHUB_CLIENT_SECRET: alchemy.secret(process.env.GITHUB_CLIENT_SECRET),
     GOOGLE_CLIENT_SECRET: alchemy.secret(process.env.GOOGLE_CLIENT_SECRET),
     RESEND_API_KEY: alchemy.secret(process.env.RESEND_API_KEY),
-    BLINK_API_KEY: alchemy.secret(process.env.BLINK_API_KEY),
     ENCRYPTION_KEY: alchemy.secret(process.env.ENCRYPTION_KEY),
     AI_API_KEY: alchemy.secret(process.env.AI_API_KEY),
     SEED_DATA_SECRET: alchemy.secret(process.env.SEED_DATA_SECRET),
@@ -104,8 +103,11 @@ export const worker = await Redwood("lytx-app", {
     GITHUB_CLIENT_ID: alchemy.secret(process.env.GITHUB_CLIENT_ID),
     GOOGLE_CLIENT_ID: alchemy.secret(process.env.GOOGLE_CLIENT_ID),
     ENVIRONMENT: process.env.ENVIRONMENT ?? "development",
+    REPORT_BUILDER: process.env.REPORT_BUILDER ?? "false",
+    ASK_AI: process.env.ASK_AI ?? "true",
     AI_BASE_URL: process.env.AI_BASE_URL ?? "",
     AI_MODEL: process.env.AI_MODEL ?? "",
+    AI_DAILY_TOKEN_LIMIT: process.env.AI_DAILY_TOKEN_LIMIT ?? "",
   },
 });
 

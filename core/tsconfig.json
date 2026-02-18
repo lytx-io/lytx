@@ -22,7 +22,8 @@
 			"./worker-configuration.d.ts",
 			"./types/rw.d.ts",
 			"./types/vite.d.ts",
-			"./types/env.d.ts"
+			"./types/env.d.ts",
+			"./types/shims.d.ts"
 		],
 		"paths": {
 			"@/*": [

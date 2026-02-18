@@ -204,6 +204,43 @@ export const api_key = sqliteTable(
     index("api_key_site_id_idx").on(table.site_id),
   ],
 );
+
+export const team_ai_usage = sqliteTable(
+  "team_ai_usage",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    team_id: integer("team_id").notNull(),
+    user_id: text("user_id"),
+    site_id: integer("site_id"),
+    request_id: text("request_id"),
+    request_type: text({ enum: ["chat", "site_tag_suggest"] }).notNull(),
+    provider: text("provider"),
+    model: text("model"),
+    status: text({ enum: ["success", "error"] })
+      .default("success")
+      .notNull(),
+    error_code: text("error_code"),
+    error_message: text("error_message"),
+    input_tokens: integer("input_tokens"),
+    output_tokens: integer("output_tokens"),
+    total_tokens: integer("total_tokens"),
+    tool_calls: integer("tool_calls"),
+    message_count: integer("message_count"),
+    prompt_chars: integer("prompt_chars"),
+    completion_chars: integer("completion_chars"),
+    duration_ms: integer("duration_ms"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("team_ai_usage_team_id_idx").on(table.team_id),
+    index("team_ai_usage_team_created_idx").on(table.team_id, table.createdAt),
+    index("team_ai_usage_team_type_created_idx").on(table.team_id, table.request_type, table.createdAt),
+    index("team_ai_usage_request_id_idx").on(table.request_id),
+    index("team_ai_usage_user_created_idx").on(table.user_id, table.createdAt),
+  ],
+);
 export const sites = sqliteTable(
   "sites",
   {
@@ -360,6 +397,8 @@ export type EventLabelInsert = typeof eventLabels.$inferInsert;
 export type EventLabelSelect = typeof eventLabels.$inferSelect;
 export type CustomReportInsert = typeof customReports.$inferInsert;
 export type CustomReportSelect = typeof customReports.$inferSelect;
+export type TeamAiUsageInsert = typeof team_ai_usage.$inferInsert;
+export type TeamAiUsageSelect = typeof team_ai_usage.$inferSelect;
 
 export type SiteInsert = typeof sites.$inferInsert;
 export type TeamInsert = typeof team.$inferInsert;

@@ -431,7 +431,7 @@ function lytxSwaggerPage(c: Context<AppEnv>) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Lytx Site Data API Documentation" />
     <title>Lytx API Docs</title>
-    <link rel="icon" href="https://lytx.io/favicon.ico" />
+    <link rel="icon" href="/favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet" />
@@ -1275,7 +1275,7 @@ function lytxSwaggerPage(c: Context<AppEnv>) {
   <body>
     <div class="lytx-topbar">
       <div class="lytx-topbar-left">
-        <img src="https://lytx.io/logo.png" alt="Lytx" class="lytx-logo" />
+        <img src="/logo.png" alt="Lytx" class="lytx-logo" />
         <a href="/" class="lytx-title">Lytx</a>
         <span class="lytx-badge">API Docs</span>
       </div>
@@ -1283,8 +1283,8 @@ function lytxSwaggerPage(c: Context<AppEnv>) {
         <button class="lytx-theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle light/dark theme">
           <span id="theme-icon">&#9790;</span>
         </button>
-        <a href="https://lytx.io/settings" class="lytx-link-btn outline" target="_blank" rel="noopener">Dashboard</a>
-        <a href="https://lytx.io" class="lytx-link-btn" target="_blank" rel="noopener">lytx.io</a>
+        <a href="/settings" class="lytx-link-btn outline">Dashboard</a>
+        <a href="/" class="lytx-link-btn">Home</a>
       </div>
     </div>
     <div class="swagger-wrapper">

@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { drizzle, DrizzleSqliteDODatabase } from 'drizzle-orm/durable-sqlite';
-import { eq, and, gte, lte, desc, count, sql, isNotNull, ne, like, or, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, count, sql, isNotNull, ne, like, or, isNull, not } from "drizzle-orm";
 import { siteEvents, type SiteEventInsert, type SiteEventSelect } from '@db/durable/schema';
 import { migrate } from 'drizzle-orm/durable-sqlite/migrator';
 //TODO: generate durable object migrations
@@ -89,7 +89,7 @@ export class SiteDurableObject extends DurableObject {
   private site_id: number | null = null;
   private site_uuid: string | null = null;
 
-  constructor(state: DurableObjectState, env: Env) {
+  constructor(state: DurableObjectState, env: any) {
     super(state, env);
     this.state = state;
     // Use the SQL storage from the durable object state
@@ -768,6 +768,10 @@ export class SiteDurableObject extends DurableObject {
     limit?: number;
     offset?: number;
     search?: string;
+    type?: "all" | "autocapture" | "event_capture" | "page_view";
+    action?: "all" | "click" | "submit" | "change" | "rule";
+    sortBy?: "count" | "first_seen" | "last_seen";
+    sortDirection?: "asc" | "desc";
   } = {}) {
     try {
       const { startDate, endDate, endDateIsExact } = options;
@@ -785,23 +789,70 @@ export class SiteDurableObject extends DurableObject {
           conditions.push(like(siteEvents.event, `%${trimmedSearch}%`));
         }
       }
+
+      if (options.type === "autocapture") {
+        conditions.push(or(like(siteEvents.event, "$ac_%"), eq(siteEvents.event, "auto_capture")));
+      } else if (options.type === "event_capture") {
+        conditions.push(
+          and(
+            isNotNull(siteEvents.event),
+            ne(siteEvents.event, "page_view"),
+            ne(siteEvents.event, "auto_capture"),
+            not(like(siteEvents.event, "$ac_%")),
+          ),
+        );
+      } else if (options.type === "page_view") {
+        conditions.push(eq(siteEvents.event, "page_view"));
+      }
+
+      if (options.action === "rule") {
+        conditions.push(eq(siteEvents.event, "auto_capture"));
+      } else if (options.action === "submit") {
+        conditions.push(like(siteEvents.event, "$ac_form_%"));
+      } else if (options.action === "change") {
+        conditions.push(like(siteEvents.event, "$ac_input_%"));
+      } else if (options.action === "click") {
+        conditions.push(
+          and(
+            like(siteEvents.event, "$ac_%"),
+            not(like(siteEvents.event, "$ac_form_%")),
+            not(like(siteEvents.event, "$ac_input_%")),
+          ),
+        );
+      }
+
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
       const limit = Math.min(Math.max(1, options.limit ?? 50), 500);
       const offset = Math.max(0, options.offset ?? 0);
+      const sortBy = options.sortBy ?? "count";
+      const sortDirection = options.sortDirection === "asc" ? "asc" : "desc";
+
+      const countExpression = count();
+      const firstSeenExpression = sql<number>`min(${siteEvents.createdAt}) * 1000`;
+      const lastSeenExpression = sql<number>`max(${siteEvents.createdAt}) * 1000`;
+
+      const sortExpression =
+        sortBy === "first_seen"
+          ? firstSeenExpression
+          : sortBy === "last_seen"
+            ? lastSeenExpression
+            : countExpression;
+      const primarySort = sortDirection === "asc" ? asc(sortExpression) : desc(sortExpression);
+      const secondarySort = sortBy === "count" ? desc(lastSeenExpression) : desc(countExpression);
 
       const summary = await this.db
         .select({
           event: siteEvents.event,
-          count: count(),
+          count: countExpression,
           // Multiply by 1000 to convert Unix seconds to milliseconds for JavaScript Date
-          firstSeen: sql<number>`min(${siteEvents.createdAt}) * 1000`,
-          lastSeen: sql<number>`max(${siteEvents.createdAt}) * 1000`,
+          firstSeen: firstSeenExpression,
+          lastSeen: lastSeenExpression,
         })
         .from(siteEvents)
         .where(whereClause)
         .groupBy(siteEvents.event)
-        .orderBy(desc(count()))
+        .orderBy(primarySort, secondarySort, asc(siteEvents.event))
         .limit(limit)
         .offset(offset);
 
