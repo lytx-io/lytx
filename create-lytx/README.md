@@ -16,7 +16,7 @@ npm create lytx@latest my-analytics -- --template cloudflare
 bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare
 ```
 
-Interactive setup (domains/auth toggles):
+Interactive setup (domains/auth/AI toggles):
 
 ```bash
 bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare --interactive
@@ -31,8 +31,9 @@ bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare --provision --st
 Notes:
 
 - The CLI now writes `.env` from `.env.example` automatically.
-- Use `--interactive` to fill domains, sender, API keys/secrets, and feature flags.
+- Use `--interactive` to fill domains, sender, API keys/secrets, AI provider/model, and feature flags.
 - Social provider keys are prompted only for providers you enabled.
+- Use `--ai-provider`, `--ai-model`, and `--ai-base-url` to preconfigure AI defaults.
 - Use `--no-env` to skip writing `.env`.
 
 ## Current template

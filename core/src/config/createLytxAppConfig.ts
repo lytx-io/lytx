@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const CREATE_LYTX_APP_CONFIG_DOC_URL =
-  "https://github.com/lytx-io/kit/blob/master/core/docs/oss-contract.md#supported-extension-and-customization-points";
+  "https://github.com/lytx-io/lytx/blob/master/core/docs/oss-contract.md#supported-extension-and-customization-points";
 
 const dbAdapterValues = ["sqlite", "postgres", "singlestore", "analytics_engine"] as const;
 
@@ -124,6 +124,8 @@ const createLytxAppConfigSchema = z
         BETTER_AUTH_URL: z.string().trim().url("BETTER_AUTH_URL must be a valid URL").optional(),
         ENCRYPTION_KEY: envKeySchema.optional(),
         AI_API_KEY: envKeySchema.optional(),
+        AI_BASE_URL: z.string().trim().url("AI_BASE_URL must be a valid URL").optional(),
+        AI_PROVIDER: envKeySchema.optional(),
         AI_MODEL: envKeySchema.optional(),
         LYTX_DOMAIN: domainSchema.optional(),
         EMAIL_FROM: z.string().trim().email("EMAIL_FROM must be a valid email address").optional(),

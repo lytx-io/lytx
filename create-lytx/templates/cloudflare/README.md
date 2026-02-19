@@ -5,9 +5,14 @@ This project was scaffolded from the Lytx `cloudflare` template.
 ## Quick Start
 
 ```bash
-cp .env.example .env
 bun install
 bun run dev
+```
+
+If you scaffolded with `--no-env`, create one first:
+
+```bash
+cp .env.example .env
 ```
 
 Optional one-command provisioning:
@@ -26,6 +31,7 @@ bun alchemy deploy --stage dev
 
 - `LYTX_AUTH_GOOGLE` / `LYTX_AUTH_GITHUB` toggle social providers in `src/worker.tsx`.
 - `LYTX_APP_DOMAIN` / `LYTX_TRACKING_DOMAIN` preconfigure domains in `alchemy.run.ts`.
+- `AI_PROVIDER`, `AI_MODEL`, and `AI_BASE_URL` configure AI vendor/model routing.
 
 ## Core Docs
 

@@ -9,6 +9,17 @@ import { fileURLToPath } from "node:url";
 
 const DEFAULT_TEMPLATE = "cloudflare";
 const DEFAULT_PROVISION_STAGE = "dev";
+const DEFAULT_AI_PROVIDER = "openai";
+
+const AI_PROVIDER_DEFAULTS = {
+  openai: { baseURL: "https://api.openai.com/v1", model: "gpt-5-mini" },
+  openrouter: { baseURL: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini" },
+  groq: { baseURL: "https://api.groq.com/openai/v1", model: "llama-3.1-70b-versatile" },
+  deepseek: { baseURL: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+  xai: { baseURL: "https://api.x.ai/v1", model: "grok-2-latest" },
+  ollama: { baseURL: "http://localhost:11434/v1", model: "llama3.2" },
+  custom: { baseURL: "", model: "gpt-5-mini" },
+};
 
 const usage = `Usage:
   create-lytx [target-dir] [--template cloudflare] [--name my-app] [options]
@@ -22,6 +33,9 @@ Options:
   --force                  Scaffold into non-empty target directory
   --interactive            Prompt for optional setup values
   --no-env                 Skip writing .env from .env.example
+  --ai-provider <name>     AI provider preset or label (openai/openrouter/groq/deepseek/xai/ollama/custom)
+  --ai-model <model>       AI model id written to .env
+  --ai-base-url <url>      AI base URL written to .env
   --app-domain <domain>    Default app domain for .env.example
   --tracking-domain <d>    Default tracking domain for .env.example
   --email-from <email>     Default sender address for .env.example
@@ -42,6 +56,15 @@ function quoteShellArg(value) {
   return `'${value.replace(/'/g, `'"'"'`)}`;
 }
 
+function normalizeAiProvider(value) {
+  return value.trim().toLowerCase();
+}
+
+function getAiProviderDefaults(provider) {
+  const normalizedProvider = normalizeAiProvider(provider);
+  return AI_PROVIDER_DEFAULTS[normalizedProvider] ?? AI_PROVIDER_DEFAULTS.custom;
+}
+
 function parseArgs(argv) {
   const args = {
     targetDir: ".",
@@ -53,6 +76,12 @@ function parseArgs(argv) {
     force: false,
     interactive: false,
     createEnv: true,
+    aiProvider: DEFAULT_AI_PROVIDER,
+    aiProviderProvided: false,
+    aiModel: AI_PROVIDER_DEFAULTS[DEFAULT_AI_PROVIDER].model,
+    aiModelProvided: false,
+    aiBaseUrl: AI_PROVIDER_DEFAULTS[DEFAULT_AI_PROVIDER].baseURL,
+    aiBaseUrlProvided: false,
     appDomain: "",
     appDomainProvided: false,
     trackingDomain: "",
@@ -93,6 +122,51 @@ function parseArgs(argv) {
 
     if (token === "--no-env") {
       args.createEnv = false;
+      continue;
+    }
+
+    if (token.startsWith("--ai-provider=")) {
+      args.aiProvider = token.slice("--ai-provider=".length);
+      args.aiProviderProvided = true;
+      continue;
+    }
+
+    if (token === "--ai-provider") {
+      const value = argv[i + 1];
+      if (value === undefined) throw new Error("Missing value for --ai-provider");
+      args.aiProvider = value;
+      args.aiProviderProvided = true;
+      i += 1;
+      continue;
+    }
+
+    if (token.startsWith("--ai-model=")) {
+      args.aiModel = token.slice("--ai-model=".length);
+      args.aiModelProvided = true;
+      continue;
+    }
+
+    if (token === "--ai-model") {
+      const value = argv[i + 1];
+      if (value === undefined) throw new Error("Missing value for --ai-model");
+      args.aiModel = value;
+      args.aiModelProvided = true;
+      i += 1;
+      continue;
+    }
+
+    if (token.startsWith("--ai-base-url=")) {
+      args.aiBaseUrl = token.slice("--ai-base-url=".length);
+      args.aiBaseUrlProvided = true;
+      continue;
+    }
+
+    if (token === "--ai-base-url") {
+      const value = argv[i + 1];
+      if (value === undefined) throw new Error("Missing value for --ai-base-url");
+      args.aiBaseUrl = value;
+      args.aiBaseUrlProvided = true;
+      i += 1;
       continue;
     }
 
@@ -231,6 +305,19 @@ function parsePromptBoolean(answer, defaultValue) {
   if (["y", "yes", "true", "1"].includes(normalized)) return true;
   if (["n", "no", "false", "0"].includes(normalized)) return false;
   throw new Error(`Invalid boolean answer: ${answer}`);
+}
+
+function applyAiDefaults(args) {
+  args.aiProvider = normalizeAiProvider(args.aiProvider || DEFAULT_AI_PROVIDER) || DEFAULT_AI_PROVIDER;
+  const defaults = getAiProviderDefaults(args.aiProvider);
+
+  if (!args.aiModelProvided || args.aiModel.trim().length === 0) {
+    args.aiModel = defaults.model;
+  }
+
+  if (!args.aiBaseUrlProvided || args.aiBaseUrl.trim().length === 0) {
+    args.aiBaseUrl = defaults.baseURL;
+  }
 }
 
 function parseEnvBoolean(value, defaultValue) {
@@ -377,6 +464,37 @@ async function promptMissingValues(args, templates) {
       const githubAnswer = await rl.question("Enable GitHub auth by default? (y/N): ");
       args.authGithub = parsePromptBoolean(githubAnswer, false);
       args.authGithubProvided = true;
+    }
+
+    if (!args.aiProviderProvided) {
+      const providerAnswer = await rl.question(
+        `AI provider (openai/openrouter/groq/deepseek/xai/ollama/custom) (${args.aiProvider}): `,
+      );
+      const provider = providerAnswer.trim();
+      if (provider.length > 0) {
+        args.aiProvider = normalizeAiProvider(provider);
+      }
+      args.aiProviderProvided = true;
+    }
+
+    const aiDefaults = getAiProviderDefaults(args.aiProvider);
+
+    if (!args.aiModelProvided) {
+      const modelDefault = args.aiModel || aiDefaults.model;
+      const modelAnswer = await rl.question(`AI model (${modelDefault}): `);
+      const model = modelAnswer.trim();
+      args.aiModel = model.length > 0 ? model : modelDefault;
+      args.aiModelProvided = true;
+    }
+
+    if (!args.aiBaseUrlProvided) {
+      const baseUrlDefault = args.aiBaseUrl || aiDefaults.baseURL;
+      const baseUrlAnswer = await rl.question(
+        `AI base URL (${baseUrlDefault.length > 0 ? baseUrlDefault : "blank"}): `,
+      );
+      const baseUrl = baseUrlAnswer.trim();
+      args.aiBaseUrl = baseUrl.length > 0 ? baseUrl : baseUrlDefault;
+      args.aiBaseUrlProvided = true;
     }
 
     if (!args.provisionProvided) {
@@ -536,6 +654,9 @@ async function createAndPopulateEnvFile(args, targetPath, projectName) {
     LYTX_TRACKING_DOMAIN: args.trackingDomain,
     LYTX_AUTH_GOOGLE: boolToEnv(args.authGoogle),
     LYTX_AUTH_GITHUB: boolToEnv(args.authGithub),
+    AI_PROVIDER: args.aiProvider,
+    AI_BASE_URL: args.aiBaseUrl,
+    AI_MODEL: args.aiModel,
     EMAIL_FROM: args.emailFrom,
   };
 
@@ -554,8 +675,6 @@ async function createAndPopulateEnvFile(args, targetPath, projectName) {
           "SEED_DATA_SECRET",
           "RESEND_API_KEY",
           "AI_API_KEY",
-          "AI_BASE_URL",
-          "AI_MODEL",
           "AI_DAILY_TOKEN_LIMIT",
         ];
 
@@ -638,6 +757,7 @@ async function run() {
   const availableTemplates = await listTemplateNames(templatesRoot);
 
   await promptMissingValues(args, availableTemplates);
+  applyAiDefaults(args);
 
   if (!availableTemplates.includes(args.template)) {
     throw new Error(
@@ -659,6 +779,9 @@ async function run() {
     "__LYTX_APP_DOMAIN__": args.appDomain,
     "__LYTX_TRACKING_DOMAIN__": args.trackingDomain,
     "__EMAIL_FROM__": args.emailFrom,
+    "__AI_PROVIDER__": args.aiProvider,
+    "__AI_BASE_URL__": args.aiBaseUrl,
+    "__AI_MODEL__": args.aiModel,
     "__LYTX_AUTH_GOOGLE__": boolToEnv(args.authGoogle),
     "__LYTX_AUTH_GITHUB__": boolToEnv(args.authGithub),
   });

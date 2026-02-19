@@ -22,7 +22,7 @@ Run locally from this repo:
 bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare
 ```
 
-Interactive setup + defaults:
+Interactive setup + defaults (domains/auth/AI):
 
 ```bash
 bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare --interactive
@@ -48,13 +48,12 @@ Generated projects are aligned with the `demo/` setup pattern and include:
 
 - `alchemy.run.ts` wired to `lytx/resource-names`
 - `src/worker.tsx` using `createLytxApp(...)`
-- Redwood + Vite starter files and `.env.example`
+- Redwood + Vite starter files plus generated `.env` and `.env.example`
 
 After scaffolding:
 
 ```bash
 cd my-analytics
-cp .env.example .env
 bun install
 bun run dev
 ```

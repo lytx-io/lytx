@@ -76,6 +76,7 @@ export default app satisfies ExportedHandler<Env>;
 - `names.*` (typed resource binding names for D1/KV/Queue/DO)
 - `domains.app` + `domains.tracking` (typed host/domain values)
 - `startupValidation.*` + `env.*` (startup env requirement checks with field-level errors)
+- `env.AI_PROVIDER`, `env.AI_BASE_URL`, `env.AI_MODEL` (AI vendor/model routing overrides)
 - `env.EMAIL_FROM` (optional factory override for outgoing email sender)
 
 For deployment scripts, use `resolveLytxResourceNames(...)` from `lytx/resource-names` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
@@ -367,6 +368,7 @@ RESEND_API_KEY=...
 
 # AI features (optional)
 AI_API_KEY=...
+AI_PROVIDER=openai
 AI_BASE_URL=...
 AI_MODEL=...
 AI_DAILY_TOKEN_LIMIT=

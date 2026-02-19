@@ -22,16 +22,70 @@ import {
 import { parseDateParam, parseSiteIdParam } from "@/utilities/dashboardParams";
 
 type AiConfig = {
+  provider: string;
   baseURL: string;
   model: string;
   apiKey: string;
 };
 
+type AiRuntimeOverrides = {
+  provider?: string;
+  baseURL?: string;
+  model?: string;
+  apiKey?: string;
+};
+
 type NivoChartType = "bar" | "line" | "pie";
 
 const DEFAULT_AI_MODEL = "gpt-5-mini";
+const DEFAULT_AI_PROVIDER = "openai";
 const DEFAULT_AI_BASE_URL = "https://api.openai.com/v1";
 const MAX_METRIC_LIMIT = 100;
+
+const AI_PROVIDER_BASE_URLS: Record<string, string> = {
+  openai: "https://api.openai.com/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  groq: "https://api.groq.com/openai/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  xai: "https://api.x.ai/v1",
+  ollama: "http://localhost:11434/v1",
+};
+
+const AI_PROVIDER_DEFAULT_MODELS: Record<string, string> = {
+  openai: "gpt-5-mini",
+  openrouter: "openai/gpt-4o-mini",
+  groq: "llama-3.1-70b-versatile",
+  deepseek: "deepseek-chat",
+  xai: "grok-2-latest",
+  ollama: "llama3.2",
+};
+
+let aiRuntimeOverrides: AiRuntimeOverrides = {};
+
+function normalizeOptionalString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveAiBaseUrl(provider: string, explicitBaseUrl: string | null): string {
+  if (explicitBaseUrl) return explicitBaseUrl;
+  return AI_PROVIDER_BASE_URLS[provider] ?? DEFAULT_AI_BASE_URL;
+}
+
+function resolveAiModel(provider: string, explicitModel: string | null): string {
+  if (explicitModel) return explicitModel;
+  return AI_PROVIDER_DEFAULT_MODELS[provider] ?? DEFAULT_AI_MODEL;
+}
+
+export function setAiRuntimeOverrides(overrides: AiRuntimeOverrides = {}): void {
+  aiRuntimeOverrides = {
+    provider: normalizeOptionalString(overrides.provider) ?? undefined,
+    baseURL: normalizeOptionalString(overrides.baseURL) ?? undefined,
+    model: normalizeOptionalString(overrides.model) ?? undefined,
+    apiKey: normalizeOptionalString(overrides.apiKey) ?? undefined,
+  };
+}
 
 type TokenUsage = {
   inputTokens: number | null;
@@ -48,13 +102,28 @@ type StreamCompletionSummary = {
 };
 
 function getAiConfigFromEnv(): AiConfig | null {
-  const baseURL = env.AI_BASE_URL?.trim() || DEFAULT_AI_BASE_URL;
-  const model = env.AI_MODEL?.trim() || DEFAULT_AI_MODEL;
-  const apiKey = env.AI_API_KEY?.trim() ?? "";
+  const envValues = env as unknown as Record<string, unknown>;
+  const providerRaw =
+    normalizeOptionalString(aiRuntimeOverrides.provider)
+    ?? normalizeOptionalString(envValues.AI_PROVIDER)
+    ?? DEFAULT_AI_PROVIDER;
+  const provider = providerRaw.toLowerCase();
+  const baseURL = resolveAiBaseUrl(
+    provider,
+    normalizeOptionalString(aiRuntimeOverrides.baseURL) ?? normalizeOptionalString(envValues.AI_BASE_URL),
+  );
+  const model = resolveAiModel(
+    provider,
+    normalizeOptionalString(aiRuntimeOverrides.model) ?? normalizeOptionalString(envValues.AI_MODEL),
+  );
+  const apiKey =
+    normalizeOptionalString(aiRuntimeOverrides.apiKey)
+    ?? normalizeOptionalString(envValues.AI_API_KEY)
+    ?? "";
 
   if (!apiKey) return null;
 
-  return { baseURL, model, apiKey };
+  return { provider, baseURL, model, apiKey };
 }
 
 function clampLimit(value: unknown, fallback = 10): number {
@@ -353,6 +422,8 @@ export const aiConfigRoute = route(
     return new Response(
       JSON.stringify({
         configured: Boolean(config),
+        provider: config?.provider ?? "",
+        baseURL: config?.baseURL ?? "",
         model: config?.model ?? "",
       }),
       {
@@ -567,7 +638,7 @@ export const aiTagSuggestRoute = route(
         site_id: site.site_id,
         request_id: requestId,
         request_type: "site_tag_suggest",
-        provider: aiConfig.baseURL,
+        provider: aiConfig.provider,
         model: aiConfig.model,
         status: "error",
         error_code: "daily_limit_exceeded",
@@ -610,7 +681,7 @@ export const aiTagSuggestRoute = route(
         site_id: site.site_id,
         request_id: requestId,
         request_type: "site_tag_suggest",
-        provider: aiConfig.baseURL,
+        provider: aiConfig.provider,
         model: aiConfig.model,
         status: "success",
         input_tokens: usage.inputTokens,
@@ -647,7 +718,7 @@ export const aiTagSuggestRoute = route(
         site_id: site.site_id,
         request_id: requestId,
         request_type: "site_tag_suggest",
-        provider: aiConfig.baseURL,
+        provider: aiConfig.provider,
         model: aiConfig.model,
         status: "error",
         error_code: "ai_request_failed",
@@ -736,7 +807,7 @@ export const aiChatRoute = route(
         site_id: defaultToolSiteId,
         request_id: requestId,
         request_type: "chat",
-        provider: aiConfig.baseURL,
+        provider: aiConfig.provider,
         model: aiConfig.model,
         status: "error",
         error_code: "daily_limit_exceeded",
@@ -1105,7 +1176,7 @@ export const aiChatRoute = route(
           site_id: defaultToolSiteId,
           request_id: requestId,
           request_type: "chat",
-          provider: aiConfig.baseURL,
+          provider: aiConfig.provider,
           model: aiConfig.model,
           status: streamSummary.finishReason === "error" ? "error" : "success",
           error_code: streamSummary.finishReason === "error" ? "stream_finish_error" : null,
@@ -1134,7 +1205,7 @@ export const aiChatRoute = route(
         site_id: defaultToolSiteId,
         request_id: requestId,
         request_type: "chat",
-        provider: aiConfig.baseURL,
+        provider: aiConfig.provider,
         model: aiConfig.model,
         status: "error",
         error_code: "chat_request_failed",

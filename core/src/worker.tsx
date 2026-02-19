@@ -9,7 +9,7 @@ import { eventsApi } from "@api/events_api";
 import { seedApi } from "@api/seed_api";
 import { team_dashboard_endpoints } from "@api/team_api";
 import { world_countries, getCurrentVisitorsRoute, getDashboardDataCore, getDashboardDataRoute, siteEventsSqlRoute, siteEventsSchemaRoute } from "@api/sites_api";
-import { aiChatRoute, aiConfigRoute, aiTagSuggestRoute, getAiConfig } from "@api/ai_api";
+import { aiChatRoute, aiConfigRoute, aiTagSuggestRoute, getAiConfig, setAiRuntimeOverrides } from "@api/ai_api";
 import { resendVerificationEmailRoute, userApiRoutes } from "@api/auth_api";
 import { eventLabelsApi } from "@api/event_labels_api";
 import { reportsApi } from "@api/reports_api";
@@ -164,6 +164,12 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
   setAuthRuntimeConfig(parsed_config.auth);
   setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
+  setAiRuntimeOverrides({
+    apiKey: parsed_config.env?.AI_API_KEY,
+    model: parsed_config.env?.AI_MODEL,
+    baseURL: parsed_config.env?.AI_BASE_URL,
+    provider: parsed_config.env?.AI_PROVIDER,
+  });
   const authProviders = getAuthProviderAvailability();
   const emailPasswordEnabled = parsed_config.auth?.emailPasswordEnabled ?? true;
   if (!emailPasswordEnabled && !authProviders.google && !authProviders.github) {
