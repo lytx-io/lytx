@@ -71,7 +71,7 @@ export function Nav({ initialSession = null }: NavProps) {
       external_id: session.team.external_id,
     });
   }
-  const teamList = Array.from(teamMap.values()).sort((a, b) => {
+  const teamList = Array.from(teamMap.values()).toSorted((a, b) => {
     if (a.id === sessionTeamId) return -1;
     if (b.id === sessionTeamId) return 1;
     return (a.name || "").localeCompare(b.name || "");

@@ -406,7 +406,7 @@ function lytxSwaggerPage(c: Context<AppEnv>) {
     manuallySwaggerUIHtml: (asset) => `
       <div id="swagger-ui"></div>
       ${asset.css.map((url) => `<link rel="stylesheet" href="${url}" />`).join("\n")}
-      ${asset.js.map((url) => `<script src="${url}" crossorigin="anonymous"><\/script>`).join("\n")}
+      ${asset.js.map((url) => `<script src="${url}" crossorigin="anonymous"></script>`).join("\n")}
       <script>
         window.onload = () => {
           window.ui = SwaggerUIBundle({
@@ -420,7 +420,7 @@ function lytxSwaggerPage(c: Context<AppEnv>) {
             filter: true,
           })
         }
-      <\/script>
+      </script>
     `,
   });
 

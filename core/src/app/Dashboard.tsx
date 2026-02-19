@@ -651,7 +651,7 @@ export function DashboardPage(props: DashboardPageProps) {
       const [country, , count] = row as [string, string, number];
       countryMap.set(country, (countryMap.get(country) || 0) + count);
     });
-    return Array.from(countryMap.entries()).sort((a, b) => b[1] - a[1]);
+    return Array.from(countryMap.entries()).toSorted((a, b) => b[1] - a[1]);
   }, [apiData?.Countries, dashboardData.deviceGeoData?.geoData?.rows]);
 
   const mapCountries = useMemo(() => {
@@ -676,7 +676,7 @@ export function DashboardPage(props: DashboardPageProps) {
           count: typeof count === "number" ? count : Number(count) || 0,
         };
       })
-      .sort((a, b) => b.count - a.count);
+      .toSorted((a, b) => b.count - a.count);
   }, [dashboardData.deviceGeoData?.geoData?.rows]);
 
   const deviceTypeFilterOptions = useMemo(
@@ -714,7 +714,7 @@ export function DashboardPage(props: DashboardPageProps) {
       const city = (row as [string, string, number])[1];
       if (city) citySet.add(city);
     });
-    return Array.from(citySet).sort();
+    return Array.from(citySet).toSorted();
   }, [dashboardData.deviceGeoData?.geoData?.rows]);
 
   const regionFilterOptions = useMemo(

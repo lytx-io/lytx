@@ -64,15 +64,15 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
   const getCodeForTab = (tab: string) => {
     switch (tab) {
       case "html":
-        return `<script defer \n src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n></script>`;
+        return `<script defer \n src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n></script>`;
       case "rwsdk":
-        return `// In your Document.tsx\nexport const Document = ({ children }) => (\n  <html>\n    <head>{/* ... */}</head>\n    <body>\n      <div id=\"root\">{children}</div>\n      <script>import(\"/src/client.tsx\")</script>\n      <script\n        defer\n        src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n      ></script>\n    </body>\n  </html>\n);`;
+        return `// In your Document.tsx\nexport const Document = ({ children }) => (\n  <html>\n    <head>{/* ... */}</head>\n    <body>\n      <div id="root">{children}</div>\n      <script>import("/src/client.tsx")</script>\n      <script\n        defer\n        src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n      ></script>\n    </body>\n  </html>\n);`;
       case "sveltekit":
-        return `<!-- In your src/app.html -->\n<script\n  defer\n  src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n></script>\n\n<!-- Or in your +layout.svelte -->\n<svelte:head>\n  <script\n    defer\n    src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n  ></script>\n</svelte:head>`;
+        return `<!-- In your src/app.html -->\n<script\n  defer\n  src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n></script>\n\n<!-- Or in your +layout.svelte -->\n<svelte:head>\n  <script\n    defer\n    src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n  ></script>\n</svelte:head>`;
       case "solid":
-        return `// In your root.tsx or index.html\nimport { Script } from \"@solidjs/meta\";\n\nexport default function Root() {\n  return (\n    <Html>\n      <Head>\n        <Script\n          defer\n          src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n        />\n      </Head>\n      <Body>\n        {/* Your app content */}\n      </Body>\n    </Html>\n  );\n}`;
+        return `// In your root.tsx or index.html\nimport { Script } from "@solidjs/meta";\n\nexport default function Root() {\n  return (\n    <Html>\n      <Head>\n        <Script\n          defer\n          src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n        />\n      </Head>\n      <Body>\n        {/* Your app content */}\n      </Body>\n    </Html>\n  );\n}`;
       case "nextjs":
-        return `// In your _document.tsx or layout.tsx (App Router)\nimport Script from 'next/script';\n\nexport default function RootLayout({ children }) {\n  return (\n    <html>\n      <head>\n        <Script\n          defer\n          src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n          strategy=\"beforeInteractive\"\n        />\n      </head>\n      <body>{children}</body>\n    </html>\n  );\n}`;
+        return `// In your _document.tsx or layout.tsx (App Router)\nimport Script from 'next/script';\n\nexport default function RootLayout({ children }) {\n  return (\n    <html>\n      <head>\n        <Script\n          defer\n          src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n          strategy="beforeInteractive"\n        />\n      </head>\n      <body>{children}</body>\n    </html>\n  );\n}`;
       case "nuxt":
         return `// In your nuxt.config.ts\nexport default defineNuxtConfig({\n  app: {\n    head: {\n      script: [\n        {\n          src: '${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}',\n          defer: true\n        }\n      ]\n    }\n  }\n});\n\n// Or use useHead() in a component/page\nuseHead({\n  script: [\n    {\n      src: '${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}',\n      defer: true\n    }\n  ]\n});`;
       default:
@@ -162,7 +162,7 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
               <CodeBlock
                 id="install-content-html"
                 language="html"
-                code={`<script\n  defer\n  src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n></script>`}
+                code={`<script\n  defer\n  src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n></script>`}
               />
               <p className="text-xs text-[var(--theme-text-secondary)] mt-2">
                 Copy and paste this script into the &lt;head&gt; section of your HTML.
@@ -175,7 +175,7 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
               <CodeBlock
                 id="install-content-rwsdk"
                 language="tsx"
-                code={`// In your Document.tsx\nexport const Document = ({ children }) => (\n  <html>\n    <head>{/* ... */}</head>\n    <body>\n      <div id=\"root\">{children}</div>\n      <script>import(\"/src/client.tsx\")</script>\n      <script\n        defer\n        src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n      ></script>\n    </body>\n  </html>\n);`}
+                code={`// In your Document.tsx\nexport const Document = ({ children }) => (\n  <html>\n    <head>{/* ... */}</head>\n    <body>\n      <div id="root">{children}</div>\n      <script>import("/src/client.tsx")</script>\n      <script\n        defer\n        src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n      ></script>\n    </body>\n  </html>\n);`}
               />
               <p className="text-xs text-[var(--theme-text-secondary)] mt-2">
                 Add this to your Document.tsx or root layout component.
@@ -188,7 +188,7 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
               <CodeBlock
                 id="install-content-sveltekit"
                 language="html"
-                code={`<!-- In your src/app.html -->\n<script\n  defer\n  src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n></script>\n\n<!-- Or in your +layout.svelte -->\n<svelte:head>\n  <script\n    defer\n    src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n  ></script>\n</svelte:head>`}
+                code={`<!-- In your src/app.html -->\n<script\n  defer\n  src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n></script>\n\n<!-- Or in your +layout.svelte -->\n<svelte:head>\n  <script\n    defer\n    src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n  ></script>\n</svelte:head>`}
               />
               <p className="text-xs text-[var(--theme-text-secondary)] mt-2">
                 Add the script to your SvelteKit app.html or layout.
@@ -201,7 +201,7 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
               <CodeBlock
                 id="install-content-solid"
                 language="tsx"
-                code={`// In your root.tsx or index.html\nimport { Script } from \"@solidjs/meta\";\n\nexport default function Root() {\n  return (\n    <Html>\n      <Head>\n        <Script\n          defer\n          src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n        />\n      </Head>\n      <Body>\n        {/* Your app content */}\n      </Body>\n    </Html>\n  );\n}`}
+                code={`// In your root.tsx or index.html\nimport { Script } from "@solidjs/meta";\n\nexport default function Root() {\n  return (\n    <Html>\n      <Head>\n        <Script\n          defer\n          src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n        />\n      </Head>\n      <Body>\n        {/* Your app content */}\n      </Body>\n    </Html>\n  );\n}`}
               />
               <p className="text-xs text-[var(--theme-text-secondary)] mt-2">
                 Place the script tag in your Solid root layout.
@@ -214,7 +214,7 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
               <CodeBlock
                 id="install-content-nextjs"
                 language="tsx"
-                code={`// In your _document.tsx or layout.tsx (App Router)\nimport Script from 'next/script';\n\nexport default function RootLayout({ children }) {\n  return (\n    <html>\n      <head>\n        <Script\n          defer\n          src=\"${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}\"\n          strategy=\"beforeInteractive\"\n        />\n      </head>\n      <body>{children}</body>\n    </html>\n  );\n}`}
+                code={`// In your _document.tsx or layout.tsx (App Router)\nimport Script from 'next/script';\n\nexport default function RootLayout({ children }) {\n  return (\n    <html>\n      <head>\n        <Script\n          defer\n          src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n          strategy="beforeInteractive"\n        />\n      </head>\n      <body>{children}</body>\n    </html>\n  );\n}`}
               />
               <p className="text-xs text-[var(--theme-text-secondary)] mt-2">
                 Add the script to your Next.js document or root layout.

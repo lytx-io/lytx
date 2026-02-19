@@ -45,7 +45,7 @@ export async function getEventsFromSite(
   } catch (error) {
     console.error(`Error fetching events for site ${siteId}:`, error);
     throw new Error(
-      `Failed to fetch events: ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to fetch events: ${error instanceof Error ? error.message : String(error)}`, { cause: error },
     );
   }
 }

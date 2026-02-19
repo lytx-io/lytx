@@ -98,6 +98,6 @@ export async function decrypt(
         return decoder.decode(decryptedBytes);
     } catch (error) {
         console.error("Decryption failed:", error);
-        throw new Error("Failed to decrypt value. The data may be corrupted or the key is incorrect.");
+        throw new Error("Failed to decrypt value. The data may be corrupted or the key is incorrect.", { cause: error });
     }
 }

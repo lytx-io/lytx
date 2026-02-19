@@ -59,7 +59,7 @@ export function mapToSortedEntries<K>(
   options?: { direction?: "asc" | "desc"; limit?: number },
 ): Array<[K, number]> {
   const direction = options?.direction ?? "desc";
-  const entries = Array.from(map.entries()).sort((a, b) =>
+  const entries = Array.from(map.entries()).toSorted((a, b) =>
     direction === "desc" ? b[1] - a[1] : a[1] - b[1],
   );
   return typeof options?.limit === "number" ? entries.slice(0, options.limit) : entries;

@@ -433,8 +433,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
               );
             },
           ]),
-          layout<AppRequestInfo>(DashboardWorkspaceLayout, [
-            ...(reportBuilderEnabled
+          layout<AppRequestInfo>(DashboardWorkspaceLayout, (reportBuilderEnabled
               ? [
                 appRoute("/dashboard/reports", [
                   ({ request }) => {
@@ -518,8 +517,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
                     return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
                   },
                 ]),
-              ]),
-          ]),
+              ])),
           ...(eventsEnabled
             ? [
               appRoute("/dashboard/events", [

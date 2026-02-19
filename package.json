@@ -6,9 +6,16 @@
   ],
   "scripts": {
     "dev": "bun --filter core dev",
+    "lint": "oxlint core demo --quiet",
+    "lint:fix": "oxlint core demo --fix",
+    "lint:ci": "oxlint core demo",
+    "lint:ci:strict": "oxlint core demo --deny-warnings",
     "ci:oss:typecheck:core": "bunx tsc -p core/tsconfig.oss-smoke.json --noEmit",
     "ci:oss:smoke:baseline": "bun core/scripts/ci-smoke-profiles.ts baseline",
     "ci:oss:smoke:customized": "bun core/scripts/ci-smoke-profiles.ts customized",
     "ci:oss": "bun run ci:oss:typecheck:core && bun run ci:oss:smoke:baseline && bun run ci:oss:smoke:customized"
+  },
+  "devDependencies": {
+    "oxlint": "^1.48.0"
   }
 }

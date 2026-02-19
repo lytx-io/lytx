@@ -133,7 +133,7 @@ export const WorldMapCard = React.memo(function WorldMapCard({
         };
       })
       .filter((d): d is BubbleDatum => d !== null)
-      .sort((a, b) => b.value - a.value);
+      .toSorted((a, b) => b.value - a.value);
   }, [aggregatedCountries]);
 
   const maxValue = useMemo(() => {

@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "warn",
+    "suspicious": "warn"
+  },
+  "rules": {
+    "no-debugger": "error"
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/.wrangler/**",
+    "**/.vite/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*.min.js",
+    "core/worker-configuration.d.ts",
+    "core/types/shims.d.ts",
+    "demo/.agent-browser/**",
+    ".beads/**"
+  ]
+}

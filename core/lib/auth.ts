@@ -84,8 +84,8 @@ export function setAuthRuntimeConfig(config: AuthRuntimeConfig = {}) {
     ...auth_runtime_config,
     ...config,
     socialProviders: {
-      ...(auth_runtime_config.socialProviders ?? {}),
-      ...(config.socialProviders ?? {}),
+      ...auth_runtime_config.socialProviders,
+      ...config.socialProviders,
     },
   };
 

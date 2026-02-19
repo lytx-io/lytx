@@ -507,7 +507,7 @@ export class SiteDurableObject extends DurableObject {
       }
 
       const pageViews = Array.from(pageViewsByDate.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
+        .toSorted((a, b) => a[0].localeCompare(b[0]))
         .map(([x, y]) => ({ x, y }));
 
       const eventsByTypeResult = await this.db

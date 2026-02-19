@@ -518,7 +518,7 @@ export const aiTagSuggestRoute = route(
       } catch {
         return false;
       }
-    }) || new RegExp(`lytx(\\.v2)?\\.js\\?[^\"']*account=${escapeRegExp(tagId)}`, "i").test(html);
+    }) || new RegExp(`lytx(\\.v2)?\\.js\\?[^"']*account=${escapeRegExp(tagId)}`, "i").test(html);
 
     let trackingOk: boolean | null = null;
     try {

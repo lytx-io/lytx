@@ -76,7 +76,7 @@ function getChartFallbackSummary(chart: AiNivoChartOutput) {
   const points = chart.points
     .map((point) => ({ x: String(point.x ?? "Unknown"), y: Number(point.y) || 0 }))
     .filter((point) => point.x.length > 0)
-    .sort((a, b) => b.y - a.y);
+    .toSorted((a, b) => b.y - a.y);
 
   if (points.length === 0) {
     return `Here is your ${chart.chartType} chart for ${chart.title}. There is no data in the selected range.`;

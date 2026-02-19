@@ -304,25 +304,25 @@ export function transformToChartData(data: DasboardDataResult) {
     events: Array.from(eventCountMap.entries()),
     devices: Array.from(debvCountMap.entries()),
     browsers: Array.from(browserMap.entries())
-      .sort((a, b) => b[1] - a[1])
+      .toSorted((a, b) => b[1] - a[1])
       .map((a) => {
         return { id: a[0], value: a[1] };
       }),
     operatingSystems: Array.from(osMap.entries())
-      .sort((a, b) => b[1] - a[1])
+      .toSorted((a, b) => b[1] - a[1])
       .map((a) => {
         return { id: a[0], value: a[1] };
       }),
-    cities: Array.from(cityMap.entries()).sort(
+    cities: Array.from(cityMap.entries()).toSorted(
       (a, b) => b[1].count - a[1].count,
     ),
     topPages: Array.from(topPagesMap.entries())
-      .sort((a, b) => a[1] - b[1])
+      .toSorted((a, b) => a[1] - b[1])
       .map((a) => {
         return { id: a[0], value: a[1] };
       }),
     referers: Array.from(refererCountMap.entries())
-      .sort((a, b) => b[1] - a[1])
+      .toSorted((a, b) => b[1] - a[1])
       .map((a) => {
         return { id: a[0], value: a[1] };
       }),
@@ -579,7 +579,7 @@ export const getEventTypesDistribution = (
       return { id: label, label, value };
     })
     .filter((item) => item.value > 0)
-    .sort((a, b) => b.value - a.value)
+    .toSorted((a, b) => b.value - a.value)
     .slice(0, 5);
 
   const total = filtered.reduce((sum, item) => sum + item.value, 0);

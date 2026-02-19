@@ -251,7 +251,7 @@ async function validateTeam(teamId: number): Promise<void> {
     } catch (parseError) {
       console.error("❌ Failed to parse extracted JSON:");
       console.error("Extracted JSON:", jsonString);
-      throw new Error(`Invalid JSON format from wrangler.`);
+      throw new Error(`Invalid JSON format from wrangler.`, { cause: parseError });
     }
 
     if (!jsonResult || !jsonResult[0] || !jsonResult[0].results) {
@@ -365,7 +365,7 @@ async function importSites() {
       try {
         sitesData = JSON.parse(stdinData);
       } catch (error: any) {
-        throw new Error(`Invalid JSON format: ${error.message}`);
+        throw new Error(`Invalid JSON format: ${error.message}`, { cause: error });
       }
 
       // Validate site data

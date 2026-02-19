@@ -188,7 +188,7 @@ function TeamSettings(props: {
   }
 
   const normalizedCurrentUserEmail = props.currentUserEmail?.trim().toLowerCase() ?? null;
-  const orderedMembers = [...apiData.members].sort((left, right) => {
+  const orderedMembers = [...apiData.members].toSorted((left, right) => {
     const leftIsCurrent =
       normalizedCurrentUserEmail !== null
       && left.email?.toLowerCase() === normalizedCurrentUserEmail;

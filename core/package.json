@@ -58,6 +58,8 @@
   },
   "scripts": {
     "dev": "bun alchemy dev --stage dev",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
     "build": "bun run vite build",
     "clean": "rm -rf node_modules/.vite .vite",
     "db_analytics:migrate": "bunx drizzle-kit generate --config=db/postgres/drizzle.config.ts",
@@ -80,11 +82,12 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^5.1.2",
     "babel-plugin-react-compiler": "^1.0.0",
+    "blinkx.io-sveltekit": "^1.0.10",
     "dotenv": "^17.2.1",
     "drizzle-kit": "^0.31.8",
+    "oxlint": "^1.48.0",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.3.2",
-    "blinkx.io-sveltekit": "^1.0.10",
     "wrangler": "^4.59.3"
   },
   "dependencies": {

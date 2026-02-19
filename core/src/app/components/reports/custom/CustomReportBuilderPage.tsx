@@ -86,7 +86,7 @@ const buildCanvasRows = (widgetList: CustomReportWidgetConfig[]): CanvasRow[] =>
     groupedRows.set(rowIndex, rowWidgets);
   }
 
-  const rowIndexes = [...groupedRows.keys()].sort((a, b) => a - b);
+  const rowIndexes = [...groupedRows.keys()].toSorted((a, b) => a - b);
   const rows: CanvasRow[] = [];
   const overflow: CustomReportWidgetConfig[] = [];
 
@@ -102,7 +102,7 @@ const buildCanvasRows = (widgetList: CustomReportWidgetConfig[]): CanvasRow[] =>
       continue;
     }
 
-    const ordered = [...rowWidgets].sort((a, b) => getSlotIndexFromLayout(a.layout) - getSlotIndexFromLayout(b.layout));
+    const ordered = [...rowWidgets].toSorted((a, b) => getSlotIndexFromLayout(a.layout) - getSlotIndexFromLayout(b.layout));
     rows.push({
       mode: "split",
       full: null,

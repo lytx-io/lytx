@@ -231,7 +231,7 @@ async function apiRequest(path: string, options: RequestInit = {}) {
     headers: {
       "Content-Type": "application/json",
       "x-seed-secret": seedSecret,
-      ...(options.headers || {}),
+      ...options.headers,
     },
   });
 

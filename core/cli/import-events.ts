@@ -215,7 +215,7 @@ async function validateSiteAndGetTagId(
     } catch (parseError) {
       console.error("❌ Failed to parse extracted JSON:");
       console.error("Extracted JSON:", jsonString);
-      throw new Error(`Invalid JSON format from wrangler.`);
+      throw new Error(`Invalid JSON format from wrangler.`, { cause: parseError });
     }
 
     if (!jsonResult || !jsonResult[0] || !jsonResult[0].results) {
@@ -313,7 +313,7 @@ async function readFromDatabase(
         : Math.floor(Date.now() / 1000),
     }));
   } catch (error: any) {
-    throw new Error(`Failed to read from database: ${error.message}`);
+    throw new Error(`Failed to read from database: ${error.message}`, { cause: error });
   } finally {
     await sql.end();
   }
@@ -495,7 +495,7 @@ async function importEvents() {
       try {
         eventsData = JSON.parse(stdinData);
       } catch (error: any) {
-        throw new Error(`Invalid JSON format: ${error.message}`);
+        throw new Error(`Invalid JSON format: ${error.message}`, { cause: error });
       }
 
       // Validate event data

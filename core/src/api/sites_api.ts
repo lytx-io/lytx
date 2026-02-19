@@ -307,7 +307,7 @@ export async function getDashboardDataCore(input: DashboardDataCoreInput): Promi
             return acc;
         }, new Map<string, number>()),
     )
-        .sort((a, b) => b[1] - a[1])
+        .toSorted((a, b) => b[1] - a[1])
         .map(([id, value]) => ({ id, value }));
 
     const topSourcesData = getTopSourcesData(

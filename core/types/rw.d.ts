@@ -4,4 +4,4 @@ declare module "rwsdk/worker" {
   interface DefaultAppContext extends AppContext {}
 }
 
-export {};
+

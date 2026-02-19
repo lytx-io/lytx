@@ -312,7 +312,7 @@ async function readEventsFromPostgres(siteId: number, connectionString: string):
     return events as MigrationEvent[];
   } catch (error: any) {
     await sql.end();
-    throw new Error(`Failed to read from PostgreSQL: ${error.message}`);
+    throw new Error(`Failed to read from PostgreSQL: ${error.message}`, { cause: error });
   }
 }
 
