@@ -3,6 +3,16 @@ import { useMemo, useState } from "react";
 import { resendVerificationEmail, signIn } from "@/app/providers/AuthProvider";
 import { ThemeProvider } from "@/app/providers/ThemeProvider";
 
+type AuthProviders = {
+  google: boolean;
+  github: boolean;
+};
+
+type LoginProps = {
+  authProviders?: AuthProviders;
+  emailPasswordEnabled?: boolean;
+};
+
 type AuthUiStatus =
   | { type: "idle" }
   | { type: "success"; message: string }
@@ -48,7 +58,7 @@ function isEmailVerificationError(message: string) {
   );
 }
 
-export function Login() {
+export function Login({ authProviders = { google: true, github: true }, emailPasswordEnabled = true }: LoginProps) {
   const [status, setStatus] = useState<AuthUiStatus>({ type: "idle" });
   const [email, setEmail] = useState("");
   const [isResending, setIsResending] = useState(false);
@@ -88,20 +98,22 @@ export function Login() {
         </a>
         <div className="h-auto my-4">Sign in to your account</div>
 
-        <div className="flex flex-col gap-3 mb-6 px-4 w-full max-w-[300px]">
-          <button
-            onClick={async () => {
-              setPendingProvider("google");
-              try {
-                await signIn("google");
-              } catch {
-                setPendingProvider(null);
-              }
-            }}
-            disabled={pendingProvider !== null}
-            type="button"
-            className={`flex cursor-pointer items-center justify-center gap-3 w-full py-3 px-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-95 ${pendingProvider === "google" ? "opacity-70" : pendingProvider === "github" ? "opacity-50 pointer-events-none" : ""}`}
-          >
+        {(authProviders.google || authProviders.github) ? (
+          <div className="flex flex-col gap-3 mb-6 px-4 w-full max-w-[300px]">
+            {authProviders.google ? (
+              <button
+                onClick={async () => {
+                  setPendingProvider("google");
+                  try {
+                    await signIn("google");
+                  } catch {
+                    setPendingProvider(null);
+                  }
+                }}
+                disabled={pendingProvider !== null}
+                type="button"
+                className={`flex cursor-pointer items-center justify-center gap-3 w-full py-3 px-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-95 ${pendingProvider === "google" ? "opacity-70" : pendingProvider === "github" ? "opacity-50 pointer-events-none" : ""}`}
+              >
             {pendingProvider === "google" ? (
               <svg className="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
@@ -115,10 +127,12 @@ export function Login() {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
             )}
-            {pendingProvider === "google" ? "Connecting..." : "Continue with Google"}
-          </button>
+                {pendingProvider === "google" ? "Connecting..." : "Continue with Google"}
+              </button>
+            ) : null}
 
-          <button
+            {authProviders.github ? (
+              <button
             onClick={async () => {
               setPendingProvider("github");
               try {
@@ -142,14 +156,18 @@ export function Login() {
               </svg>
             )}
             {pendingProvider === "github" ? "Connecting..." : "Continue with GitHub"}
-          </button>
+              </button>
+            ) : null}
 
-          <div className="flex items-center my-4">
-            <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
-            <div className="px-4 text-slate-500 dark:text-slate-400 text-sm">or</div>
-            <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
+            {emailPasswordEnabled ? (
+              <div className="flex items-center my-4">
+                <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
+                <div className="px-4 text-slate-500 dark:text-slate-400 text-sm">or</div>
+                <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
+              </div>
+            ) : null}
           </div>
-        </div>
+        ) : null}
 
         {status.type !== "idle" ? (
           <div className="px-4 w-full max-w-[300px] text-sm">
@@ -185,7 +203,8 @@ export function Login() {
           </div>
         )}
 
-        <form
+        {emailPasswordEnabled ? (
+          <form
           onSubmit={async (e) => {
             e.preventDefault();
             setStatus({ type: "idle" });
@@ -248,7 +267,12 @@ export function Login() {
               Sign In
             </button>
           </div>
-        </form>
+          </form>
+        ) : (
+          <div className="text-sm text-slate-600 dark:text-slate-400 px-4 w-full max-w-[300px]">
+            Email/password sign-in is disabled for this deployment.
+          </div>
+        )}
         <div className="h-5 my-4">
           <a href="/signup" className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors">Create an account</a>
         </div>

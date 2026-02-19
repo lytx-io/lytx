@@ -65,6 +65,7 @@
     "db:studio": "bunx drizzle-kit studio --config=db/d1/drizzle.config.ts",
     "import-sites": "bun run cli/import-sites.ts",
     "import-events": "bun run cli/import-events.ts",
+    "bootstrap-admin": "bun run cli/bootstrap-admin.ts",
     "setup": "bun run cli/setup.ts",
     "deploy": "bun alchemy deploy --env-file .env.prod --stage prod"
   },

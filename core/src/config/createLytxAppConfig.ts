@@ -46,12 +46,26 @@ const envKeySchema = z.string().trim().min(1, "Env var value cannot be empty");
 const createLytxAppConfigSchema = z
   .object({
     enableRequestLogging: z.boolean().optional(),
+    dbAdapter: dbAdapterSchema.optional(),
+    useQueueIngestion: z.boolean().optional(),
+    includeLegacyTagRoutes: z.boolean().optional(),
+    trackingRoutePrefix: routePrefixSchema.optional(),
+    auth: z
+      .object({
+        emailPasswordEnabled: z.boolean().optional(),
+        requireEmailVerification: z.boolean().optional(),
+        socialProviders: z
+          .object({
+            google: z.boolean().optional(),
+            github: z.boolean().optional(),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
     tagRoutes: z
       .object({
-        dbAdapter: dbAdapterSchema.optional(),
-        useQueueIngestion: z.boolean().optional(),
-        includeLegacyRoutes: z.boolean().optional(),
-        pathPrefix: routePrefixSchema.optional(),
         scriptPath: routePathSchema.optional(),
         legacyScriptPath: routePathSchema.optional(),
         eventPath: routePathSchema.optional(),
@@ -140,6 +154,17 @@ const createLytxAppConfigSchema = z
         code: z.ZodIssueCode.custom,
         path: ["features", "askAiEnabled"],
         message: "Ask AI cannot be enabled when reportBuilderEnabled is false",
+      });
+    }
+
+    const emailPasswordEnabled = value.auth?.emailPasswordEnabled ?? true;
+    const googleExplicitlyDisabled = value.auth?.socialProviders?.google === false;
+    const githubExplicitlyDisabled = value.auth?.socialProviders?.github === false;
+    if (!emailPasswordEnabled && googleExplicitlyDisabled && githubExplicitlyDisabled) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["auth", "emailPasswordEnabled"],
+        message: "At least one auth method must be enabled",
       });
     }
 

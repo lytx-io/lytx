@@ -3,7 +3,7 @@ import type { AppContext } from "@/types/app-context";
 // import { env } from "cloudflare:workers";
 // import { route } from "rwsdk/router";
 import type { RequestInfo } from "rwsdk/worker";
-import { auth } from "@lib/auth";
+import { asAuthUserSession, getAuth } from "@lib/auth";
 import type { UserRole } from "@db/types";
 
 const resolveUserRole = (role: unknown): UserRole => {
@@ -13,14 +13,16 @@ const resolveUserRole = (role: unknown): UserRole => {
     return "viewer";
 };
 
-export function authMiddleware({ request }: RequestInfo<any, AppContext>) {
+export function authMiddleware({ request }: RequestInfo<unknown, AppContext>) {
+    const auth = getAuth();
     if (["POST", "GET"].includes(request.method)) {
         return auth.handler(request);
     } else return new Response("Method Not Allowed", { status: 405 });
 }
 
-export async function sessionMiddleware({ request, ctx }: RequestInfo<any, AppContext>) {
-    const session = await auth.api.getSession({ headers: request.headers });
+export async function sessionMiddleware({ request, ctx }: RequestInfo<unknown, AppContext>) {
+    const auth = getAuth();
+    const session = asAuthUserSession(await auth.api.getSession({ headers: request.headers }));
     if (!session) {
         return new Response("Not logged in", { status: 303, headers: { location: '/login' } });
     }

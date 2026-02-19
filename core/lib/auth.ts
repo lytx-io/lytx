@@ -1,146 +1,279 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { d1_client } from "@db/d1/client"
-import { env } from "cloudflare:workers";
-import * as schema from "@db/d1/schema";
-import type { DBAdapter } from "@db/d1/schema";
-import { createNewAccount, getSitesForUser } from "@db/d1/sites";
 import { customSession } from "better-auth/plugins";
-import { sendVerificationEmail } from "@lib/sendMail";
+import { env } from "cloudflare:workers";
 import { IS_DEV } from "rwsdk/constants";
-// import { drizzle } from 'drizzle-orm/better-sqlite3';
-// import * as dotenv from 'dotenv';
-// dotenv.config();
-// const dev_db = drizzle(process.env.LOCAL_D1!);
 
-export type AuthUserSession = typeof auth.$Infer.Session;
-export const auth = betterAuth({
-  trustedOrigins: IS_DEV
-    ? [
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      "http://localhost:6124",
-      "http://localhost:6123",
-      "http://*.ts.net:*",
-      "https://*.ts.net:*",
-      env.BETTER_AUTH_URL,
-    ]
-    : [env.BETTER_AUTH_URL],
+import { d1_client } from "@db/d1/client";
+import type { DBAdapter } from "@db/d1/schema";
+import * as schema from "@db/d1/schema";
+import { createNewAccount, getSitesForUser } from "@db/d1/sites";
+import type { SitesContext } from "@db/d1/sites";
+import { sendVerificationEmail } from "@lib/sendMail";
 
-  plugins: [
-    customSession(async ({ user, session }) => {
-      let initial_site_setup = false;
-      // //CONSIDER: Not using this?
-      const lastTeamId = (user as any).last_team_id as number | null;
-      const userSites = await getSitesForUser(user.id, lastTeamId);
-      //
-      let currentTeamId = 0;
-      let currentTeamName = "";
-      let db_adapter: DBAdapter = "sqlite";
-      let teamExternalId = 0;
-      let userRole = "viewer";
-      if (userSites) {
-        if (userSites.teamHasSites) {
-          initial_site_setup = true;
+type SocialProviderToggles = {
+  google?: boolean;
+  github?: boolean;
+};
+
+export type AuthRuntimeConfig = {
+  emailPasswordEnabled?: boolean;
+  requireEmailVerification?: boolean;
+  socialProviders?: SocialProviderToggles;
+};
+
+type TeamSummary = {
+  id: number;
+  name: string;
+  external_id: number;
+};
+
+type CoreSession = {
+  session: {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    userId: string;
+    expiresAt: Date;
+    token: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  };
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    image?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+};
+
+export type AuthUserSession = CoreSession & {
+  initial_site_setup: boolean;
+  email_verified: boolean;
+  team: TeamSummary;
+  all_teams: TeamSummary[];
+  role: "admin" | "editor" | "viewer";
+  db_adapter: DBAdapter;
+  userSites: SitesContext | undefined;
+  timezone: string | null;
+  last_site_id: number | null;
+  last_team_id: number | null;
+};
+
+export type AuthProviderAvailability = {
+  google: boolean;
+  github: boolean;
+};
+
+let auth_runtime_config: AuthRuntimeConfig = {
+  emailPasswordEnabled: true,
+  requireEmailVerification: true,
+  socialProviders: {},
+};
+
+let auth_instance: ReturnType<typeof betterAuth> | null = null;
+
+const hasGoogleCredentials = () => Boolean(env.GOOGLE_CLIENT_ID?.trim() && env.GOOGLE_CLIENT_SECRET?.trim());
+const hasGithubCredentials = () => Boolean(env.GITHUB_CLIENT_ID?.trim() && env.GITHUB_CLIENT_SECRET?.trim());
+
+export function setAuthRuntimeConfig(config: AuthRuntimeConfig = {}) {
+  auth_runtime_config = {
+    ...auth_runtime_config,
+    ...config,
+    socialProviders: {
+      ...(auth_runtime_config.socialProviders ?? {}),
+      ...(config.socialProviders ?? {}),
+    },
+  };
+
+  auth_instance = null;
+}
+
+export function getAuthProviderAvailability(): AuthProviderAvailability {
+  const google_enabled = auth_runtime_config.socialProviders?.google ?? hasGoogleCredentials();
+  const github_enabled = auth_runtime_config.socialProviders?.github ?? hasGithubCredentials();
+
+  return {
+    google: google_enabled,
+    github: github_enabled,
+  };
+}
+
+function getTrustedOrigins() {
+  if (!IS_DEV) return [env.BETTER_AUTH_URL];
+  return [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:6124",
+    "http://localhost:6123",
+    "http://*.ts.net:*",
+    "https://*.ts.net:*",
+    env.BETTER_AUTH_URL,
+  ];
+}
+
+function buildSocialProviders() {
+  const providers: Record<string, { clientId: string; clientSecret: string }> = {};
+  const availability = getAuthProviderAvailability();
+
+  if (availability.google) {
+    const clientId = env.GOOGLE_CLIENT_ID?.trim();
+    const clientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
+    if (!clientId || !clientSecret) {
+      throw new Error("Google sign-in is enabled but GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET are missing");
+    }
+    providers.google = { clientId, clientSecret };
+  }
+
+  if (availability.github) {
+    const clientId = env.GITHUB_CLIENT_ID?.trim();
+    const clientSecret = env.GITHUB_CLIENT_SECRET?.trim();
+    if (!clientId || !clientSecret) {
+      throw new Error("GitHub sign-in is enabled but GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET are missing");
+    }
+    providers.github = { clientId, clientSecret };
+  }
+
+  return providers;
+}
+
+function createAuthInstance() {
+  return betterAuth({
+    trustedOrigins: getTrustedOrigins(),
+    plugins: [
+      customSession(async ({ user, session }) => {
+        const user_with_state = user as typeof user & {
+          last_team_id?: number | null;
+          timezone?: string | null;
+          last_site_id?: number | null;
+        };
+
+        let initial_site_setup = false;
+        const lastTeamId = user_with_state.last_team_id ?? null;
+        const userSites = await getSitesForUser(user.id, lastTeamId);
+
+        let currentTeamId = 0;
+        let currentTeamName = "";
+        let db_adapter: DBAdapter = "sqlite";
+        let teamExternalId = 0;
+        let userRole = "viewer";
+        if (userSites) {
+          if (userSites.teamHasSites) {
+            initial_site_setup = true;
+          }
+          currentTeamId = userSites.team.id;
+
+          if (userSites.team.name) currentTeamName = userSites.team.name;
+          if (userSites.team.db_adapter) db_adapter = userSites.team.db_adapter;
+          if (userSites.team.external_id) teamExternalId = userSites.team.external_id;
+          if (userSites.team.role) userRole = userSites.team.role;
         }
-        //TODO: Handle this better
-        currentTeamId = userSites.team.id;
 
-        if (userSites.team.name) currentTeamName = userSites.team.name;
-        if (userSites.team.db_adapter) db_adapter = userSites.team.db_adapter;
-        if (userSites.team.external_id) teamExternalId = userSites.team.external_id;
-        if (userSites.team.role) userRole = userSites.team.role;
-      }
-
-      const teams = [
-        { id: currentTeamId, name: currentTeamName, external_id: teamExternalId },
-      ];
-      if (userSites) {
-        if (userSites.all_teams) {
-          const mappedTeams = userSites.all_teams.map((team) => ({ id: team.team_id, name: team.name!, external_id: team.external_id! }));
+        const teams = [{ id: currentTeamId, name: currentTeamName, external_id: teamExternalId }];
+        if (userSites?.all_teams) {
+          const mappedTeams = userSites.all_teams.map((team) => ({
+            id: team.team_id,
+            name: team.name!,
+            external_id: team.external_id!,
+          }));
           teams.push(...mappedTeams);
         }
-      }
-      return {
-        initial_site_setup: initial_site_setup,
-        email_verified: user.emailVerified,
-        team: { id: currentTeamId, name: currentTeamName, external_id: teamExternalId },
-        all_teams: teams,
-        role: userRole,
-        db_adapter,
-        userSites: userSites?.sitesList,
-        timezone: (user as any).timezone as string | null,
-        last_site_id: (user as any).last_site_id as number | null,
-        last_team_id: currentTeamId || lastTeamId,
-        user,
-        session,
-      };
-    }),
-  ],
-  database: drizzleAdapter(d1_client, { provider: "sqlite", schema }),
-  secret: env.BETTER_AUTH_SECRET,
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: true,
-  },
-  rateLimit: {
-    storage: "secondary-storage"
-  },
-  secondaryStorage: {
-    get: async (key) => {
-      const value = await env.lytx_sessions.get(key);
-      return value ? value : null;
-    },
-    set: async (key, value, ttl) => {
-      if (ttl) await env.lytx_sessions.put(key, value, { expirationTtl: ttl });
-      else await env.lytx_sessions.put(key, value);
-    },
-    delete: async (key) => {
-      await env.lytx_sessions.delete(key);
-    },
-  },
-  onAPIError: {
-    onError(error) {
-      if (error instanceof Error) {
-        console.error("Better Auth API error:", {
-          name: error.name,
-          message: error.message,
-          stack: IS_DEV ? error.stack : undefined,
-        });
-        return;
-      }
 
-      console.error("Better Auth API error:", error);
+        return {
+          initial_site_setup,
+          email_verified: user.emailVerified,
+          team: { id: currentTeamId, name: currentTeamName, external_id: teamExternalId },
+          all_teams: teams,
+          role: userRole,
+          db_adapter,
+          userSites: userSites?.sitesList,
+          timezone: user_with_state.timezone ?? null,
+          last_site_id: user_with_state.last_site_id ?? null,
+          last_team_id: currentTeamId || lastTeamId,
+          user,
+          session,
+        };
+      }),
+    ],
+    database: drizzleAdapter(d1_client, { provider: "sqlite", schema }),
+    secret: env.BETTER_AUTH_SECRET,
+    emailAndPassword: {
+      enabled: auth_runtime_config.emailPasswordEnabled ?? true,
+      requireEmailVerification: auth_runtime_config.requireEmailVerification ?? true,
     },
-  },
-  user: {
+    rateLimit: {
+      storage: "secondary-storage",
+    },
+    secondaryStorage: {
+      get: async (key) => {
+        const value = await env.lytx_sessions.get(key);
+        return value ? value : null;
+      },
+      set: async (key, value, ttl) => {
+        if (ttl) await env.lytx_sessions.put(key, value, { expirationTtl: ttl });
+        else await env.lytx_sessions.put(key, value);
+      },
+      delete: async (key) => {
+        await env.lytx_sessions.delete(key);
+      },
+    },
+    onAPIError: {
+      onError(error) {
+        if (error instanceof Error) {
+          console.error("Better Auth API error:", {
+            name: error.name,
+            message: error.message,
+            stack: IS_DEV ? error.stack : undefined,
+          });
+          return;
+        }
 
-  },
-  emailVerification: {
-    sendOnSignUp: true,
-    sendVerificationEmail: async ({ user, url }, _request) => {
-      if (IS_DEV) console.log('🔥🔥🔥 sendVerificationEmail', user, url);
-      await sendVerificationEmail(user.email, url);
-
-    }
-  },
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          await createNewAccount(user);
+        console.error("Better Auth API error:", error);
+      },
+    },
+    user: {},
+    emailVerification: {
+      sendOnSignUp: true,
+      sendVerificationEmail: async ({ user, url }, _request) => {
+        if (IS_DEV) console.log("🔥🔥🔥 sendVerificationEmail", user, url);
+        await sendVerificationEmail(user.email, url);
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            await createNewAccount(user);
+          },
         },
-      }
-    }
-  },
-  socialProviders: {
-    // github: {
-    //   clientId: env.GITHUB_CLIENT_ID,
-    //   clientSecret: env.GITHUB_CLIENT_SECRET,
-    // },
-    // google: {
-    //   clientId: env.GOOGLE_CLIENT_ID,
-    //   clientSecret: env.GOOGLE_CLIENT_SECRET,
-    // },
+      },
+    },
+    socialProviders: buildSocialProviders(),
+  });
+}
+
+export function getAuth() {
+  if (!auth_instance) {
+    auth_instance = createAuthInstance();
   }
+  return auth_instance;
+}
+
+export type AuthInstance = ReturnType<typeof getAuth>;
+
+export const auth: AuthInstance = new Proxy({} as AuthInstance, {
+  get(_target, property, receiver) {
+    return Reflect.get(getAuth(), property, receiver);
+  },
 });
+
+export function asAuthUserSession(value: unknown): AuthUserSession | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<AuthUserSession>;
+  if (!candidate.user || !candidate.session) return null;
+  if (!candidate.team || !candidate.role || !candidate.db_adapter) return null;
+  return candidate as AuthUserSession;
+}

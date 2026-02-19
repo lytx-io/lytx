@@ -67,8 +67,10 @@ Domain and naming options:
 
 `createLytxApp(...)` supports route relocation without source edits:
 
-- tracking routes: `tagRoutes.pathPrefix`
+- tracking routes: `trackingRoutePrefix`
 - explicit paths: `tagRoutes.scriptPath`, `tagRoutes.eventPath`, and legacy-path options
+- runtime adapter/ingestion controls: `dbAdapter`, `useQueueIngestion`
+- auth controls: `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`
 
 Example:
 
@@ -76,15 +78,39 @@ Example:
 import { createLytxApp } from "@lytx/core";
 
 export default createLytxApp({
-  tagRoutes: {
-    pathPrefix: "/collect",
-    dbAdapter: "sqlite",
-    useQueueIngestion: true,
+  dbAdapter: "sqlite",
+  useQueueIngestion: true,
+  trackingRoutePrefix: "/collect",
+  auth: {
+    socialProviders: {
+      google: true,
+      github: false,
+    },
   },
 });
 ```
 
-## 6) Local run and deploy
+## 6) Initial admin bootstrap
+
+- On a fresh install, the first successful account signup becomes the default admin and creates the initial team.
+- Subsequent non-invited signups are added to the initial team with viewer access.
+- Team admins can then invite additional users with elevated roles from settings.
+
+CLI fallback (for locked-down or scripted installs):
+
+```bash
+cd core
+bun run cli/bootstrap-admin.ts --email admin@example.com --password "StrongPassword123"
+```
+
+For remote Cloudflare D1:
+
+```bash
+cd core
+bun run cli/bootstrap-admin.ts --email admin@example.com --password "StrongPassword123" --remote
+```
+
+## 7) Local run and deploy
 
 From `demo/`:
 
@@ -98,7 +124,7 @@ Production deploy:
 bun alchemy deploy --stage prod
 ```
 
-## 7) Troubleshooting
+## 8) Troubleshooting
 
 ### App boots but APIs return 500
 
@@ -112,7 +138,7 @@ bun alchemy deploy --stage prod
 
 ### Tracking script or event endpoint returns 404
 
-- Verify `tagRoutes.pathPrefix` and explicit tag/event paths.
+- Verify `trackingRoutePrefix` and explicit tag/event paths.
 - Confirm client-side snippet points at the final prefixed path.
 
 ### Dashboard pages unreachable
@@ -130,7 +156,7 @@ bun alchemy deploy --stage prod
 - Check naming strategy env vars (`LYTX_RESOURCE_*`) and per-resource overrides.
 - Keep strategy stable across deploys to remain idempotent.
 
-## 8) Validation checklist
+## 9) Validation checklist
 
 - Worker starts without config validation errors
 - Auth flow works (`/signup`, `/login`, verification)

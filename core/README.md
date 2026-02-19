@@ -45,9 +45,13 @@ import type { ExportedHandler } from "cloudflare:workers";
 import { createLytxApp, SyncDurableObject, SiteDurableObject } from "@lytx/core";
 
 const app = createLytxApp({
-  tagRoutes: {
-    dbAdapter: "sqlite",
-    useQueueIngestion: true,
+  dbAdapter: "sqlite",
+  useQueueIngestion: true,
+  auth: {
+    socialProviders: {
+      google: true,
+      github: false,
+    },
   },
 });
 
@@ -59,11 +63,12 @@ export default app satisfies ExportedHandler<Env>;
 `createLytxApp` supports:
 
 - `features.dashboard`, `features.events`, `features.auth`, `features.ai`, `features.tagScript`
-- `tagRoutes.dbAdapter` (`"sqlite" | "postgres" | "singlestore" | "analytics_engine"`)
-- `tagRoutes.useQueueIngestion` (`true`/`false`)
-- `tagRoutes.includeLegacyRoutes` (`true` by default for `/lytx.js` and `/trackWebEvent` compatibility)
-- `tagRoutes.pathPrefix` (prefix all tracking routes, e.g. `/collect`)
+- `dbAdapter` (`"sqlite" | "postgres" | "singlestore" | "analytics_engine"`)
+- `useQueueIngestion` (`true`/`false`)
+- `includeLegacyTagRoutes` (`true` by default for `/lytx.js` and `/trackWebEvent` compatibility)
+- `trackingRoutePrefix` (prefix all tracking routes, e.g. `/collect`)
 - `tagRoutes.scriptPath` + `tagRoutes.eventPath` (custom v2 route paths)
+- `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`
 - `features.reportBuilderEnabled` + `features.askAiEnabled`
 - `names.*` (typed resource binding names for D1/KV/Queue/DO)
 - `domains.app` + `domains.tracking` (typed host/domain values)
@@ -383,6 +388,15 @@ SEED_DATA_SECRET=<random-secret>
 ```
 
 If `EMAIL_FROM` is missing (or left as the placeholder `noreply@example.com`), email send attempts fail with a clear runtime error explaining how to configure it.
+
+On a fresh install, the first successful signup becomes the initial admin and creates the default team. For scripted/bootstrap environments, you can use:
+
+```bash
+cd core
+bun run cli/bootstrap-admin.ts --email admin@example.com --password "StrongPassword123"
+```
+
+Use `--remote` to apply bootstrap changes directly to Cloudflare D1 via Wrangler. This requires Wrangler authentication (`wrangler login` or a valid Cloudflare API token) and access to the target database.
 
 ## Database setup
 

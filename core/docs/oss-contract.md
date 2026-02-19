@@ -115,7 +115,9 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 - Consumers can mount exported routes under custom prefixes (`prefix("/analytics", [...])`).
 - Consumers can include/exclude route groups and pages by composing exports into their own worker.
 - Consumers can layer additional middleware before/after provided middleware.
-- `createLytxApp({ tagRoutes: { pathPrefix } })` is the supported route-prefix mechanism for tracking/tag endpoints.
+- `createLytxApp({ trackingRoutePrefix })` is the supported route-prefix mechanism for tracking/tag endpoints.
+- `createLytxApp` supports top-level runtime controls for `dbAdapter`, `useQueueIngestion`, and `includeLegacyTagRoutes`.
+- `createLytxApp` supports auth-mode controls via `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, and `auth.socialProviders.*`.
 
 ## Deprecation and compatibility policy
 

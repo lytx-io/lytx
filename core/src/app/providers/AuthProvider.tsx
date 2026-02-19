@@ -2,13 +2,13 @@
 import { createContext, useEffect, useRef, useState } from "react";
 import { createAuthClient } from "better-auth/react";
 import { customSessionClient } from "better-auth/client/plugins";
-import type { auth } from "@lib/auth";
+import type { AuthUserSession } from "@lib/auth";
 import { getLastSiteFromStorage } from "@/app/components/SiteSelector";
 export const authClient = createAuthClient({
-  plugins: [customSessionClient<typeof auth>()],
+  plugins: [customSessionClient()],
 });
 // type Provider = Params<ReturnType<typeof authClient.signIn.social>>["provider"]
-type UserData = ReturnType<typeof authClient.useSession>["data"];
+type UserData = AuthUserSession | null;
 export const emailSignUp = async (
   email: string,
   password: string,
@@ -72,16 +72,25 @@ export const resendVerificationEmail = async (email: string) => {
 export const AuthContext = createContext<{
   data: UserData;
   isPending: boolean;
-  error: any;
+  error: unknown;
   refetch: () => void | Promise<void>;
   current_site: Currentsite;
   setCurrentSite: (site: Currentsite) => void;
-}>(null as any);
+}>(null as unknown as {
+  data: UserData;
+  isPending: boolean;
+  error: unknown;
+  refetch: () => void | Promise<void>;
+  current_site: Currentsite;
+  setCurrentSite: (site: Currentsite) => void;
+});
 
 export type Currentsite = { name: string, id: number, tag_id: string } | null
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data, isPending, error, refetch } = authClient.useSession();
+  const sessionState = authClient.useSession();
+  const data = sessionState.data as AuthUserSession | null;
+  const { isPending, error, refetch } = sessionState;
   const refetchFreshSession = async () => {
     const sessionAtom = authClient.$store.atoms.session;
     const current = sessionAtom.get();

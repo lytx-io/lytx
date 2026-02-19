@@ -19,7 +19,7 @@ import {
 } from "@api/tag_api";
 import { lytxTag, trackWebEvent } from "@api/tag_api_v2";
 import { authMiddleware, sessionMiddleware } from "@api/authMiddleware";
-import { auth } from "@lib/auth";
+import { getAuth, getAuthProviderAvailability, setAuthRuntimeConfig } from "@lib/auth";
 import { Signup } from "@/pages/Signup";
 import { Login } from "@/pages/Login";
 import { VerifyEmail } from "@/pages/VerifyEmail";
@@ -91,7 +91,7 @@ const getInitialToolbarState = (ctx: AppContext) => {
     tag_id: site.tag_id,
   }));
 
-  const preferredSiteId = (ctx.session as any)?.last_site_id ?? null;
+  const preferredSiteId = ctx.session?.last_site_id ?? null;
   const initialSiteId = initialSites.some((site) => site.site_id === preferredSiteId)
     ? preferredSiteId
     : (initialSites[0]?.site_id ?? null);
@@ -132,7 +132,7 @@ const resolveUserTimeZoneForServerRender = async (
     }
   }
 
-  const sessionTimeZone = (ctx.session as any)?.timezone;
+  const sessionTimeZone = ctx.session?.timezone;
   const candidate =
     typeof sessionTimeZone === "string" && sessionTimeZone.trim().length > 0
       ? sessionTimeZone
@@ -162,17 +162,23 @@ const appRoute = <TPath extends string>(
 ) => route<TPath, AppRequestInfo>(path, handlers);
 export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
+  setAuthRuntimeConfig(parsed_config.auth);
   setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
+  const authProviders = getAuthProviderAvailability();
+  const emailPasswordEnabled = parsed_config.auth?.emailPasswordEnabled ?? true;
+  if (!emailPasswordEnabled && !authProviders.google && !authProviders.github) {
+    throw new Error("Invalid auth configuration: at least one auth method must be enabled");
+  }
   const enableRequestLogging = parsed_config.enableRequestLogging ?? IS_DEV;
   const authEnabled = parsed_config.features?.auth ?? isAuthEnabled();
   const dashboardEnabled = authEnabled && (parsed_config.features?.dashboard ?? isDashboardEnabled());
   const eventsEnabled = parsed_config.features?.events ?? isEventsEnabled();
   const aiEnabled = dashboardEnabled && (parsed_config.features?.ai ?? isAiFeatureEnabled());
   const tagScriptEnabled = parsed_config.features?.tagScript ?? isTagScriptEnabled();
-  const tagRouteDbAdapter = parsed_config.tagRoutes?.dbAdapter ?? DEFAULT_TAG_DB_ADAPTER;
-  const tagRouteQueueIngestionEnabled = parsed_config.tagRoutes?.useQueueIngestion ?? true;
-  const includeLegacyTagRoutes = parsed_config.tagRoutes?.includeLegacyRoutes ?? true;
-  const trackingRoutePrefix = normalizeRoutePrefix(parsed_config.tagRoutes?.pathPrefix);
+  const tagRouteDbAdapter = parsed_config.dbAdapter ?? DEFAULT_TAG_DB_ADAPTER;
+  const tagRouteQueueIngestionEnabled = parsed_config.useQueueIngestion ?? true;
+  const includeLegacyTagRoutes = parsed_config.includeLegacyTagRoutes ?? true;
+  const trackingRoutePrefix = normalizeRoutePrefix(parsed_config.trackingRoutePrefix);
   const tagScriptPath = withRoutePrefix(
     trackingRoutePrefix,
     parsed_config.tagRoutes?.scriptPath ?? DEFAULT_TAG_SCRIPT_PATH,
@@ -236,447 +242,428 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
         userApiRoutes,
       ]
       : []),
-  render<AppRequestInfo>(Document, [
-    route("/", [
-      onlyAllowGetPost, ({ request }) => {
-        return Response.redirect(new URL("/login", request.url).toString(), 308);
-      },
-    ]),
-    ...(authEnabled
-      ? [
-        route("/signup", [
-          onlyAllowGetPost, () => {
-            return <Signup />;
-          },
-        ]),
-      ]
-      : []),
-    ...(authEnabled
-      ? [
-        route("/login", [
-          onlyAllowGetPost,
-          () => {
-            return <Login />;
-          },
-        ]),
-        route("/verify-email", [
-          onlyAllowGetPost,
-          async ({ request }) => {
-            const requestId = crypto.randomUUID();
-            const url = new URL(request.url);
-            const token = url.searchParams.get("token") || "";
-
-            const callbackURL = url.searchParams.get("callbackURL") || undefined;
-            const safeCallbackURL =
-              callbackURL && callbackURL.startsWith("/") && !callbackURL.includes("://")
-                ? callbackURL
-                : undefined;
-
-            if (!token) {
-              if (IS_DEV) console.warn("Email verification failed: missing token", { requestId });
-              return (
-                <VerifyEmail
-                  status={{
-                    type: "error",
-                    message:
-                      "That verification link is missing a token. Please request a new verification email.",
-                    callbackURL: safeCallbackURL,
-                  }}
-                />
-              );
-            }
-
-            try {
-              await auth.api.verifyEmail({
-                query: {
-                  token,
-                },
-              });
-
-              return (
-                <VerifyEmail
-                  status={{
-                    type: "success",
-                    message: "Your email has been verified. You can continue.",
-                    callbackURL: safeCallbackURL,
-                  }}
-                />
-              );
-            } catch (error) {
-              const message = error instanceof Error ? error.message : "";
-              const normalized = message.toLowerCase();
-
-              const friendlyMessage =
-                normalized.includes("token_expired") || normalized.includes("expired")
-                  ? "That verification link has expired. Please request a new verification email."
-                  : normalized.includes("invalid_token") || normalized.includes("invalid")
-                    ? "That verification link is invalid. Please request a new verification email."
-                    : normalized.includes("user_not_found")
-                      ? "We couldn't find an account for that link. Please request a new verification email."
-                      : "We couldn't verify your email. Please request a new verification email.";
-
-              if (IS_DEV) console.warn("Email verification failed", {
-                requestId,
-                error: error instanceof Error ? { name: error.name, message: error.message } : error,
-                tokenPresent: Boolean(token),
-              });
-
-              return (
-                <VerifyEmail
-                  status={{
-                    type: "error",
-                    message: friendlyMessage,
-                    callbackURL: safeCallbackURL,
-                  }}
-                />
-              );
-            }
-          },
-        ]),
-      ]
-      : []),
-    ...(dashboardEnabled
-      ? [layout(AppLayout, [
-      sessionMiddleware,
-      //PERF: This API PREFIX REQUIRES AUTHENTICATION
-      prefix<"/api", AppRequestInfo>("/api", [
-        world_countries,
-        getDashboardDataRoute,
-        getCurrentVisitorsRoute,
-        ...(aiEnabled ? [aiConfigRoute, aiChatRoute, aiTagSuggestRoute] : []),
-        siteEventsSqlRoute,
-        siteEventsSchemaRoute,
-        eventLabelsApi,
-        ...(reportBuilderEnabled ? [reportsApi] : []),
-        ///api/sites
-        //PERF: Add method to api prefix outside of sessionMiddleware loop
-        newSiteSetup(),
-        team_dashboard_endpoints
-      ]),
-      onlyAllowGetPost,
-      route("/dashboard", [
-        checkIfTeamSetupSites,
-        async ({ request, ctx }) => {
-          const pathname = new URL(request.url).pathname;
-          if (pathname === "/dashboard/") {
-            return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
-          }
-
-          const toolbarState = getInitialToolbarState(ctx);
-          const timezone = await resolveUserTimeZoneForServerRender(
-            ctx,
-            (request as Request & { cf?: { timezone?: string } }).cf?.timezone,
-          );
-          const today = getDateStringInTimeZone(new Date(), timezone);
-          const todayStart = parseDateParam(today, { timeZone: timezone, boundary: "start" });
-          const todayEnd = parseDateParam(today, { timeZone: timezone, boundary: "end" });
-
-          let initialDashboardData: DashboardResponseData | null = null;
-          if (toolbarState.initialSiteId && todayStart && todayEnd) {
-            try {
-          const dashboardDataResult = await getDashboardDataCore({
-                ctx,
-                requestId: crypto.randomUUID(),
-                siteIdValue: toolbarState.initialSiteId,
-                dateStartValue: todayStart,
-                dateEndValue: todayEnd,
-                rawDateEnd: today,
-                normalizedTimezone: timezone,
-                normalizedDeviceType: null,
-                normalizedCountry: null,
-                normalizedSource: null,
-                normalizedPageUrl: null,
-                normalizedCity: null,
-                normalizedRegion: null,
-                normalizedEventName: null,
-                normalizedEventSummaryLimit: 50,
-                normalizedEventSummaryOffset: 0,
-                normalizedEventSummaryType: "all",
-                normalizedEventSummaryAction: "all",
-                normalizedEventSummarySortBy: "count",
-                normalizedEventSummarySortDirection: "desc",
-                eventSummarySearch: "",
-              });
-
-              if (dashboardDataResult.ok) {
-                initialDashboardData = dashboardDataResult.data;
-              }
-            } catch (error) {
-              if (IS_DEV) {
-                console.log("🔥🔥🔥 failed to prefetch today dashboard", error);
-              }
-            }
-          }
-
-          return (
-            <DashboardPage
-              activeReportBuilderItemId="create-report"
-              reportBuilderEnabled={reportBuilderEnabled}
-              askAiEnabled={askAiEnabled}
-              initialToolbarSites={toolbarState.initialSites}
-              initialToolbarSiteId={toolbarState.initialSiteId}
-              initialDashboardDateRange={{
-                start: today,
-                end: today,
-                preset: "Today",
-              }}
-              initialTimezone={timezone}
-              initialDashboardData={initialDashboardData}
-            />
-          );
+    render<AppRequestInfo>(Document, [
+      route("/", [
+        onlyAllowGetPost, ({ request }) => {
+          return Response.redirect(new URL("/login", request.url).toString(), 308);
         },
       ]),
-      layout<AppRequestInfo>(DashboardWorkspaceLayout, [
-        ...(reportBuilderEnabled
-          ? [
-            appRoute("/dashboard/reports", [
-              ({ request }) => {
-                return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+      ...(authEnabled
+        ? [
+            route("/signup", [
+              onlyAllowGetPost, () => {
+                return <Signup authProviders={authProviders} emailPasswordEnabled={emailPasswordEnabled} />;
               },
             ]),
-            appRoute("/dashboard/reports/custom/new", [
-              checkIfTeamSetupSites,
-              ({ request }) => {
-                const url = new URL(request.url);
-                const template = url.searchParams.get("template");
-                return <CustomReportBuilderPage initialTemplate={template} />;
+        ]
+        : []),
+      ...(authEnabled
+        ? [
+            route("/login", [
+              onlyAllowGetPost,
+              () => {
+                return <Login authProviders={authProviders} emailPasswordEnabled={emailPasswordEnabled} />;
               },
             ]),
-            appRoute("/dashboard/reports/custom/*", [
-              checkIfTeamSetupSites,
-              ({ request }) => {
-                const pathname = new URL(request.url).pathname;
-                const marker = "/dashboard/reports/custom/";
-                const reportUuid = pathname.includes(marker)
-                  ? decodeURIComponent(pathname.slice(pathname.indexOf(marker) + marker.length))
-                  : "";
+          route("/verify-email", [
+            onlyAllowGetPost,
+            async ({ request }) => {
+              const requestId = crypto.randomUUID();
+              const url = new URL(request.url);
+              const token = url.searchParams.get("token") || "";
 
-                if (!reportUuid || reportUuid.includes("/") || reportUuid === "new") {
-                  return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
-                }
+              const callbackURL = url.searchParams.get("callbackURL") || undefined;
+              const safeCallbackURL =
+                callbackURL && callbackURL.startsWith("/") && !callbackURL.includes("://")
+                  ? callbackURL
+                  : undefined;
 
-                return <CustomReportBuilderPage reportUuid={reportUuid} />;
-              },
-            ]),
-            appRoute("/dashboard/reports/create-report", [
-              checkIfTeamSetupSites,
-              (_info) => {
-                return <ReportBuilderWorkspace activeReportBuilderItemId="create-report" />;
-              },
-            ]),
-            appRoute("/dashboard/reports/create-reference", [
-              checkIfTeamSetupSites,
-              (_info) => {
-                return <ReportBuilderWorkspace activeReportBuilderItemId="create-reference" />;
-              },
-            ]),
-            appRoute("/dashboard/reports/ask-ai", [
-              checkIfTeamSetupSites,
-              ({ ctx, request }) => {
-                if (!askAiEnabled) {
-                  return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
-                }
+              if (!token) {
+                if (IS_DEV) console.warn("Email verification failed: missing token", { requestId });
+                return (
+                  <VerifyEmail
+                    status={{
+                      type: "error",
+                      message:
+                        "That verification link is missing a token. Please request a new verification email.",
+                      callbackURL: safeCallbackURL,
+                    }}
+                  />
+                );
+              }
 
-                const aiConfig = getAiConfig(ctx.team.id);
-                const askAiWorkspaceProps = {
-                  activeReportBuilderItemId: "ask-ai" as const,
-                  initialAiConfigured: Boolean(aiConfig),
-                  initialAiModel: aiConfig?.model ?? "",
-                } as const;
+                try {
+                  const auth = getAuth();
+                  await auth.api.verifyEmail({
+                    query: {
+                      token,
+                  },
+                });
 
                 return (
-                  <ReportBuilderWorkspace {...(askAiWorkspaceProps as any)} />
+                  <VerifyEmail
+                    status={{
+                      type: "success",
+                      message: "Your email has been verified. You can continue.",
+                      callbackURL: safeCallbackURL,
+                    }}
+                  />
                 );
-              },
-            ]),
-            appRoute("/dashboard/reports/create-dashboard", [
-              checkIfTeamSetupSites,
-              (_info) => {
-                return <ReportBuilderWorkspace activeReportBuilderItemId="create-dashboard" />;
-              },
-            ]),
-            appRoute("/dashboard/reports/create-notification", [
-              checkIfTeamSetupSites,
-              (_info) => {
-                return <ReportBuilderWorkspace activeReportBuilderItemId="create-notification" />;
-              },
-            ]),
-          ]
-          : [
-            appRoute("/dashboard/reports", [
-              ({ request }) => {
-                return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
-              },
-            ]),
-            appRoute("/dashboard/reports/*", [
-              ({ request }) => {
-                return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
-              },
-            ]),
-          ]),
-      ]),
-      ...(eventsEnabled
-        ? [
-          appRoute("/dashboard/events", [
-            checkIfTeamSetupSites,
-            async (_info) => {
-              return <EventsPage />;
-            },
-          ]),
-        ]
-        : []),
-      appRoute("/dashboard/new-site", [
-        (_info) => {
-          return <NewSiteSetup />;
-        },
-      ]),
-      appRoute("/dashboard/settings", [
-        async ({ ctx }) => {
-          const toolbarState = getInitialToolbarState(ctx);
-          const initialCurrentSite = toolbarState.initialSites.find(
-            (site) => site.site_id === toolbarState.initialSiteId,
-          ) ?? null;
+              } catch (error) {
+                const message = error instanceof Error ? error.message : "";
+                const normalized = message.toLowerCase();
 
-          const sessionUserSites = Array.isArray((ctx.session as any).userSites)
-            ? (ctx.session as any).userSites
-            : [];
+                const friendlyMessage =
+                  normalized.includes("token_expired") || normalized.includes("expired")
+                    ? "That verification link has expired. Please request a new verification email."
+                    : normalized.includes("invalid_token") || normalized.includes("invalid")
+                      ? "That verification link is invalid. Please request a new verification email."
+                      : normalized.includes("user_not_found")
+                        ? "We couldn't find an account for that link. Please request a new verification email."
+                        : "We couldn't verify your email. Please request a new verification email.";
 
-          const initialUserSites = sessionUserSites.length > 0
-            ? sessionUserSites.map((site: any) => ({
-              site_id: site.site_id,
-              name: site.name ?? null,
-              domain: site.domain ?? null,
-              tag_id: site.tag_id,
-              createdAt: site.createdAt ?? null,
-            }))
-            : (ctx.sites ?? []).map((site) => ({
-              site_id: site.site_id,
-              name: site.name ?? null,
-              domain: site.domain ?? null,
-              tag_id: site.tag_id,
-              createdAt: null,
-            }));
+                if (IS_DEV) console.warn("Email verification failed", {
+                  requestId,
+                  error: error instanceof Error ? { name: error.name, message: error.message } : error,
+                  tokenPresent: Boolean(token),
+                });
 
-          const sessionTeam = (ctx.session as any).team as {
-            id?: number;
-            name?: string | null;
-            external_id?: number | null;
-          } | null;
-
-          let initialTimezone: string | null =
-            (ctx.session as any).timezone && typeof (ctx.session as any).timezone === "string"
-              ? (ctx.session as any).timezone
-              : null;
-
-          if (!initialTimezone) {
-            try {
-              const dbUser = await d1_client
-                .select({ timezone: user.timezone })
-                .from(user)
-                .where(eq(user.id, ctx.session.user.id))
-                .limit(1);
-              initialTimezone = dbUser[0]?.timezone ?? null;
-            } catch (error) {
-              if (IS_DEV) {
-                console.log("🔥🔥🔥 failed to prefetch user timezone", error);
+                return (
+                  <VerifyEmail
+                    status={{
+                      type: "error",
+                      message: friendlyMessage,
+                      callbackURL: safeCallbackURL,
+                    }}
+                  />
+                );
               }
-            }
-          }
-
-          const [teamSettingsResult] = await Promise.allSettled([
-            getTeamSettings(ctx.team.id),
-          ]);
-
-          const initialTeamSettings =
-            teamSettingsResult.status === "fulfilled" ? teamSettingsResult.value : null;
-          if (teamSettingsResult.status === "rejected" && IS_DEV) {
-            console.log("🔥🔥🔥 failed to prefetch team settings", teamSettingsResult.reason);
-          }
-
-          return (
-            <SettingsPage
-              initialSession={{
-                user: {
-                  name: ctx.session.user?.name ?? null,
-                  email: ctx.session.user?.email ?? null,
-                },
-                team: {
-                  id: sessionTeam?.id ?? ctx.team.id,
-                  name: sessionTeam?.name ?? ctx.team.name ?? null,
-                  external_id: sessionTeam?.external_id ?? ctx.team.external_id ?? null,
-                },
-                role: ctx.user_role,
-                timezone: initialTimezone,
-                userSites: initialUserSites,
-              }}
-              initialCurrentSite={initialCurrentSite
-                ? {
-                  id: initialCurrentSite.site_id,
-                  name: initialCurrentSite.name,
-                  tag_id: initialCurrentSite.tag_id,
-                }
-                : null}
-              initialSites={toolbarState.initialSites}
-              initialTeamSettings={initialTeamSettings}
-            />
-          );
-        },
-      ]),
-      appRoute("/dashboard/explore", [
-        checkIfTeamSetupSites,
-        ({ ctx }) => {
-          const toolbarState = getInitialToolbarState(ctx);
-          return (
-            <ExplorePage
-              initialSites={toolbarState.initialSites}
-              initialSiteId={toolbarState.initialSiteId}
-            />
-          );
-        },
-      ]),
-      ...(eventsEnabled
-        ? [
-          appRoute("/admin/events", [
-            ({ request }) => {
-              return Response.redirect(new URL("/dashboard/events", request.url).toString(), 308);
             },
           ]),
         ]
         : []),
-      appRoute("/new-site", [
-        ({ request }) => {
-          return Response.redirect(new URL("/dashboard/new-site", request.url).toString(), 308);
-        },
-      ]),
-      appRoute("/settings", [
-        ({ request }) => {
-          return Response.redirect(new URL("/dashboard/settings", request.url).toString(), 308);
-        },
-      ]),
-      appRoute("/explore", [
-        ({ request }) => {
-          return Response.redirect(new URL("/dashboard/explore", request.url).toString(), 308);
-        },
-      ]),
-    ])]
-      : []),
+      ...(dashboardEnabled
+        ? [layout(AppLayout, [
+          sessionMiddleware,
+          //PERF: This API PREFIX REQUIRES AUTHENTICATION
+          prefix<"/api", AppRequestInfo>("/api", [
+            world_countries,
+            getDashboardDataRoute,
+            getCurrentVisitorsRoute,
+            ...(aiEnabled ? [aiConfigRoute, aiChatRoute, aiTagSuggestRoute] : []),
+            siteEventsSqlRoute,
+            siteEventsSchemaRoute,
+            eventLabelsApi,
+            ...(reportBuilderEnabled ? [reportsApi] : []),
+            ///api/sites
+            //PERF: Add method to api prefix outside of sessionMiddleware loop
+            newSiteSetup(),
+            team_dashboard_endpoints
+          ]),
+          onlyAllowGetPost,
+          route("/dashboard", [
+            checkIfTeamSetupSites,
+            async ({ request, ctx }) => {
+              const pathname = new URL(request.url).pathname;
+              if (pathname === "/dashboard/") {
+                return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+              }
 
-    //NOTE: Put anything thats not a get above this
-    // route("/:page", async ({ params, request }) => {
-    //   //TODO: Add 404 page
-    //   if (request.method != "GET")
-    //     return new Response("Not Found.", { status: 404 });
-    //
-    //   const content = await blink.getContentItem(params.page, "html");
-    //
-    //   if (content.status != "Published") {
-    //     return new Response("Not Found.", { status: 404 });
-    //   }
-    //
-    //   return <Page content={content.body} />;
-    // }),
-  ]),
-]);
+              const toolbarState = getInitialToolbarState(ctx);
+              const timezone = await resolveUserTimeZoneForServerRender(
+                ctx,
+                (request as Request & { cf?: { timezone?: string } }).cf?.timezone,
+              );
+              const today = getDateStringInTimeZone(new Date(), timezone);
+              const todayStart = parseDateParam(today, { timeZone: timezone, boundary: "start" });
+              const todayEnd = parseDateParam(today, { timeZone: timezone, boundary: "end" });
+
+              let initialDashboardData: DashboardResponseData | null = null;
+              if (toolbarState.initialSiteId && todayStart && todayEnd) {
+                try {
+                  const dashboardDataResult = await getDashboardDataCore({
+                    ctx,
+                    requestId: crypto.randomUUID(),
+                    siteIdValue: toolbarState.initialSiteId,
+                    dateStartValue: todayStart,
+                    dateEndValue: todayEnd,
+                    rawDateEnd: today,
+                    normalizedTimezone: timezone,
+                    normalizedDeviceType: null,
+                    normalizedCountry: null,
+                    normalizedSource: null,
+                    normalizedPageUrl: null,
+                    normalizedCity: null,
+                    normalizedRegion: null,
+                    normalizedEventName: null,
+                    normalizedEventSummaryLimit: 50,
+                    normalizedEventSummaryOffset: 0,
+                    normalizedEventSummaryType: "all",
+                    normalizedEventSummaryAction: "all",
+                    normalizedEventSummarySortBy: "count",
+                    normalizedEventSummarySortDirection: "desc",
+                    eventSummarySearch: "",
+                  });
+
+                  if (dashboardDataResult.ok) {
+                    initialDashboardData = dashboardDataResult.data;
+                  }
+                } catch (error) {
+                  if (IS_DEV) {
+                    console.log("🔥🔥🔥 failed to prefetch today dashboard", error);
+                  }
+                }
+              }
+
+              return (
+                <DashboardPage
+                  activeReportBuilderItemId="create-report"
+                  reportBuilderEnabled={reportBuilderEnabled}
+                  askAiEnabled={askAiEnabled}
+                  initialToolbarSites={toolbarState.initialSites}
+                  initialToolbarSiteId={toolbarState.initialSiteId}
+                  initialDashboardDateRange={{
+                    start: today,
+                    end: today,
+                    preset: "Today",
+                  }}
+                  initialTimezone={timezone}
+                  initialDashboardData={initialDashboardData}
+                />
+              );
+            },
+          ]),
+          layout<AppRequestInfo>(DashboardWorkspaceLayout, [
+            ...(reportBuilderEnabled
+              ? [
+                appRoute("/dashboard/reports", [
+                  ({ request }) => {
+                    return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+                  },
+                ]),
+                appRoute("/dashboard/reports/custom/new", [
+                  checkIfTeamSetupSites,
+                  ({ request }) => {
+                    const url = new URL(request.url);
+                    const template = url.searchParams.get("template");
+                    return <CustomReportBuilderPage initialTemplate={template} />;
+                  },
+                ]),
+                appRoute("/dashboard/reports/custom/*", [
+                  checkIfTeamSetupSites,
+                  ({ request }) => {
+                    const pathname = new URL(request.url).pathname;
+                    const marker = "/dashboard/reports/custom/";
+                    const reportUuid = pathname.includes(marker)
+                      ? decodeURIComponent(pathname.slice(pathname.indexOf(marker) + marker.length))
+                      : "";
+
+                    if (!reportUuid || reportUuid.includes("/") || reportUuid === "new") {
+                      return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+                    }
+
+                    return <CustomReportBuilderPage reportUuid={reportUuid} />;
+                  },
+                ]),
+                appRoute("/dashboard/reports/create-report", [
+                  checkIfTeamSetupSites,
+                  (_info) => {
+                    return <ReportBuilderWorkspace activeReportBuilderItemId="create-report" />;
+                  },
+                ]),
+                appRoute("/dashboard/reports/create-reference", [
+                  checkIfTeamSetupSites,
+                  (_info) => {
+                    return <ReportBuilderWorkspace activeReportBuilderItemId="create-reference" />;
+                  },
+                ]),
+                appRoute("/dashboard/reports/ask-ai", [
+                  checkIfTeamSetupSites,
+                  ({ ctx, request }) => {
+                    if (!askAiEnabled) {
+                      return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+                    }
+
+                    const aiConfig = getAiConfig(ctx.team.id);
+                    const askAiWorkspaceProps = {
+                      activeReportBuilderItemId: "ask-ai" as const,
+                      initialAiConfigured: Boolean(aiConfig),
+                      initialAiModel: aiConfig?.model ?? "",
+                    } as const;
+
+                    return <ReportBuilderWorkspace {...askAiWorkspaceProps} />;
+                  },
+                ]),
+                appRoute("/dashboard/reports/create-dashboard", [
+                  checkIfTeamSetupSites,
+                  (_info) => {
+                    return <ReportBuilderWorkspace activeReportBuilderItemId="create-dashboard" />;
+                  },
+                ]),
+                appRoute("/dashboard/reports/create-notification", [
+                  checkIfTeamSetupSites,
+                  (_info) => {
+                    return <ReportBuilderWorkspace activeReportBuilderItemId="create-notification" />;
+                  },
+                ]),
+              ]
+              : [
+                appRoute("/dashboard/reports", [
+                  ({ request }) => {
+                    return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+                  },
+                ]),
+                appRoute("/dashboard/reports/*", [
+                  ({ request }) => {
+                    return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+                  },
+                ]),
+              ]),
+          ]),
+          ...(eventsEnabled
+            ? [
+              appRoute("/dashboard/events", [
+                checkIfTeamSetupSites,
+                async (_info) => {
+                  return <EventsPage />;
+                },
+              ]),
+            ]
+            : []),
+          appRoute("/dashboard/new-site", [
+            (_info) => {
+              return <NewSiteSetup />;
+            },
+          ]),
+          appRoute("/dashboard/settings", [
+            async ({ ctx }) => {
+              const toolbarState = getInitialToolbarState(ctx);
+              const initialCurrentSite = toolbarState.initialSites.find(
+                (site) => site.site_id === toolbarState.initialSiteId,
+              ) ?? null;
+
+              const sessionUserSites = Array.isArray(ctx.session.userSites)
+                ? ctx.session.userSites
+                : [];
+
+              const initialUserSites = sessionUserSites.length > 0
+                ? sessionUserSites.map((site) => ({
+                  site_id: site.site_id,
+                  name: site.name ?? null,
+                  domain: site.domain ?? null,
+                  tag_id: site.tag_id,
+                  createdAt: site.createdAt ?? null,
+                }))
+                : (ctx.sites ?? []).map((site) => ({
+                  site_id: site.site_id,
+                  name: site.name ?? null,
+                  domain: site.domain ?? null,
+                  tag_id: site.tag_id,
+                  createdAt: null,
+                }));
+
+              const sessionTeam = ctx.session.team;
+
+              let initialTimezone: string | null =
+                ctx.session.timezone && typeof ctx.session.timezone === "string"
+                  ? ctx.session.timezone
+                  : null;
+
+              if (!initialTimezone) {
+                try {
+                  const dbUser = await d1_client
+                    .select({ timezone: user.timezone })
+                    .from(user)
+                    .where(eq(user.id, ctx.session.user.id))
+                    .limit(1);
+                  initialTimezone = dbUser[0]?.timezone ?? null;
+                } catch (error) {
+                  if (IS_DEV) {
+                    console.log("🔥🔥🔥 failed to prefetch user timezone", error);
+                  }
+                }
+              }
+
+              const [teamSettingsResult] = await Promise.allSettled([
+                getTeamSettings(ctx.team.id),
+              ]);
+
+              const initialTeamSettings =
+                teamSettingsResult.status === "fulfilled" ? teamSettingsResult.value : null;
+              if (teamSettingsResult.status === "rejected" && IS_DEV) {
+                console.log("🔥🔥🔥 failed to prefetch team settings", teamSettingsResult.reason);
+              }
+
+              return (
+                <SettingsPage
+                  initialSession={{
+                    user: {
+                      name: ctx.session.user?.name ?? null,
+                      email: ctx.session.user?.email ?? null,
+                    },
+                    team: {
+                      id: sessionTeam?.id ?? ctx.team.id,
+                      name: sessionTeam?.name ?? ctx.team.name ?? null,
+                      external_id: sessionTeam?.external_id ?? ctx.team.external_id ?? null,
+                    },
+                    role: ctx.user_role,
+                    timezone: initialTimezone,
+                    userSites: initialUserSites,
+                  }}
+                  initialCurrentSite={initialCurrentSite
+                    ? {
+                      id: initialCurrentSite.site_id,
+                      name: initialCurrentSite.name,
+                      tag_id: initialCurrentSite.tag_id,
+                    }
+                    : null}
+                  initialSites={toolbarState.initialSites}
+                  initialTeamSettings={initialTeamSettings}
+                />
+              );
+            },
+          ]),
+          appRoute("/dashboard/explore", [
+            checkIfTeamSetupSites,
+            ({ ctx }) => {
+              const toolbarState = getInitialToolbarState(ctx);
+              return (
+                <ExplorePage
+                  initialSites={toolbarState.initialSites}
+                  initialSiteId={toolbarState.initialSiteId}
+                />
+              );
+            },
+          ]),
+          ...(eventsEnabled
+            ? [
+              appRoute("/admin/events", [
+                ({ request }) => {
+                  return Response.redirect(new URL("/dashboard/events", request.url).toString(), 308);
+                },
+              ]),
+            ]
+            : []),
+          appRoute("/new-site", [
+            ({ request }) => {
+              return Response.redirect(new URL("/dashboard/new-site", request.url).toString(), 308);
+            },
+          ]),
+          appRoute("/settings", [
+            ({ request }) => {
+              return Response.redirect(new URL("/dashboard/settings", request.url).toString(), 308);
+            },
+          ]),
+          appRoute("/explore", [
+            ({ request }) => {
+              return Response.redirect(new URL("/dashboard/explore", request.url).toString(), 308);
+            },
+          ]),
+        ])]
+        : []),
+
+    ]),
+  ]);
 
   return {
     fetch: app.fetch,

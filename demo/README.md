@@ -48,4 +48,4 @@ bun run dev
 
 - `alchemy.run.ts` supports deterministic resource naming (`LYTX_RESOURCE_*`) and optional app/tracking domains (`LYTX_APP_DOMAIN`, `LYTX_TRACKING_DOMAIN`).
 - Modular feature flags (`LYTX_FEATURE_*`) default to enabled in `alchemy.run.ts` when unset.
-- `src/worker.tsx` uses `createLytxApp(...)`, including optional tracking route prefix via `tagRoutes.pathPrefix`.
+- `src/worker.tsx` uses `createLytxApp(...)`, including optional tracking route prefix via `trackingRoutePrefix`.

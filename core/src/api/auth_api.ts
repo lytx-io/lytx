@@ -1,6 +1,6 @@
 import { route, prefix } from "rwsdk/router";
 import { env } from "cloudflare:workers";
-import { auth } from "@lib/auth";
+import { getAuth } from "@lib/auth";
 import { d1_client } from "@db/d1/client";
 import { team_member, user as userTable } from "@db/d1/schema";
 import { getSitesForUser } from "@db/d1/sites";
@@ -113,6 +113,7 @@ export const resendVerificationEmailRoute = route(
         }),
       });
 
+      const auth = getAuth();
       const proxyResponse = await auth.handler(proxyRequest);
 
       // Avoid account enumeration: always return 200 for common failures.

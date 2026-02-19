@@ -1,44 +1,139 @@
 import { d1_client } from "@db/d1/client";
 import { team_member, team, sites, siteEvents, invited_user, type SiteInsert } from "@db/d1/schema";
 import { createId } from "@paralleldrive/cuid2";
-import { and, count, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, count, eq, gte, lte } from "drizzle-orm";
 import type { WebEvent } from "@/templates/trackWebEvents";
 import type { AuthUserSession } from "@lib/auth";
 import { DashboardOptions } from "@db/types";
 import { IS_DEV } from "rwsdk/constants";
 
 export async function createNewAccount(user: AuthUserSession["user"]) {
+	const normalized_email = user.email.trim().toLowerCase();
 
-	//PERF: Check if user has been invited to a team
-	const invited = await d1_client
+	const [pending_invite] = await d1_client
 		.select()
 		.from(invited_user)
-		.where(
-			eq(invited_user.email, user.email)
-		);
-	if (invited.length > 0) {
-		const [teamMember] = await d1_client.insert(team_member).values({
-			team_id: invited[0].team_id,
-			user_id: user.id,
-			role: invited[0].role ?? "editor",
-		}).returning();
-		return { newTeam: null, teamMember };
-	} else {
-		try {
-			const [newTeam] = await d1_client.insert(team).values({
-				created_by: user.id,
-			}).returning();
-			const [teamMember] = await d1_client.insert(team_member).values({
-				team_id: newTeam.id,
-				user_id: user.id,
-				role: "admin",
-			}).returning();
-			return { newTeam, teamMember };
+		.where(and(eq(invited_user.email, normalized_email), eq(invited_user.accepted, false)))
+		.limit(1);
 
-		} catch (e) {
-			if (IS_DEV) console.log('🔥🔥🔥 createNewAccount error', e);
-			return null;
+	if (pending_invite) {
+		const [teamMember] = await d1_client
+			.insert(team_member)
+			.values({
+				team_id: pending_invite.team_id,
+				user_id: user.id,
+				role: pending_invite.role ?? "editor",
+			})
+			.onConflictDoNothing({ target: [team_member.team_id, team_member.user_id] })
+			.returning();
+
+		await d1_client
+			.update(invited_user)
+			.set({ accepted: true })
+			.where(eq(invited_user.id, pending_invite.id));
+
+		if (!teamMember) {
+			const [existingMembership] = await d1_client
+				.select()
+				.from(team_member)
+				.where(
+					and(
+						eq(team_member.team_id, pending_invite.team_id),
+						eq(team_member.user_id, user.id),
+					),
+				)
+				.limit(1);
+
+			return { newTeam: null, teamMember: existingMembership ?? null };
 		}
+
+		return { newTeam: null, teamMember };
+	}
+
+	const [primary_team] = await d1_client
+		.select({ id: team.id })
+		.from(team)
+		.orderBy(asc(team.id))
+		.limit(1);
+
+	if (primary_team) {
+		const [teamMember] = await d1_client
+			.insert(team_member)
+			.values({
+				team_id: primary_team.id,
+				user_id: user.id,
+				role: "viewer",
+			})
+			.onConflictDoNothing({ target: [team_member.team_id, team_member.user_id] })
+			.returning();
+
+		if (teamMember) return { newTeam: null, teamMember };
+
+		const [existingMembership] = await d1_client
+			.select()
+			.from(team_member)
+			.where(
+				and(
+					eq(team_member.team_id, primary_team.id),
+					eq(team_member.user_id, user.id),
+				),
+			)
+			.limit(1);
+
+		return { newTeam: null, teamMember: existingMembership ?? null };
+	}
+
+	try {
+		const [newTeam] = await d1_client
+			.insert(team)
+			.values({ created_by: user.id })
+			.returning();
+
+		const [first_team_now] = await d1_client
+			.select({ id: team.id })
+			.from(team)
+			.orderBy(asc(team.id))
+			.limit(1);
+
+		if (first_team_now && first_team_now.id !== newTeam.id) {
+			await d1_client.delete(team).where(eq(team.id, newTeam.id));
+
+			const [teamMember] = await d1_client
+				.insert(team_member)
+				.values({
+					team_id: first_team_now.id,
+					user_id: user.id,
+					role: "viewer",
+				})
+				.onConflictDoNothing({ target: [team_member.team_id, team_member.user_id] })
+				.returning();
+
+			if (teamMember) return { newTeam: null, teamMember };
+
+			const [existingMembership] = await d1_client
+				.select()
+				.from(team_member)
+				.where(
+					and(
+						eq(team_member.team_id, first_team_now.id),
+						eq(team_member.user_id, user.id),
+					),
+				)
+				.limit(1);
+
+			return { newTeam: null, teamMember: existingMembership ?? null };
+		}
+
+		const [teamMember] = await d1_client.insert(team_member).values({
+			team_id: newTeam.id,
+			user_id: user.id,
+			role: "admin",
+		}).returning();
+
+		return { newTeam, teamMember };
+	} catch (e) {
+		if (IS_DEV) console.log("🔥🔥🔥 createNewAccount error", e);
+		return null;
 	}
 }
 

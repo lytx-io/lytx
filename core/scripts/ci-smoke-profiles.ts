@@ -14,13 +14,11 @@ function assert(condition: unknown, message: string): asserts condition {
 
 function runBaselineChecks() {
   const config = parseCreateLytxAppConfig({
-    tagRoutes: {
-      dbAdapter: "sqlite",
-      useQueueIngestion: true,
-    },
+    dbAdapter: "sqlite",
+    useQueueIngestion: true,
   });
 
-  assert(config.tagRoutes?.dbAdapter === "sqlite", "baseline: expected sqlite adapter");
+  assert(config.dbAdapter === "sqlite", "baseline: expected sqlite adapter");
 
   const namesA = resolveLytxResourceNames({
     stage: "dev",
@@ -48,19 +46,25 @@ function runCustomizedChecks() {
       askAiEnabled: true,
     },
     tagRoutes: {
-      pathPrefix: "/collect",
       scriptPath: "/lytx.v2.js",
       eventPath: "/trackWebEvent.v2",
-      includeLegacyRoutes: false,
-      dbAdapter: "sqlite",
-      useQueueIngestion: true,
+    },
+    dbAdapter: "sqlite",
+    useQueueIngestion: true,
+    includeLegacyTagRoutes: false,
+    trackingRoutePrefix: "/collect",
+    auth: {
+      socialProviders: {
+        google: false,
+        github: false,
+      },
     },
     startupValidation: {
       requireAiEnvWhenAskAiEnabled: false,
     },
   });
 
-  assert(config.tagRoutes?.pathPrefix === "/collect", "customized: expected pathPrefix to be retained");
+  assert(config.trackingRoutePrefix === "/collect", "customized: expected route prefix to be retained");
 
   const names = resolveLytxResourceNames({
     stage: "prod",

@@ -3,13 +3,23 @@ import { useMemo, useState } from "react";
 import { emailSignUp, resendVerificationEmail, signIn } from "@/app/providers/AuthProvider";
 import { ThemeProvider } from "@/app/providers/ThemeProvider";
 
+type AuthProviders = {
+  google: boolean;
+  github: boolean;
+};
+
+type SignupProps = {
+  authProviders?: AuthProviders;
+  emailPasswordEnabled?: boolean;
+};
+
 type SignupStatus =
   | { type: "idle" }
   | { type: "submitting" }
   | { type: "success"; message: string }
   | { type: "error"; message: string };
 
-export function Signup() {
+export function Signup({ authProviders = { google: true, github: true }, emailPasswordEnabled = true }: SignupProps) {
   const [status, setStatus] = useState<SignupStatus>({ type: "idle" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,9 +28,10 @@ export function Signup() {
   const [pendingProvider, setPendingProvider] = useState<"google" | "github" | null>(null);
 
   const canSubmit = useMemo(() => {
+    if (!emailPasswordEnabled) return false;
     if (status.type === "submitting") return false;
     return Boolean(email.trim()) && Boolean(password) && Boolean(verifyPassword);
-  }, [email, password, verifyPassword, status.type]);
+  }, [emailPasswordEnabled, email, password, verifyPassword, status.type]);
 
   const canResend = useMemo(() => Boolean(email.trim()) && !isResending, [email, isResending]);
 
@@ -52,8 +63,10 @@ export function Signup() {
         </div>
         <div className="h-auto my-4">Register your account</div>
 
-        <div className="flex flex-col gap-3 mb-6 px-4 w-full max-w-[300px]">
-          <button
+        {(authProviders.google || authProviders.github) ? (
+          <div className="flex flex-col gap-3 mb-6 px-4 w-full max-w-[300px]">
+            {authProviders.google ? (
+              <button
             onClick={async () => {
               setPendingProvider("google");
               try {
@@ -80,9 +93,11 @@ export function Signup() {
               </svg>
             )}
             {pendingProvider === "google" ? "Connecting..." : "Continue with Google"}
-          </button>
+              </button>
+            ) : null}
 
-          <button
+            {authProviders.github ? (
+              <button
             onClick={async () => {
               setPendingProvider("github");
               try {
@@ -106,14 +121,18 @@ export function Signup() {
               </svg>
             )}
             {pendingProvider === "github" ? "Connecting..." : "Continue with GitHub"}
-          </button>
+              </button>
+            ) : null}
 
-          <div className="flex items-center my-4">
-            <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
-            <div className="px-4 text-slate-500 dark:text-slate-400 text-sm">or</div>
-            <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
+            {emailPasswordEnabled ? (
+              <div className="flex items-center my-4">
+                <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
+                <div className="px-4 text-slate-500 dark:text-slate-400 text-sm">or</div>
+                <div className="flex-1 border-t border-slate-200 dark:border-slate-700"></div>
+              </div>
+            ) : null}
           </div>
-        </div>
+        ) : null}
 
         {status.type !== "idle" ? (
           <div className="px-4 w-full max-w-[300px] text-sm">
@@ -131,7 +150,8 @@ export function Signup() {
           </div>
         ) : null}
 
-        <form
+        {emailPasswordEnabled ? (
+          <form
           className="flex flex-col mt-2 px-4 gap-4"
           onSubmit={async (event) => {
             event.preventDefault();
@@ -217,7 +237,12 @@ export function Signup() {
               {status.type === "submitting" ? "Creating..." : "Sign Up"}
             </button>
           </div>
-        </form>
+          </form>
+        ) : (
+          <div className="text-sm text-slate-600 dark:text-slate-400 px-4 w-full max-w-[300px]">
+            Email/password signup is disabled for this deployment.
+          </div>
+        )}
 
         {status.type === "success" ? (
           <div className="mt-4 px-4 w-full max-w-[300px] text-sm">

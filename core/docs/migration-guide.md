@@ -36,6 +36,26 @@ When upgrading `@lytx/core`:
 - Replace deep imports with root imports where available.
 - Keep `@lytx/core/worker` usage only if you explicitly accept experimental/unstable surface.
 
+## `createLytxApp` config shape updates
+
+### Previous pattern
+
+- `dbAdapter` and `useQueueIngestion` nested under `tagRoutes`.
+
+### Current pattern
+
+- Use top-level controls for runtime behavior:
+  - `dbAdapter`
+  - `useQueueIngestion`
+  - `includeLegacyTagRoutes`
+  - `trackingRoutePrefix`
+- Keep endpoint path overrides under `tagRoutes` (`scriptPath`, `eventPath`, legacy path overrides).
+
+### Migration
+
+- Move adapter/queue settings from `tagRoutes` to the top level.
+- Keep route-path customization in `tagRoutes`.
+
 ## Worker bootstrap migration (manual wiring -> app factory)
 
 ### Previous pattern
@@ -54,7 +74,8 @@ When upgrading `@lytx/core`:
 import { createLytxApp, SiteDurableObject, SyncDurableObject } from "@lytx/core";
 
 const app = createLytxApp({
-  tagRoutes: { dbAdapter: "sqlite", useQueueIngestion: true },
+  dbAdapter: "sqlite",
+  useQueueIngestion: true,
 });
 
 export { SiteDurableObject, SyncDurableObject };
@@ -88,12 +109,12 @@ export default app;
   - `LYTX_APP_DOMAIN`
   - `LYTX_TRACKING_DOMAIN`
 - Route-prefix support for tracking endpoints:
-  - `createLytxApp({ tagRoutes: { pathPrefix: "/collect" } })`
+  - `createLytxApp({ trackingRoutePrefix: "/collect" })`
 
 ### Migration
 
 - Move domain customization to env/config in `alchemy.run.ts`.
-- Use `tagRoutes.pathPrefix` and route path options instead of editing core route source.
+- Use `trackingRoutePrefix` and route path options instead of editing core route source.
 
 ## Feature toggles migration
 
