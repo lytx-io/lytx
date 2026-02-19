@@ -28,6 +28,12 @@ One-command scaffold + provision:
 bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare --provision --stage dev --yes
 ```
 
+Notes:
+
+- The CLI now writes `.env` from `.env.example` automatically.
+- Use `--interactive` to fill domains, sender, API keys/secrets, and feature flags.
+- Use `--no-env` to skip writing `.env`.
+
 ## Current template
 
 - `cloudflare` - RedwoodSDK + Alchemy + `lytx` app-factory starter

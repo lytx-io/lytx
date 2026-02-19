@@ -28,6 +28,8 @@ Interactive setup + defaults:
 bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare --interactive
 ```
 
+By default the CLI writes `.env` from `.env.example`; add `--no-env` to skip.
+
 Scaffold and provision in one command:
 
 ```bash

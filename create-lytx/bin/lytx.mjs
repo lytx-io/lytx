@@ -21,6 +21,7 @@ Examples:
 Options:
   --force                  Scaffold into non-empty target directory
   --interactive            Prompt for optional setup values
+  --no-env                 Skip writing .env from .env.example
   --app-domain <domain>    Default app domain for .env.example
   --tracking-domain <d>    Default tracking domain for .env.example
   --email-from <email>     Default sender address for .env.example
@@ -51,6 +52,7 @@ function parseArgs(argv) {
     projectNameProvided: false,
     force: false,
     interactive: false,
+    createEnv: true,
     appDomain: "",
     appDomainProvided: false,
     trackingDomain: "",
@@ -86,6 +88,11 @@ function parseArgs(argv) {
 
     if (token === "--interactive") {
       args.interactive = true;
+      continue;
+    }
+
+    if (token === "--no-env") {
+      args.createEnv = false;
       continue;
     }
 
@@ -224,6 +231,76 @@ function parsePromptBoolean(answer, defaultValue) {
   if (["y", "yes", "true", "1"].includes(normalized)) return true;
   if (["n", "no", "false", "0"].includes(normalized)) return false;
   throw new Error(`Invalid boolean answer: ${answer}`);
+}
+
+function parseEnvBoolean(value, defaultValue) {
+  const normalized = value.trim().toLowerCase();
+  if (normalized.length === 0) return defaultValue;
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function toEnvMap(content) {
+  const map = new Map();
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    if (line.trim().length === 0 || line.trimStart().startsWith("#")) continue;
+    const separator = line.indexOf("=");
+    if (separator <= 0) continue;
+    const key = line.slice(0, separator).trim();
+    const value = line.slice(separator + 1);
+    if (key.length > 0) {
+      map.set(key, value);
+    }
+  }
+  return map;
+}
+
+function updateEnvContent(content, updates) {
+  const lines = content.split(/\r?\n/);
+  const seen = new Set();
+  const updatedLines = lines.map((line) => {
+    if (line.trim().length === 0 || line.trimStart().startsWith("#")) {
+      return line;
+    }
+
+    const separator = line.indexOf("=");
+    if (separator <= 0) {
+      return line;
+    }
+
+    const key = line.slice(0, separator).trim();
+    if (!Object.hasOwn(updates, key)) {
+      return line;
+    }
+
+    seen.add(key);
+    return `${key}=${updates[key] ?? ""}`;
+  });
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (seen.has(key)) continue;
+    updatedLines.push(`${key}=${value ?? ""}`);
+  }
+
+  return `${updatedLines.join("\n").replace(/\n+$/g, "")}\n`;
+}
+
+async function promptEnvValue(rl, label, currentValue) {
+  const displayDefault = currentValue && currentValue.length > 0 ? ` (${currentValue})` : "";
+  const answer = await rl.question(`${label}${displayDefault}: `);
+  const value = answer.trim();
+  if (value.length === 0) {
+    return currentValue;
+  }
+  return value;
+}
+
+async function promptEnvBoolean(rl, label, currentValue) {
+  const defaultLabel = currentValue ? "Y/n" : "y/N";
+  const answer = await rl.question(`${label} (${defaultLabel}): `);
+  return parsePromptBoolean(answer, currentValue);
 }
 
 async function promptMissingValues(args, templates) {
@@ -444,6 +521,83 @@ async function runCommand(command, commandArgs, cwd) {
   });
 }
 
+async function createAndPopulateEnvFile(args, targetPath, projectName) {
+  if (!args.createEnv) {
+    return false;
+  }
+
+  const envExamplePath = path.join(targetPath, ".env.example");
+  const envPath = path.join(targetPath, ".env");
+  let envContent = await fs.readFile(envExamplePath, "utf8");
+
+  const baseUpdates = {
+    LYTX_APP_NAME: projectName,
+    LYTX_APP_DOMAIN: args.appDomain,
+    LYTX_TRACKING_DOMAIN: args.trackingDomain,
+    LYTX_AUTH_GOOGLE: boolToEnv(args.authGoogle),
+    LYTX_AUTH_GITHUB: boolToEnv(args.authGithub),
+    EMAIL_FROM: args.emailFrom,
+  };
+
+  envContent = updateEnvContent(envContent, baseUpdates);
+
+  const isInteractiveTerminal = process.stdin.isTTY && process.stdout.isTTY;
+  if (args.interactive && isInteractiveTerminal) {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      let envMap = toEnvMap(envContent);
+      const configureSecrets = await rl.question("Fill API keys and secrets now? (y/N): ");
+      if (parsePromptBoolean(configureSecrets, false)) {
+        const secretKeys = [
+          "BETTER_AUTH_SECRET",
+          "ENCRYPTION_KEY",
+          "SEED_DATA_SECRET",
+          "RESEND_API_KEY",
+          "GITHUB_CLIENT_ID",
+          "GITHUB_CLIENT_SECRET",
+          "GOOGLE_CLIENT_ID",
+          "GOOGLE_CLIENT_SECRET",
+          "AI_API_KEY",
+          "AI_BASE_URL",
+          "AI_MODEL",
+          "AI_DAILY_TOKEN_LIMIT",
+        ];
+
+        for (const key of secretKeys) {
+          const value = await promptEnvValue(rl, key, envMap.get(key) ?? "");
+          envMap.set(key, value);
+        }
+      }
+
+      const configureFlags = await rl.question("Customize feature flags now? (y/N): ");
+      if (parsePromptBoolean(configureFlags, false)) {
+        const flagKeys = [
+          "REPORT_BUILDER",
+          "ASK_AI",
+          "LYTX_FEATURE_DASHBOARD",
+          "LYTX_FEATURE_EVENTS",
+          "LYTX_FEATURE_AUTH",
+          "LYTX_FEATURE_AI",
+          "LYTX_FEATURE_TAG_SCRIPT",
+        ];
+
+        for (const key of flagKeys) {
+          const current = parseEnvBoolean(envMap.get(key) ?? "", key !== "REPORT_BUILDER");
+          const enabled = await promptEnvBoolean(rl, `Enable ${key}`, current);
+          envMap.set(key, boolToEnv(enabled));
+        }
+      }
+
+      envContent = updateEnvContent(envContent, Object.fromEntries(envMap.entries()));
+    } finally {
+      rl.close();
+    }
+  }
+
+  await fs.writeFile(envPath, envContent, "utf8");
+  return true;
+}
+
 async function confirmProvision(args, targetPath) {
   if (args.yes) return;
 
@@ -505,6 +659,7 @@ async function run() {
     "__LYTX_AUTH_GITHUB__": boolToEnv(args.authGithub),
   });
   await renameTemplateSuffixes(targetPath);
+  const envCreated = await createAndPopulateEnvFile(args, targetPath, projectName);
 
   if (args.provision) {
     await confirmProvision(args, targetPath);
@@ -520,7 +675,11 @@ async function run() {
   if (relativeTarget !== ".") {
     console.log(`  cd ${relativeTarget}`);
   }
-  console.log("  cp .env.example .env");
+  if (envCreated) {
+    console.log("  # .env created from .env.example");
+  } else {
+    console.log("  cp .env.example .env");
+  }
   console.log("  bun install");
   console.log("  bun run dev");
 
