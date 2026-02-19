@@ -2,9 +2,18 @@ import { createLytxApp, SiteDurableObject, SyncDurableObject } from "@lytx/core"
 
 export { SiteDurableObject, SyncDurableObject };
 
+const googleAuthEnabled = (process.env.LYTX_AUTH_GOOGLE ?? "false") === "true";
+const githubAuthEnabled = (process.env.LYTX_AUTH_GITHUB ?? "false") === "true";
+
 const app = createLytxApp({
   db: {
     dbAdapter: "sqlite",
+  },
+  auth: {
+    socialProviders: {
+      google: googleAuthEnabled,
+      github: githubAuthEnabled,
+    },
   },
 });
 

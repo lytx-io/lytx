@@ -22,6 +22,18 @@ Run locally from this repo:
 bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare
 ```
 
+Interactive setup + defaults:
+
+```bash
+bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare --interactive
+```
+
+Scaffold and provision in one command:
+
+```bash
+bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare --provision --stage dev --yes
+```
+
 Planned published usage:
 
 ```bash
