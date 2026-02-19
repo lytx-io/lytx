@@ -73,6 +73,7 @@ export type {
   LytxDbAdapter,
   LytxEventStore,
   LytxDbConfig,
+  LytxAiConfig,
 } from "./src/config/createLytxAppConfig";
 export { DEFAULT_LYTX_RESOURCE_NAMES, resolveLytxResourceNames } from "./src/config/resourceNames";
 export type { LytxResourceNames, LytxResourceNamingOptions, LytxResourceStagePosition } from "./src/config/resourceNames";

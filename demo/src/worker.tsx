@@ -7,6 +7,11 @@ const app = createLytxApp({
   db: {
     dbAdapter: "sqlite",
   },
+  ai: {
+    provider: process.env.AI_PROVIDER,
+    model: process.env.AI_MODEL,
+    baseURL: process.env.AI_BASE_URL,
+  },
 });
 
 export default app;

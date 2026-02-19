@@ -51,6 +51,7 @@ export type {
   LytxDbAdapter,
   LytxEventStore,
   LytxDbConfig,
+  LytxAiConfig,
 } from "./src/config/createLytxAppConfig";
 export function createLytxApp(
   config?: CreateLytxAppConfig,

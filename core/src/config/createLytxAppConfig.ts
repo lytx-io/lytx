@@ -57,6 +57,17 @@ const domainSchema = z
 
 const envKeySchema = z.string().trim().min(1, "Env var value cannot be empty");
 
+const aiRuntimeConfigSchema = z
+  .object({
+    provider: envKeySchema.optional(),
+    baseURL: z.string().trim().url("ai.baseURL must be a valid URL").optional(),
+    model: envKeySchema.optional(),
+    apiKey: envKeySchema.optional(),
+  })
+  .strict();
+
+export type LytxAiConfig = z.input<typeof aiRuntimeConfigSchema>;
+
 const createLytxAppConfigSchema = z
   .object({
     enableRequestLogging: z.boolean().optional(),
@@ -65,6 +76,7 @@ const createLytxAppConfigSchema = z
     useQueueIngestion: z.boolean().optional(),
     includeLegacyTagRoutes: z.boolean().optional(),
     trackingRoutePrefix: routePrefixSchema.optional(),
+    ai: aiRuntimeConfigSchema.optional(),
     auth: z
       .object({
         emailPasswordEnabled: z.boolean().optional(),

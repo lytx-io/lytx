@@ -165,10 +165,10 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   setAuthRuntimeConfig(parsed_config.auth);
   setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
   setAiRuntimeOverrides({
-    apiKey: parsed_config.env?.AI_API_KEY,
-    model: parsed_config.env?.AI_MODEL,
-    baseURL: parsed_config.env?.AI_BASE_URL,
-    provider: parsed_config.env?.AI_PROVIDER,
+    apiKey: parsed_config.ai?.apiKey ?? parsed_config.env?.AI_API_KEY,
+    model: parsed_config.ai?.model ?? parsed_config.env?.AI_MODEL,
+    baseURL: parsed_config.ai?.baseURL ?? parsed_config.env?.AI_BASE_URL,
+    provider: parsed_config.ai?.provider ?? parsed_config.env?.AI_PROVIDER,
   });
   const authProviders = getAuthProviderAvailability();
   const emailPasswordEnabled = parsed_config.auth?.emailPasswordEnabled ?? true;
