@@ -116,7 +116,7 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 - Consumers can include/exclude route groups and pages by composing exports into their own worker.
 - Consumers can layer additional middleware before/after provided middleware.
 - `createLytxApp({ trackingRoutePrefix })` is the supported route-prefix mechanism for tracking/tag endpoints.
-- `createLytxApp` supports top-level runtime controls for `dbAdapter`, `useQueueIngestion`, and `includeLegacyTagRoutes`.
+- `createLytxApp` supports typed DB runtime controls via `db.dbAdapter` and `db.eventStore` (`durable_objects` supported), plus `useQueueIngestion` and `includeLegacyTagRoutes`.
 - `createLytxApp` supports auth-mode controls via `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, and `auth.socialProviders.*`.
 
 ## Deprecation and compatibility policy

@@ -44,8 +44,9 @@ When upgrading `@lytx/core`:
 
 ### Current pattern
 
-- Use top-level controls for runtime behavior:
-  - `dbAdapter`
+- Use typed DB controls for runtime behavior:
+  - `db.dbAdapter`
+  - `db.eventStore`
   - `useQueueIngestion`
   - `includeLegacyTagRoutes`
   - `trackingRoutePrefix`
@@ -53,7 +54,7 @@ When upgrading `@lytx/core`:
 
 ### Migration
 
-- Move adapter/queue settings from `tagRoutes` to the top level.
+- Move adapter/event-store settings from `tagRoutes` to `db`.
 - Keep route-path customization in `tagRoutes`.
 
 ## Worker bootstrap migration (manual wiring -> app factory)
@@ -74,8 +75,10 @@ When upgrading `@lytx/core`:
 import { createLytxApp, SiteDurableObject, SyncDurableObject } from "@lytx/core";
 
 const app = createLytxApp({
-  dbAdapter: "sqlite",
-  useQueueIngestion: true,
+  db: {
+    dbAdapter: "sqlite",
+    eventStore: "durable_objects",
+  },
 });
 
 export { SiteDurableObject, SyncDurableObject };

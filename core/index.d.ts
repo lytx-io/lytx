@@ -46,7 +46,12 @@ export { checkIfTeamSetupSites, onlyAllowGetPost } from "./src/utilities/route_i
 export { SyncDurableObject } from "./src/session/durableObject";
 export { SiteDurableObject } from "./db/durable/siteDurableObject";
 
-export type { CreateLytxAppConfig } from "./src/config/createLytxAppConfig";
+export type {
+  CreateLytxAppConfig,
+  LytxDbAdapter,
+  LytxEventStore,
+  LytxDbConfig,
+} from "./src/config/createLytxAppConfig";
 export function createLytxApp(
   config?: CreateLytxAppConfig,
 ): ReturnType<typeof import("./src/worker").createLytxApp>;

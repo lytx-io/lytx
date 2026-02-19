@@ -69,7 +69,7 @@ Domain and naming options:
 
 - tracking routes: `trackingRoutePrefix`
 - explicit paths: `tagRoutes.scriptPath`, `tagRoutes.eventPath`, and legacy-path options
-- runtime adapter/ingestion controls: `dbAdapter`, `useQueueIngestion`
+- runtime adapter/ingestion controls: `db.dbAdapter`, `db.eventStore`, `useQueueIngestion`
 - auth controls: `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`
 
 Example:
@@ -78,8 +78,10 @@ Example:
 import { createLytxApp } from "@lytx/core";
 
 export default createLytxApp({
-  dbAdapter: "sqlite",
-  useQueueIngestion: true,
+  db: {
+    dbAdapter: "sqlite",
+    eventStore: "durable_objects",
+  },
   trackingRoutePrefix: "/collect",
   auth: {
     socialProviders: {

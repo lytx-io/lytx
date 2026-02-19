@@ -45,8 +45,10 @@ import type { ExportedHandler } from "cloudflare:workers";
 import { createLytxApp, SyncDurableObject, SiteDurableObject } from "@lytx/core";
 
 const app = createLytxApp({
-  dbAdapter: "sqlite",
-  useQueueIngestion: true,
+  db: {
+    dbAdapter: "sqlite",
+    eventStore: "durable_objects",
+  },
   auth: {
     socialProviders: {
       google: true,
@@ -63,7 +65,8 @@ export default app satisfies ExportedHandler<Env>;
 `createLytxApp` supports:
 
 - `features.dashboard`, `features.events`, `features.auth`, `features.ai`, `features.tagScript`
-- `dbAdapter` (`"sqlite" | "postgres" | "singlestore" | "analytics_engine"`)
+- `db.dbAdapter` (`"sqlite" | "postgres" | "singlestore" | "analytics_engine"`)
+- `db.eventStore` (`db.dbAdapter` values + `"durable_objects"`)
 - `useQueueIngestion` (`true`/`false`)
 - `includeLegacyTagRoutes` (`true` by default for `/lytx.js` and `/trackWebEvent` compatibility)
 - `trackingRoutePrefix` (prefix all tracking routes, e.g. `/collect`)

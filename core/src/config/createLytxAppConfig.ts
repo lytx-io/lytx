@@ -3,7 +3,21 @@ import { z } from "zod";
 export const CREATE_LYTX_APP_CONFIG_DOC_URL =
   "https://github.com/lytx-io/kit/blob/master/core/docs/oss-contract.md#supported-extension-and-customization-points";
 
-const dbAdapterSchema = z.enum(["sqlite", "postgres", "singlestore", "analytics_engine"]);
+const dbAdapterValues = ["sqlite", "postgres", "singlestore", "analytics_engine"] as const;
+
+const dbAdapterSchema = z.enum(dbAdapterValues);
+const eventStoreSchema = z.enum([...dbAdapterValues, "durable_objects"] as const);
+
+const dbConfigSchema = z
+  .object({
+    dbAdapter: dbAdapterSchema.optional(),
+    eventStore: eventStoreSchema.optional(),
+  })
+  .strict();
+
+export type LytxDbAdapter = z.infer<typeof dbAdapterSchema>;
+export type LytxEventStore = z.infer<typeof eventStoreSchema>;
+export type LytxDbConfig = z.input<typeof dbConfigSchema>;
 
 const routePathSchema = z
   .string()
@@ -46,6 +60,7 @@ const envKeySchema = z.string().trim().min(1, "Env var value cannot be empty");
 const createLytxAppConfigSchema = z
   .object({
     enableRequestLogging: z.boolean().optional(),
+    db: dbConfigSchema.optional(),
     dbAdapter: dbAdapterSchema.optional(),
     useQueueIngestion: z.boolean().optional(),
     includeLegacyTagRoutes: z.boolean().optional(),
@@ -125,6 +140,14 @@ const createLytxAppConfigSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.db?.dbAdapter && value.dbAdapter && value.db.dbAdapter !== value.dbAdapter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["db", "dbAdapter"],
+        message: "db.dbAdapter must match top-level dbAdapter when both are provided",
+      });
+    }
+
     if (value.features?.dashboard === true && value.features?.auth === false) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
