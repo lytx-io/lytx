@@ -1,3 +1,5 @@
+import type { CreateLytxAppConfig } from "./src/config/createLytxAppConfig";
+
 export { Signup } from "./src/pages/Signup";
 export { Login } from "./src/pages/Login";
 export { VerifyEmail } from "./src/pages/VerifyEmail";
@@ -44,8 +46,10 @@ export { checkIfTeamSetupSites, onlyAllowGetPost } from "./src/utilities/route_i
 export { SyncDurableObject } from "./src/session/durableObject";
 export { SiteDurableObject } from "./db/durable/siteDurableObject";
 
-export { createLytxApp } from "./src/worker";
-export type { CreateLytxAppConfig } from "./src/worker";
+export type { CreateLytxAppConfig } from "./src/config/createLytxAppConfig";
+export function createLytxApp(
+  config?: CreateLytxAppConfig,
+): ReturnType<typeof import("./src/worker").createLytxApp>;
 export { DEFAULT_LYTX_RESOURCE_NAMES, resolveLytxResourceNames } from "./src/config/resourceNames";
 export type { LytxResourceNames, LytxResourceNamingOptions, LytxResourceStagePosition } from "./src/config/resourceNames";
 

@@ -68,7 +68,7 @@ export { SiteDurableObject } from "./db/durable/siteDurableObject";
 
 // ── App factory ─────────────────────────────────────────────────────────────
 export { createLytxApp } from "./src/worker";
-export type { CreateLytxAppConfig } from "./src/worker";
+export type { CreateLytxAppConfig } from "./src/config/createLytxAppConfig";
 export { DEFAULT_LYTX_RESOURCE_NAMES, resolveLytxResourceNames } from "./src/config/resourceNames";
 export type { LytxResourceNames, LytxResourceNamingOptions, LytxResourceStagePosition } from "./src/config/resourceNames";
 

@@ -126,6 +126,13 @@ Inspired by [TigerStyle](https://github.com/tigerbeetle/tigerbeetle/blob/main/do
 - Explain *why* the code exists, not *what* it does
 - Document non-obvious thresholds, timing values, protocol details
 
+## TypeScript Type Safety
+
+- Do not weaken TypeScript settings to silence errors (`any`, `unknown`, disabled strict rules, or broad tsconfig relaxations).
+- Prefer concrete domain types for all shapes; if data is untrusted, validate at the boundary and narrow to known types.
+- Do not invent placeholder/public types when a real source type exists; import and reuse canonical types.
+- Keep library consumer types importable from package root exports (for example `@lytx/core`) and ensure declaration files stay aligned with runtime exports.
+
 ## Dev Server Policy
 
 - NEVER run local dev servers (`bun alchemy dev`, `bun run dev`, `vite dev`, `wrangler dev`, etc.).
