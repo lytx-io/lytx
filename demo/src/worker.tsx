@@ -5,7 +5,6 @@ export { SyncDurableObject, SiteDurableObject };
 const app = createLytxApp({
   db: {
     dbAdapter: "sqlite",
-    eventStore: "durable_objects",
   },
 });
 

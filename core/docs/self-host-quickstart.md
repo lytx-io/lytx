@@ -69,7 +69,7 @@ Domain and naming options:
 
 - tracking routes: `trackingRoutePrefix`
 - explicit paths: `tagRoutes.scriptPath`, `tagRoutes.eventPath`, and legacy-path options
-- runtime adapter/ingestion controls: `db.dbAdapter`, `db.eventStore`, `useQueueIngestion`
+- runtime adapter/ingestion controls: `db.dbAdapter`, `db.eventStore` (defaults to `durable_objects`), `useQueueIngestion`
 - auth controls: `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`
 
 Example:
