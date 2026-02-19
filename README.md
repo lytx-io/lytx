@@ -6,10 +6,42 @@ Open-source web analytics platform built on [RedwoodSDK](https://rwsdk.com) and 
 
 - **`core/`** — The `@lytx/core` library. Contains all pages, components, API routes, middleware, and Durable Objects for the analytics platform.
 - **`cli/`** — CLI tooling (setup wizard, data import scripts).
+- **`create-lytx/`** — Draft app scaffolder and starter templates (including Cloudflare starter).
 
 ## Getting Started
 
 See [core/README.md](core/README.md) for full documentation on how to integrate Lytx into your Redwood app.
+
+## App Scaffolder (Draft)
+
+The monorepo now includes a draft scaffolder package at `create-lytx/` with a maintained Cloudflare starter template.
+
+Run locally from this repo:
+
+```bash
+bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare
+```
+
+Planned published usage:
+
+```bash
+bunx create-lytx my-analytics --template cloudflare
+```
+
+Generated projects are aligned with the `demo/` setup pattern and include:
+
+- `alchemy.run.ts` wired to `@lytx/core/resource-names`
+- `src/worker.tsx` using `createLytxApp(...)`
+- Redwood + Vite starter files and `.env.example`
+
+After scaffolding:
+
+```bash
+cd my-analytics
+cp .env.example .env
+bun install
+bun run dev
+```
 
 ## Governance
 

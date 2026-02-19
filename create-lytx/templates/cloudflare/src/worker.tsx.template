@@ -1,0 +1,11 @@
+import { createLytxApp, SiteDurableObject, SyncDurableObject } from "@lytx/core";
+
+export { SiteDurableObject, SyncDurableObject };
+
+const app = createLytxApp({
+  db: {
+    dbAdapter: "sqlite",
+  },
+});
+
+export default app;

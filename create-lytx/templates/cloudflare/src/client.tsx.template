@@ -1,0 +1,7 @@
+import { initClient, initClientNavigation } from "rwsdk/client";
+
+const { handleResponse, onHydrated } = initClientNavigation({
+  scrollBehavior: "instant",
+});
+
+initClient({ handleResponse, onHydrated });

@@ -71,6 +71,14 @@
         "wrangler": "^4.59.3",
       },
     },
+    "create-lytx": {
+      "name": "create-lytx",
+      "version": "0.0.0-draft",
+      "bin": {
+        "create-lytx": "./bin/lytx.mjs",
+        "lytx": "./bin/lytx.mjs",
+      },
+    },
     "demo": {
       "name": "demo",
       "dependencies": {
@@ -967,6 +975,8 @@
     "core-util-is": ["core-util-is@1.0.3", "", {}, "sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ=="],
 
     "country-flag-icons": ["country-flag-icons@1.6.13", "", {}, "sha512-mR9GoTXtj3zAXoZXBkb3J4QvyDllFEPtEfZvHb9U23TAHYXfkJyP03pRtZiR0spxo6Ibja3R/hn6a68T4LHBuA=="],
+
+    "create-lytx": ["create-lytx@workspace:create-lytx"],
 
     "cross-spawn": ["cross-spawn@7.0.6", "", { "dependencies": { "path-key": "^3.1.0", "shebang-command": "^2.0.0", "which": "^2.0.1" } }, "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA=="],
 

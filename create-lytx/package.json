@@ -1,0 +1,18 @@
+{
+  "name": "create-lytx",
+  "version": "0.0.0-draft",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "create-lytx": "./bin/lytx.mjs",
+    "lytx": "./bin/lytx.mjs"
+  },
+  "files": [
+    "bin/",
+    "templates/",
+    "README.md"
+  ],
+  "scripts": {
+    "lint": "oxlint ."
+  }
+}
