@@ -11,12 +11,12 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lytx-io/kit.git",
+    "url": "https://github.com/lytx-io/lytx.git",
     "directory": "core"
   },
-  "homepage": "https://github.com/lytx-io/kit#readme",
+  "homepage": "https://github.com/lytx-io/lytx#readme",
   "bugs": {
-    "url": "https://github.com/lytx-io/kit/issues"
+    "url": "https://github.com/lytx-io/lytx/issues"
   },
   "keywords": [
     "analytics",

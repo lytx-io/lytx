@@ -29,5 +29,5 @@ bun alchemy deploy --stage dev
 
 ## Core Docs
 
-- `lytx` README: https://github.com/lytx-io/kit/tree/master/core
-- Self-host guide: https://github.com/lytx-io/kit/blob/master/core/docs/self-host-quickstart.md
+- `lytx` README: https://github.com/lytx-io/lytx/tree/master/core
+- Self-host guide: https://github.com/lytx-io/lytx/blob/master/core/docs/self-host-quickstart.md
