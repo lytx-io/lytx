@@ -32,6 +32,7 @@ Notes:
 
 - The CLI now writes `.env` from `.env.example` automatically.
 - Use `--interactive` to fill domains, sender, API keys/secrets, and feature flags.
+- Social provider keys are prompted only for providers you enabled.
 - Use `--no-env` to skip writing `.env`.
 
 ## Current template

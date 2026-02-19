@@ -553,15 +553,19 @@ async function createAndPopulateEnvFile(args, targetPath, projectName) {
           "ENCRYPTION_KEY",
           "SEED_DATA_SECRET",
           "RESEND_API_KEY",
-          "GITHUB_CLIENT_ID",
-          "GITHUB_CLIENT_SECRET",
-          "GOOGLE_CLIENT_ID",
-          "GOOGLE_CLIENT_SECRET",
           "AI_API_KEY",
           "AI_BASE_URL",
           "AI_MODEL",
           "AI_DAILY_TOKEN_LIMIT",
         ];
+
+        if (args.authGithub) {
+          secretKeys.push("GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET");
+        }
+
+        if (args.authGoogle) {
+          secretKeys.push("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET");
+        }
 
         for (const key of secretKeys) {
           const value = await promptEnvValue(rl, key, envMap.get(key) ?? "");
