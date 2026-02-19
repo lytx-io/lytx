@@ -8,7 +8,7 @@ import alchemy from "alchemy/cloudflare/redwood";
 const require = createRequire(import.meta.url);
 const VIRTUAL_MODULE_ID = "virtual:lytx-pixel-raw";
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_MODULE_ID}`;
-const coreRoot = path.dirname(require.resolve("@lytx/core/package.json"));
+const coreRoot = path.dirname(require.resolve("lytx/package.json"));
 
 function lytxPixelBundlePlugin(): Plugin {
   let cachedFull: string | null = null;

@@ -24,4 +24,4 @@ Include:
 
 ## Supported versions
 
-Security fixes target currently supported `@lytx/core` releases according to `core/docs/release-policy.md`.
+Security fixes target currently supported `lytx` releases according to `core/docs/release-policy.md`.

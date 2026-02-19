@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@lytx/core",
+      "name": "lytx",
       "dependencies": {
         "@ai-sdk/openai-compatible": "^2.0.26",
         "@ai-sdk/react": "^3.0.70",

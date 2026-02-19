@@ -1,8 +1,11 @@
 {
-  "name": "@lytx/core",
+  "name": "lytx",
   "version": "0.3.0",
   "private": false,
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "types": "./index.d.ts",
   "main": "index.ts",
   "type": "module",
@@ -12,6 +15,15 @@
     "directory": "core"
   },
   "homepage": "https://github.com/lytx-io/kit#readme",
+  "bugs": {
+    "url": "https://github.com/lytx-io/kit/issues"
+  },
+  "keywords": [
+    "analytics",
+    "cloudflare",
+    "redwoodsdk",
+    "web-analytics"
+  ],
   "files": [
     "src/",
     "lib/",

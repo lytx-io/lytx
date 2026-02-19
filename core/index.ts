@@ -4,7 +4,7 @@
 // Re-exports every building block from the analytics platform so consumers
 // can import only what they need and compose their own worker / app.
 //
-//   import { DashboardPage, eventsApi, authMiddleware } from "@lytx/core";
+//   import { DashboardPage, eventsApi, authMiddleware } from "lytx";
 //
 // The package does not export one static fetch/queue handler singleton.
 // Consumers can either call `createLytxApp(...)` or wire up their own

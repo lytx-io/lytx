@@ -11,12 +11,12 @@ const DEFAULT_TEMPLATE = "cloudflare";
 const DEFAULT_PROVISION_STAGE = "dev";
 
 const usage = `Usage:
-  lytx [target-dir] [--template cloudflare] [--name my-app] [options]
+  create-lytx [target-dir] [--template cloudflare] [--name my-app] [options]
 
 Examples:
-  lytx my-app --template cloudflare
-  lytx . --template cloudflare --name my-app
-  lytx my-app --template cloudflare --provision --yes
+  create-lytx my-app --template cloudflare
+  create-lytx . --template cloudflare --name my-app
+  create-lytx my-app --template cloudflare --provision --yes
 
 Options:
   --force                  Scaffold into non-empty target directory

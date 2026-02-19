@@ -1,6 +1,6 @@
-# `@lytx/core` Upgrade and Migration Guide
+# `lytx` Upgrade and Migration Guide
 
-This guide covers migration steps for behavior and API changes across `@lytx/core` releases.
+This guide covers migration steps for behavior and API changes across `lytx` releases.
 
 Use it together with:
 
@@ -9,7 +9,7 @@ Use it together with:
 
 ## Migration checklist
 
-When upgrading `@lytx/core`:
+When upgrading `lytx`:
 
 1. Read release notes/changelog for your target version.
 2. Compare your imports against the OSS contract (remove deep/internal imports).
@@ -19,22 +19,42 @@ When upgrading `@lytx/core`:
 
 ## Breaking/behavioral migration notes
 
+## Package rename (`@lytx/core` -> `lytx`)
+
+### Previous pattern
+
+- Install: `bun add @lytx/core`
+- Imports: `from "@lytx/core"`
+- Naming helper: `from "@lytx/core/resource-names"`
+
+### Current pattern
+
+- Install: `bun add lytx`
+- Imports: `from "lytx"`
+- Naming helper: `from "lytx/resource-names"`
+
+### Migration
+
+- Replace package dependency name in your `package.json`.
+- Replace all import paths from `@lytx/core` to `lytx` (and subpaths accordingly).
+- Re-run install and typecheck after updating imports.
+
 ## Import path normalization (legacy deep imports)
 
 ### Previous pattern
 
-- Deep imports such as `@lytx/core/db/durable/siteDurableObject`
-- Pre-wired worker usage through `@lytx/core/worker`
+- Deep imports such as `lytx/db/durable/siteDurableObject`
+- Pre-wired worker usage through `lytx/worker`
 
 ### Current recommended pattern
 
-- Prefer root exports from `@lytx/core`
+- Prefer root exports from `lytx`
 - Use `createLytxApp(...)` for canonical worker bootstrap
 
 ### Migration
 
 - Replace deep imports with root imports where available.
-- Keep `@lytx/core/worker` usage only if you explicitly accept experimental/unstable surface.
+- Keep `lytx/worker` usage only if you explicitly accept experimental/unstable surface.
 
 ## `createLytxApp` config shape updates
 
@@ -72,7 +92,7 @@ When upgrading `@lytx/core`:
 - Move to:
 
 ```tsx
-import { createLytxApp, SiteDurableObject, SyncDurableObject } from "@lytx/core";
+import { createLytxApp, SiteDurableObject, SyncDurableObject } from "lytx";
 
 const app = createLytxApp({
   db: {

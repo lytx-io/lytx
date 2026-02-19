@@ -6,6 +6,8 @@ Draft scaffolder for spinning up a new Lytx app from maintained templates.
 
 ```bash
 bunx create-lytx my-analytics --template cloudflare
+npx create-lytx my-analytics --template cloudflare
+npm create lytx@latest my-analytics -- --template cloudflare
 ```
 
 ## Current local usage
@@ -28,7 +30,7 @@ bun create-lytx/bin/lytx.mjs my-analytics --template cloudflare --provision --st
 
 ## Current template
 
-- `cloudflare` - RedwoodSDK + Alchemy + `@lytx/core` app-factory starter
+- `cloudflare` - RedwoodSDK + Alchemy + `lytx` app-factory starter
 
 ## Notes
 

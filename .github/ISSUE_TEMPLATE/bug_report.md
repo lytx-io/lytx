@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a defect in @lytx/core, demo, or tooling
+about: Report a defect in lytx, demo, or tooling
 title: "[bug] "
 labels: bug
 assignees: ""
@@ -34,7 +34,7 @@ What happened instead?
 
 ## Environment
 
-- `@lytx/core` version:
+- `lytx` version:
 - Bun version:
 - Wrangler version:
 - Platform/OS:

@@ -1,11 +1,30 @@
 {
   "name": "create-lytx",
-  "version": "0.0.0-draft",
-  "private": true,
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lytx-io/kit.git",
+    "directory": "create-lytx"
+  },
+  "homepage": "https://github.com/lytx-io/kit#readme",
+  "bugs": {
+    "url": "https://github.com/lytx-io/kit/issues"
+  },
+  "keywords": [
+    "create",
+    "scaffold",
+    "cloudflare",
+    "redwoodsdk",
+    "analytics"
+  ],
   "bin": {
-    "create-lytx": "./bin/lytx.mjs",
-    "lytx": "./bin/lytx.mjs"
+    "create-lytx": "./bin/lytx.mjs"
   },
   "files": [
     "bin/",

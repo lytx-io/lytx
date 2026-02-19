@@ -1,18 +1,18 @@
-# `@lytx/core` OSS Contract
+# `lytx` OSS Contract
 
-This document defines the supported public API contract for `@lytx/core`.
+This document defines the supported public API contract for `lytx`.
 
 If an import path or behavior is not listed here as supported, treat it as internal and subject to change without notice.
 
 ## Scope and intent
 
 - The stable integration model is composition: consumers assemble their own `defineApp(...)` worker from root exports.
-- The package root (`@lytx/core`) is the canonical public entrypoint.
+- The package root (`lytx`) is the canonical public entrypoint.
 - Non-root subpath exports may exist for compatibility and migration, but are explicitly categorized below.
 
 ## Supported public exports (stable)
 
-The following are supported under semantic versioning guarantees (see policy below) when imported from `@lytx/core`.
+The following are supported under semantic versioning guarantees (see policy below) when imported from `lytx`.
 
 ### Pages and shells
 
@@ -45,19 +45,19 @@ The following are supported under semantic versioning guarantees (see policy bel
 - `SyncDurableObject`, `SiteDurableObject`
 - `DashboardPageProps`, `AuthUserSession`, `AppContext`, `DBAdapter`, `UserRole`, `SitesContext`, `TeamContext`
 
-For Node/Alchemy deployment scripts, prefer importing naming helpers from `@lytx/core/resource-names` to avoid loading worker-only modules.
+For Node/Alchemy deployment scripts, prefer importing naming helpers from `lytx/resource-names` to avoid loading worker-only modules.
 
 ## Supported public exports (experimental / unstable)
 
 These are allowed for consumers but may change in minor releases and may be removed after deprecation notice.
 
-- `@lytx/core/worker`
+- `lytx/worker`
   - Pre-wired worker bundle for turnkey usage.
   - Intended for fast start and compatibility, not long-term pinned integrations.
-- `@lytx/core/db/durable/siteDurableObject`
+- `lytx/db/durable/siteDurableObject`
   - Legacy typed subpath export.
-  - Prefer `SiteDurableObject` from `@lytx/core`.
-- `@lytx/core/resource-names`
+  - Prefer `SiteDurableObject` from `lytx`.
+- `lytx/resource-names`
   - Node-safe subpath for deployment naming helpers (`resolveLytxResourceNames`, related types/constants).
 
 ## Internal/private modules (not supported)
@@ -65,13 +65,13 @@ These are allowed for consumers but may change in minor releases and may be remo
 The following are not supported for external consumers and can change at any time:
 
 - Any deep import not listed above, including paths like:
-  - `@lytx/core/src/*`
-  - `@lytx/core/db/*` (except `@lytx/core/db/durable/siteDurableObject`, which is experimental)
-  - `@lytx/core/lib/*`
-  - `@lytx/core/endpoints/*`
-  - `@lytx/core/cli/*`
-  - `@lytx/core/public/*`
-  - `@lytx/core/vite/*`
+  - `lytx/src/*`
+  - `lytx/db/*` (except `lytx/db/durable/siteDurableObject`, which is experimental)
+  - `lytx/lib/*`
+  - `lytx/endpoints/*`
+  - `lytx/cli/*`
+  - `lytx/public/*`
+  - `lytx/vite/*`
 - Internal file layout, route implementation details, and schema internals.
 
 ## Supported extension and customization points
@@ -139,6 +139,6 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 
 These items are intentionally tracked as follow-up work and are not changed silently in this issue:
 
-1. Add a dedicated deprecated compatibility note in package metadata for `@lytx/core/db/durable/siteDurableObject` and document removal target version.
-2. Add CI checks that block new deep-import usage in docs/examples (only `@lytx/core` and documented subpaths allowed).
-3. Revisit whether `@lytx/core/worker` should be promoted to stable or deprecated in favor of `createLytxApp` on the root API.
+1. Add a dedicated deprecated compatibility note in package metadata for `lytx/db/durable/siteDurableObject` and document removal target version.
+2. Add CI checks that block new deep-import usage in docs/examples (only `lytx` and documented subpaths allowed).
+3. Revisit whether `lytx/worker` should be promoted to stable or deprecated in favor of `createLytxApp` on the root API.

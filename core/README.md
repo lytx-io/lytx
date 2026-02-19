@@ -4,7 +4,7 @@ Open-source web analytics platform built on [RedwoodSDK](https://rwsdk.com) (rws
 
 ## OSS contract
 
-The supported public API surface for `@lytx/core` is documented in `core/docs/oss-contract.md`.
+The supported public API surface for `lytx` is documented in `core/docs/oss-contract.md`.
 
 - Contract doc: [`docs/oss-contract.md`](./docs/oss-contract.md)
 - Self-host quickstart: [`docs/self-host-quickstart.md`](./docs/self-host-quickstart.md)
@@ -14,9 +14,9 @@ The supported public API surface for `@lytx/core` is documented in `core/docs/os
 
 ## How it works
 
-`@lytx/core` exposes a canonical app factory, `createLytxApp`, from the package root. Use it to bootstrap a full worker without importing internals. For advanced composition, root exports also include route, page, middleware, and Durable Object building blocks.
+`lytx` exposes a canonical app factory, `createLytxApp`, from the package root. Use it to bootstrap a full worker without importing internals. For advanced composition, root exports also include route, page, middleware, and Durable Object building blocks.
 
-An experimental pre-wired worker entrypoint also exists at `@lytx/core/worker`; this entrypoint is intentionally not part of the stable API contract.
+An experimental pre-wired worker entrypoint also exists at `lytx/worker`; this entrypoint is intentionally not part of the stable API contract.
 
 Think of it like a parts catalog: pull in the full analytics stack, or cherry-pick just the event ingestion API and build your own UI.
 
@@ -30,7 +30,7 @@ Think of it like a parts catalog: pull in the full analytics stack, or cherry-pi
 
 ```bash
 # from your rwsdk project root
-bun add @lytx/core
+bun add lytx
 ```
 
 > Until this is published to npm, add it as a workspace dependency or link it locally.
@@ -42,7 +42,7 @@ Use the root app factory to bootstrap the full analytics stack with one import:
 ```tsx
 // src/worker.tsx
 import type { ExportedHandler } from "cloudflare:workers";
-import { createLytxApp, SyncDurableObject, SiteDurableObject } from "@lytx/core";
+import { createLytxApp, SyncDurableObject, SiteDurableObject } from "lytx";
 
 const app = createLytxApp({
   db: {
@@ -78,7 +78,7 @@ export default app satisfies ExportedHandler<Env>;
 - `startupValidation.*` + `env.*` (startup env requirement checks with field-level errors)
 - `env.EMAIL_FROM` (optional factory override for outgoing email sender)
 
-For deployment scripts, use `resolveLytxResourceNames(...)` from `@lytx/core/resource-names` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
+For deployment scripts, use `resolveLytxResourceNames(...)` from `lytx/resource-names` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
 
 ## Quick start — manual composition (advanced)
 
@@ -151,7 +151,7 @@ import {
   // Types
   type AppContext,
   type DBAdapter,
-} from "@lytx/core";
+} from "lytx";
 
 export { SyncDurableObject, SiteDurableObject };
 
@@ -273,9 +273,9 @@ import {
   handleQueueMessage,
   authMiddleware,
   type AppContext,
-} from "@lytx/core";
+} from "lytx";
 
-export { SiteDurableObject } from "@lytx/core";
+export { SiteDurableObject } from "lytx";
 
 type AppRequestInfo = RequestInfo<any, AppContext>;
 
@@ -307,7 +307,7 @@ Your `wrangler.jsonc` (or `alchemy.run.ts`) needs these bindings for the full st
 
 ### Resource naming strategy
 
-Resource binding keys in worker code stay fixed (`LYTX_EVENTS`, `lytx_config`, etc.), but physical Cloudflare resource names can be configured deterministically in `alchemy.run.ts` via `resolveLytxResourceNames` (`@lytx/core/resource-names`).
+Resource binding keys in worker code stay fixed (`LYTX_EVENTS`, `lytx_config`, etc.), but physical Cloudflare resource names can be configured deterministically in `alchemy.run.ts` via `resolveLytxResourceNames` (`lytx/resource-names`).
 
 Supported naming env vars:
 

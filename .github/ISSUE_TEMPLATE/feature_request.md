@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an enhancement to @lytx/core or OSS workflows
+about: Suggest an enhancement to lytx or OSS workflows
 title: "[feature] "
 labels: enhancement
 assignees: ""

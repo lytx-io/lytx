@@ -20,7 +20,7 @@ bun install
 
 - Prefer opening or linking an issue before large changes.
 - Keep changes scoped and include docs updates for user-facing behavior.
-- Use public `@lytx/core` exports in examples and templates.
+- Use public `lytx` exports in examples and templates.
 - For API surface changes, update `core/docs/oss-contract.md`.
 
 ## Pull request checklist

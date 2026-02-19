@@ -13,7 +13,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@lytx/core": "workspace:*",
+    "lytx": "workspace:*",
     "@tailwindcss/vite": "^4.1.8",
     "alchemy": "^0.84.0",
     "esbuild": "^0.27.2",

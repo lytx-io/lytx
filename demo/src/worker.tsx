@@ -1,4 +1,4 @@
-import { createLytxApp, SyncDurableObject, SiteDurableObject } from "@lytx/core";
+import { createLytxApp, SyncDurableObject, SiteDurableObject } from "lytx";
 
 export { SyncDurableObject, SiteDurableObject };
 

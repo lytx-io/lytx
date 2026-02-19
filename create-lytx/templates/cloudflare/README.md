@@ -20,7 +20,7 @@ bun alchemy deploy --stage dev
 
 - `createLytxApp`-based worker wiring in `src/worker.tsx`
 - Alchemy infra setup in `alchemy.run.ts`
-- Deterministic Cloudflare resource naming via `@lytx/core/resource-names`
+- Deterministic Cloudflare resource naming via `lytx/resource-names`
 
 ## Config Defaults
 
@@ -29,5 +29,5 @@ bun alchemy deploy --stage dev
 
 ## Core Docs
 
-- `@lytx/core` README: https://github.com/lytx-io/kit/tree/master/core
+- `lytx` README: https://github.com/lytx-io/kit/tree/master/core
 - Self-host guide: https://github.com/lytx-io/kit/blob/master/core/docs/self-host-quickstart.md

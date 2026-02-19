@@ -4,7 +4,7 @@ Open-source web analytics platform built on [RedwoodSDK](https://rwsdk.com) and 
 
 ## Structure
 
-- **`core/`** — The `@lytx/core` library. Contains all pages, components, API routes, middleware, and Durable Objects for the analytics platform.
+- **`core/`** — The `lytx` library package. Contains all pages, components, API routes, middleware, and Durable Objects for the analytics platform.
 - **`cli/`** — CLI tooling (setup wizard, data import scripts).
 - **`create-lytx/`** — Draft app scaffolder and starter templates (including Cloudflare starter).
 
@@ -38,11 +38,13 @@ Planned published usage:
 
 ```bash
 bunx create-lytx my-analytics --template cloudflare
+npx create-lytx my-analytics --template cloudflare
+npm create lytx@latest my-analytics -- --template cloudflare
 ```
 
 Generated projects are aligned with the `demo/` setup pattern and include:
 
-- `alchemy.run.ts` wired to `@lytx/core/resource-names`
+- `alchemy.run.ts` wired to `lytx/resource-names`
 - `src/worker.tsx` using `createLytxApp(...)`
 - Redwood + Vite starter files and `.env.example`
 
@@ -53,6 +55,20 @@ cd my-analytics
 cp .env.example .env
 bun install
 bun run dev
+```
+
+## Package and Command Targets
+
+- Runtime library package name: `lytx`
+- Scaffolder package name: `create-lytx`
+- Scaffolder command entrypoint: `create-lytx`
+
+Release prep commands (no publish):
+
+```bash
+bun run lint
+bun run ci:oss
+bun run pack:all
 ```
 
 ## Governance

@@ -93,18 +93,18 @@ function verifyStarterImports() {
 
   const allowedSubpaths = new Set(["resource-names"]);
   const extractCoreSubpaths = (source: string) => {
-    const matches = source.matchAll(/from\s+["']@lytx\/core\/([^"']+)["']/g);
+    const matches = source.matchAll(/from\s+["']lytx\/([^"']+)["']/g);
     return Array.from(matches, (match) => match[1]);
   };
 
-  assert(workerSource.includes('from "@lytx/core"'), "starter: worker must import from @lytx/core root");
-  assert(extractCoreSubpaths(workerSource).length === 0, "starter: worker must avoid @lytx/core subpath imports");
+  assert(workerSource.includes('from "lytx"'), "starter: worker must import from lytx root");
+  assert(extractCoreSubpaths(workerSource).length === 0, "starter: worker must avoid lytx subpath imports");
 
-  assert(alchemySource.includes('from "@lytx/core"'), "starter: alchemy file must import from @lytx/core root");
+  assert(alchemySource.includes('from "lytx"'), "starter: alchemy file must import from lytx root");
   for (const subpath of extractCoreSubpaths(alchemySource)) {
     assert(
       allowedSubpaths.has(subpath),
-      `starter: alchemy file uses unsupported @lytx/core subpath import: ${subpath}`,
+      `starter: alchemy file uses unsupported lytx subpath import: ${subpath}`,
     );
   }
 }

@@ -1,10 +1,10 @@
-# `@lytx/core` Semver and Release Policy
+# `lytx` Semver and Release Policy
 
-This document defines versioning semantics, release workflow, changelog conventions, and compatibility support for `@lytx/core`.
+This document defines versioning semantics, release workflow, changelog conventions, and compatibility support for `lytx`.
 
 ## Versioning model
 
-`@lytx/core` follows semantic versioning for the supported API contract in `docs/oss-contract.md`.
+`lytx` follows semantic versioning for the supported API contract in `docs/oss-contract.md`.
 
 - Patch (`x.y.Z`)
   - Bug fixes and low-risk internal improvements.
@@ -70,7 +70,7 @@ Before cutting a release, verify:
 - [ ] `docs/release-policy.md` compatibility matrix is current
 - [ ] `ci:oss` is green for baseline and customized profiles
 - [ ] Migration/deprecation notes exist for any non-trivial behavior changes
-- [ ] Starter template (`demo/`) still uses public `@lytx/core` exports
+- [ ] Starter template (`demo/`) still uses public `lytx` exports
 
 ## Deprecation minimums
 

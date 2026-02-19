@@ -1,5 +1,5 @@
-import type { SiteDurableObject } from "@lytx/core";
-import { resolveLytxResourceNames, type LytxResourceStagePosition } from "@lytx/core/resource-names";
+import type { SiteDurableObject } from "lytx";
+import { resolveLytxResourceNames, type LytxResourceStagePosition } from "lytx/resource-names";
 
 import alchemy from "alchemy";
 import {
@@ -14,7 +14,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const coreRoot = path.dirname(require.resolve("@lytx/core/package.json"));
+const coreRoot = path.dirname(require.resolve("lytx/package.json"));
 
 const alchemyAppName = process.env.LYTX_APP_NAME ?? "lytx";
 const app = await alchemy(alchemyAppName);

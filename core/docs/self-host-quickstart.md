@@ -1,6 +1,6 @@
-# `@lytx/core` Self-Host Quickstart
+# `lytx` Self-Host Quickstart
 
-This guide walks through a full self-host setup for `@lytx/core` on Cloudflare using Alchemy.
+This guide walks through a full self-host setup for `lytx` on Cloudflare using Alchemy.
 
 It assumes you want a user-managed deployment (your own account, resources, domains, and secrets).
 
@@ -8,7 +8,7 @@ It assumes you want a user-managed deployment (your own account, resources, doma
 
 - Bun installed
 - Cloudflare account with access to Workers, D1, KV, Queues, and Durable Objects
-- A project that depends on `@lytx/core` (the `demo/` workspace is a starter template)
+- A project that depends on `lytx` (the `demo/` workspace is a starter template)
 
 ## 2) Start from the starter template
 
@@ -30,7 +30,7 @@ Then fill required secrets in `demo/.env`.
 
 ## 3) Required Cloudflare bindings
 
-Runtime binding keys expected by `@lytx/core`:
+Runtime binding keys expected by `lytx`:
 
 - D1: `lytx_core_db`
 - KV: `LYTX_EVENTS`, `lytx_config`, `lytx_sessions`
@@ -75,7 +75,7 @@ Domain and naming options:
 Example:
 
 ```tsx
-import { createLytxApp } from "@lytx/core";
+import { createLytxApp } from "lytx";
 
 export default createLytxApp({
   db: {

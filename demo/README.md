@@ -1,6 +1,6 @@
-# @lytx/core Consumer Starter
+# lytx Consumer Starter
 
-This workspace is a minimal starter template for consuming `@lytx/core` with Alchemy + RedwoodSDK.
+This workspace is a minimal starter template for consuming `lytx` with Alchemy + RedwoodSDK.
 
 For full setup and troubleshooting guidance, see `../core/docs/self-host-quickstart.md`.
 
@@ -10,7 +10,7 @@ Template files:
 - `demo/vite.config.ts`
 - `demo/alchemy.run.ts`
 
-The starter uses only documented public `@lytx/core` entrypoints (`createLytxApp`, `SiteDurableObject`) and the documented naming helper subpath (`@lytx/core/resource-names`).
+The starter uses only documented public `lytx` entrypoints (`createLytxApp`, `SiteDurableObject`) and the documented naming helper subpath (`lytx/resource-names`).
 
 ## Quick start
 
