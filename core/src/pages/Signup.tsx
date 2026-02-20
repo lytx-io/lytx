@@ -12,6 +12,7 @@ type SignupProps = {
   authProviders?: AuthProviders;
   emailPasswordEnabled?: boolean;
   publicSignupOpen?: boolean;
+  bootstrapSignupOpen?: boolean;
 };
 
 type SignupStatus =
@@ -24,6 +25,7 @@ export function Signup({
   authProviders = { google: true, github: true },
   emailPasswordEnabled = true,
   publicSignupOpen = true,
+  bootstrapSignupOpen = false,
 }: SignupProps) {
   const [status, setStatus] = useState<SignupStatus>({ type: "idle" });
   const [email, setEmail] = useState("");
@@ -70,6 +72,10 @@ export function Signup({
         {!publicSignupOpen ? (
           <div className="mb-4 px-4 w-full max-w-[300px] text-xs text-amber-700 dark:text-amber-300">
             Public sign up is closed. Use an invited email address to register.
+          </div>
+        ) : bootstrapSignupOpen ? (
+          <div className="mb-4 px-4 w-full max-w-[300px] text-xs text-sky-700 dark:text-sky-300">
+            You are creating the first admin account for this instance. Public sign up will close after this account is created.
           </div>
         ) : null}
 

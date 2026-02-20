@@ -21,6 +21,13 @@ type SocialProviderToggles = {
 export const SIGNUP_MODES = ["open", "bootstrap_then_invite", "invite_only"] as const;
 export type SignupMode = (typeof SIGNUP_MODES)[number];
 
+export type SignupAccessState = {
+  mode: SignupMode;
+  hasUsers: boolean;
+  publicSignupOpen: boolean;
+  bootstrapSignupOpen: boolean;
+};
+
 export type AuthRuntimeConfig = {
   emailPasswordEnabled?: boolean;
   requireEmailVerification?: boolean;
@@ -113,29 +120,83 @@ function getSignupMode(): SignupMode {
   return auth_runtime_config.signupMode ?? "open";
 }
 
+function isMissingTableError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && message.includes("no such table");
+}
+
 async function hasAnyUserAccount(): Promise<boolean> {
-  const users = await d1_client.select({ id: user_table.id }).from(user_table).limit(1);
-  return typeof users[0]?.id === "string";
+  try {
+    const users = await d1_client.select({ id: user_table.id }).from(user_table).limit(1);
+    return typeof users[0]?.id === "string";
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      if (IS_DEV) {
+        console.warn("Signup bootstrap check: user table missing, treating as zero users");
+      }
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function hasPendingInviteForEmail(email: string): Promise<boolean> {
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail) return false;
 
-  const invites = await d1_client
-    .select({ id: invited_user.id })
-    .from(invited_user)
-    .where(and(eq(invited_user.email, normalizedEmail), eq(invited_user.accepted, false)))
-    .limit(1);
+  try {
+    const invites = await d1_client
+      .select({ id: invited_user.id })
+      .from(invited_user)
+      .where(and(eq(invited_user.email, normalizedEmail), eq(invited_user.accepted, false)))
+      .limit(1);
 
-  return typeof invites[0]?.id === "number";
+    return typeof invites[0]?.id === "number";
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      if (IS_DEV) {
+        console.warn("Signup invite check: invited_user table missing, treating as no invite");
+      }
+      return false;
+    }
+    throw error;
+  }
+}
+
+export async function getSignupAccessState(): Promise<SignupAccessState> {
+  const mode = getSignupMode();
+
+  if (mode === "open") {
+    return {
+      mode,
+      hasUsers: true,
+      publicSignupOpen: true,
+      bootstrapSignupOpen: false,
+    };
+  }
+
+  if (mode === "invite_only") {
+    return {
+      mode,
+      hasUsers: true,
+      publicSignupOpen: false,
+      bootstrapSignupOpen: false,
+    };
+  }
+
+  const hasUsers = await hasAnyUserAccount();
+  return {
+    mode,
+    hasUsers,
+    publicSignupOpen: !hasUsers,
+    bootstrapSignupOpen: !hasUsers,
+  };
 }
 
 export async function isPublicSignupOpen(): Promise<boolean> {
-  const signupMode = getSignupMode();
-  if (signupMode === "open") return true;
-  if (signupMode === "invite_only") return false;
-  return !(await hasAnyUserAccount());
+  const state = await getSignupAccessState();
+  return state.publicSignupOpen;
 }
 
 export async function canRegisterEmail(email: string): Promise<boolean> {
@@ -146,7 +207,8 @@ export async function canRegisterEmail(email: string): Promise<boolean> {
   if (invited) return true;
 
   if (signupMode === "invite_only") return false;
-  return !(await hasAnyUserAccount());
+  const state = await getSignupAccessState();
+  return state.bootstrapSignupOpen;
 }
 
 function getTrustedOrigins() {

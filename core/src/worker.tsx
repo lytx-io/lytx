@@ -21,9 +21,9 @@ import { lytxTag, trackWebEvent } from "@api/tag_api_v2";
 import { authMiddleware, sessionMiddleware } from "@api/authMiddleware";
 import {
   canRegisterEmail,
+  getSignupAccessState,
   getAuth,
   getAuthProviderAvailability,
-  isPublicSignupOpen,
   setAuthRuntimeConfig,
 } from "@lib/auth";
 import { Signup } from "@/pages/Signup";
@@ -309,12 +309,13 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
         ? [
             route("/signup", [
               onlyAllowGetPost, async () => {
-                const publicSignupOpen = await isPublicSignupOpen();
+                const signupAccess = await getSignupAccessState();
                 return (
                   <Signup
                     authProviders={authProviders}
                     emailPasswordEnabled={emailPasswordEnabled}
-                    publicSignupOpen={publicSignupOpen}
+                    publicSignupOpen={signupAccess.publicSignupOpen}
+                    bootstrapSignupOpen={signupAccess.bootstrapSignupOpen}
                   />
                 );
               },
@@ -326,12 +327,12 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
             route("/login", [
               onlyAllowGetPost,
               async () => {
-                const allowSignupLink = await isPublicSignupOpen();
+                const signupAccess = await getSignupAccessState();
                 return (
                   <Login
                     authProviders={authProviders}
                     emailPasswordEnabled={emailPasswordEnabled}
-                    allowSignupLink={allowSignupLink}
+                    allowSignupLink={signupAccess.publicSignupOpen}
                   />
                 );
               },
