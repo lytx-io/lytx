@@ -72,7 +72,7 @@ export default app satisfies ExportedHandler<Env>;
 - `trackingRoutePrefix` (prefix all tracking routes, e.g. `/collect`)
 - `tagRoutes.scriptPath` + `tagRoutes.eventPath` (custom v2 route paths)
 - `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`
-- `auth.signupMode` (`"open" | "bootstrap_then_invite" | "invite_only"`)
+- `auth.signupMode` (`"open" | "bootstrap_then_invite" | "invite_only"`; default is `"bootstrap_then_invite"`)
 - `ai.provider`, `ai.model`, `ai.baseURL`, `ai.apiKey`, `ai.accountId` (runtime AI vendor/model overrides; blank values are ignored; provider/model include preset autocomplete values)
 - `features.reportBuilderEnabled` + `features.askAiEnabled`
 - `names.*` (typed resource binding names for D1/KV/Queue/DO)
@@ -347,6 +347,40 @@ LYTX_TRACKING_DOMAIN=collect.example.com
 ```
 
 Use `createLytxApp({ tagRoutes: { pathPrefix: "/collect" } })` to prefix tracking script and ingestion endpoints.
+
+### Auth setup (important)
+
+`createLytxApp` defaults to bootstrap-safe auth behavior:
+
+- `auth.signupMode` defaults to `"bootstrap_then_invite"`.
+- First account signup is allowed and becomes the initial admin.
+- After the first account exists, public signup is automatically closed.
+- New users can then register only through team invites.
+
+This default applies when:
+
+- `auth` is omitted entirely, or
+- `auth: {}` is passed.
+
+Use these explicit modes when you need different behavior:
+
+```tsx
+createLytxApp({
+  auth: {
+    // "bootstrap_then_invite" is the default
+    signupMode: "bootstrap_then_invite",
+    // signupMode: "invite_only", // never allow public signup
+    // signupMode: "open", // always allow public signup
+  },
+});
+```
+
+If you need to bootstrap an admin user without public signup, use the CLI:
+
+```bash
+cd core
+bun run cli/bootstrap-admin.ts --email admin@example.com --password "StrongPassword123"
+```
 
 ### Environment variables
 

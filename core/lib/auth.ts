@@ -81,11 +81,15 @@ export type AuthProviderAvailability = {
   github: boolean;
 };
 
-let auth_runtime_config: AuthRuntimeConfig = {
+const DEFAULT_AUTH_RUNTIME_CONFIG: AuthRuntimeConfig = {
   emailPasswordEnabled: true,
   requireEmailVerification: true,
-  signupMode: "open",
+  signupMode: "bootstrap_then_invite",
   socialProviders: {},
+};
+
+let auth_runtime_config: AuthRuntimeConfig = {
+  ...DEFAULT_AUTH_RUNTIME_CONFIG,
 };
 
 let auth_instance: ReturnType<typeof betterAuth> | null = null;
@@ -94,13 +98,15 @@ const hasGoogleCredentials = () => Boolean(env.GOOGLE_CLIENT_ID?.trim() && env.G
 const hasGithubCredentials = () => Boolean(env.GITHUB_CLIENT_ID?.trim() && env.GITHUB_CLIENT_SECRET?.trim());
 
 export function setAuthRuntimeConfig(config: AuthRuntimeConfig = {}) {
+  const socialProviders = {
+    ...DEFAULT_AUTH_RUNTIME_CONFIG.socialProviders,
+    ...config.socialProviders,
+  };
+
   auth_runtime_config = {
-    ...auth_runtime_config,
+    ...DEFAULT_AUTH_RUNTIME_CONFIG,
     ...config,
-    socialProviders: {
-      ...auth_runtime_config.socialProviders,
-      ...config.socialProviders,
-    },
+    socialProviders,
   };
 
   auth_instance = null;
@@ -117,7 +123,7 @@ export function getAuthProviderAvailability(): AuthProviderAvailability {
 }
 
 function getSignupMode(): SignupMode {
-  return auth_runtime_config.signupMode ?? "open";
+  return auth_runtime_config.signupMode ?? "bootstrap_then_invite";
 }
 
 function isMissingTableError(error: unknown): boolean {

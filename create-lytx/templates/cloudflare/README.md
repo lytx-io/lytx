@@ -30,7 +30,8 @@ bun alchemy deploy --stage dev
 ## Config Defaults
 
 - `LYTX_AUTH_GOOGLE` / `LYTX_AUTH_GITHUB` toggle social providers in `src/worker.tsx`.
-- `LYTX_SIGNUP_MODE` controls public signup behavior (`bootstrap_then_invite` default).
+- `LYTX_SIGNUP_MODE` controls public signup behavior (`bootstrap_then_invite` default; options: `open`, `bootstrap_then_invite`, `invite_only`).
+- With `bootstrap_then_invite`, the first signup creates the admin account, then public signup closes automatically.
 - `LYTX_APP_DOMAIN` / `LYTX_TRACKING_DOMAIN` preconfigure domains in `alchemy.run.ts`.
 - `AI_PROVIDER`, `AI_MODEL`, and `AI_BASE_URL` configure AI vendor/model routing.
 - `AI_ACCOUNT_ID` is used for `cloudflare` provider when `env.AI` binding is not present.

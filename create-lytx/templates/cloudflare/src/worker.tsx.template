@@ -1,14 +1,16 @@
 import { createLytxApp, SiteDurableObject, SyncDurableObject } from "lytx";
+import type { LytxSignupMode } from "lytx";
 
 export { SiteDurableObject, SyncDurableObject };
 
 const googleAuthEnabled = (process.env.LYTX_AUTH_GOOGLE ?? "false") === "true";
 const githubAuthEnabled = (process.env.LYTX_AUTH_GITHUB ?? "false") === "true";
-const signupModeRaw = (process.env.LYTX_SIGNUP_MODE ?? "bootstrap_then_invite").trim();
-const signupMode =
+const DEFAULT_SIGNUP_MODE: LytxSignupMode = "bootstrap_then_invite";
+const signupModeRaw = process.env.LYTX_SIGNUP_MODE?.trim();
+const signupMode: LytxSignupMode =
   signupModeRaw === "open" || signupModeRaw === "bootstrap_then_invite" || signupModeRaw === "invite_only"
     ? signupModeRaw
-    : "bootstrap_then_invite";
+    : DEFAULT_SIGNUP_MODE;
 
 const app = createLytxApp({
   db: {
@@ -19,6 +21,10 @@ const app = createLytxApp({
     model: process.env.AI_MODEL?.trim() || undefined,
   },
   auth: {
+    // Signup mode controls who can register:
+    // - "bootstrap_then_invite" (default): first account bootstraps admin, then closes public signup
+    // - "invite_only": only invited emails can register
+    // - "open": anyone can sign up
     signupMode,
     socialProviders: {
       google: googleAuthEnabled,
