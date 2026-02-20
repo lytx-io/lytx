@@ -49,7 +49,7 @@ export const NewSiteSetup: React.FC<NewSiteSetupProps> = ({
 
       const siteData = await response.json();
       onSiteCreated?.(siteData);
-      window.location.href = "/dashboard/settings";
+      window.location.href = "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
