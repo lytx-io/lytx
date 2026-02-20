@@ -11,6 +11,7 @@ type AuthProviders = {
 type SignupProps = {
   authProviders?: AuthProviders;
   emailPasswordEnabled?: boolean;
+  publicSignupOpen?: boolean;
 };
 
 type SignupStatus =
@@ -19,7 +20,11 @@ type SignupStatus =
   | { type: "success"; message: string }
   | { type: "error"; message: string };
 
-export function Signup({ authProviders = { google: true, github: true }, emailPasswordEnabled = true }: SignupProps) {
+export function Signup({
+  authProviders = { google: true, github: true },
+  emailPasswordEnabled = true,
+  publicSignupOpen = true,
+}: SignupProps) {
   const [status, setStatus] = useState<SignupStatus>({ type: "idle" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +67,11 @@ export function Signup({ authProviders = { google: true, github: true }, emailPa
           <span>Lytx</span>
         </div>
         <div className="h-auto my-4">Register your account</div>
+        {!publicSignupOpen ? (
+          <div className="mb-4 px-4 w-full max-w-[300px] text-xs text-amber-700 dark:text-amber-300">
+            Public sign up is closed. Use an invited email address to register.
+          </div>
+        ) : null}
 
         {(authProviders.google || authProviders.github) ? (
           <div className="flex flex-col gap-3 mb-6 px-4 w-full max-w-[300px]">

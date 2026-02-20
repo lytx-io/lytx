@@ -71,6 +71,7 @@ export { createLytxApp } from "./src/worker";
 export type {
   CreateLytxAppConfig,
   LytxDbAdapter,
+  LytxSignupMode,
   LytxEventStore,
   LytxDbConfig,
   LytxAiConfig,

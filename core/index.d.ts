@@ -49,6 +49,7 @@ export { SiteDurableObject } from "./db/durable/siteDurableObject";
 export type {
   CreateLytxAppConfig,
   LytxDbAdapter,
+  LytxSignupMode,
   LytxEventStore,
   LytxDbConfig,
   LytxAiConfig,

@@ -19,7 +19,13 @@ import {
 } from "@api/tag_api";
 import { lytxTag, trackWebEvent } from "@api/tag_api_v2";
 import { authMiddleware, sessionMiddleware } from "@api/authMiddleware";
-import { getAuth, getAuthProviderAvailability, setAuthRuntimeConfig } from "@lib/auth";
+import {
+  canRegisterEmail,
+  getAuth,
+  getAuthProviderAvailability,
+  isPublicSignupOpen,
+  setAuthRuntimeConfig,
+} from "@lib/auth";
 import { Signup } from "@/pages/Signup";
 import { Login } from "@/pages/Login";
 import { VerifyEmail } from "@/pages/VerifyEmail";
@@ -160,6 +166,40 @@ const appRoute = <TPath extends string>(
   path: TPath,
   handlers: Parameters<typeof route<TPath, AppRequestInfo>>[1],
 ) => route<TPath, AppRequestInfo>(path, handlers);
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
+const isEmailSignupRequest = (request: Request): boolean => {
+  if (request.method !== "POST") return false;
+  const url = new URL(request.url);
+  return url.pathname === "/api/auth/sign-up/email";
+};
+
+const readSignupEmail = async (request: Request): Promise<string> => {
+  try {
+    const body = await request.clone().json();
+    if (!isRecord(body) || typeof body.email !== "string") return "";
+    return body.email;
+  } catch {
+    return "";
+  }
+};
+
+const buildSignupClosedResponse = (): Response => {
+  return new Response(
+    JSON.stringify({
+      code: "SIGNUP_REQUIRES_INVITE",
+      message: "Public sign up is disabled. Ask an admin for an invitation.",
+    }),
+    {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+};
+
 export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
   setAuthRuntimeConfig(parsed_config.auth);
@@ -245,7 +285,16 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
     seedApi,
     ...(authEnabled
       ? [
-        route("/api/auth/*", (r) => authMiddleware(r)),
+        route("/api/auth/*", async (r) => {
+          if (isEmailSignupRequest(r.request)) {
+            const signupEmail = await readSignupEmail(r.request);
+            const allowed = await canRegisterEmail(signupEmail);
+            if (!allowed) {
+              return buildSignupClosedResponse();
+            }
+          }
+          return authMiddleware(r);
+        }),
         resendVerificationEmailRoute,
         userApiRoutes,
       ]
@@ -259,8 +308,15 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
       ...(authEnabled
         ? [
             route("/signup", [
-              onlyAllowGetPost, () => {
-                return <Signup authProviders={authProviders} emailPasswordEnabled={emailPasswordEnabled} />;
+              onlyAllowGetPost, async () => {
+                const publicSignupOpen = await isPublicSignupOpen();
+                return (
+                  <Signup
+                    authProviders={authProviders}
+                    emailPasswordEnabled={emailPasswordEnabled}
+                    publicSignupOpen={publicSignupOpen}
+                  />
+                );
               },
             ]),
         ]
@@ -269,8 +325,15 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
         ? [
             route("/login", [
               onlyAllowGetPost,
-              () => {
-                return <Login authProviders={authProviders} emailPasswordEnabled={emailPasswordEnabled} />;
+              async () => {
+                const allowSignupLink = await isPublicSignupOpen();
+                return (
+                  <Login
+                    authProviders={authProviders}
+                    emailPasswordEnabled={emailPasswordEnabled}
+                    allowSignupLink={allowSignupLink}
+                  />
+                );
               },
             ]),
           route("/verify-email", [

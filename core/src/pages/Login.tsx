@@ -11,6 +11,7 @@ type AuthProviders = {
 type LoginProps = {
   authProviders?: AuthProviders;
   emailPasswordEnabled?: boolean;
+  allowSignupLink?: boolean;
 };
 
 type AuthUiStatus =
@@ -58,7 +59,11 @@ function isEmailVerificationError(message: string) {
   );
 }
 
-export function Login({ authProviders = { google: true, github: true }, emailPasswordEnabled = true }: LoginProps) {
+export function Login({
+  authProviders = { google: true, github: true },
+  emailPasswordEnabled = true,
+  allowSignupLink = true,
+}: LoginProps) {
   const [status, setStatus] = useState<AuthUiStatus>({ type: "idle" });
   const [email, setEmail] = useState("");
   const [isResending, setIsResending] = useState(false);
@@ -274,7 +279,9 @@ export function Login({ authProviders = { google: true, github: true }, emailPas
           </div>
         )}
         <div className="h-5 my-4">
-          <a href="/signup" className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors">Create an account</a>
+          {allowSignupLink ? (
+            <a href="/signup" className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors">Create an account</a>
+          ) : null}
         </div>
       </div>
     </div>

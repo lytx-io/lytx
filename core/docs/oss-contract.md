@@ -119,6 +119,7 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 - `createLytxApp({ trackingRoutePrefix })` is the supported route-prefix mechanism for tracking/tag endpoints.
 - `createLytxApp` supports typed DB runtime controls via `db.dbAdapter` and `db.eventStore` (`durable_objects` supported), plus `useQueueIngestion` and `includeLegacyTagRoutes`.
 - `createLytxApp` supports typed AI runtime controls via `ai.provider`, `ai.model`, `ai.baseURL`, `ai.apiKey`, and `ai.accountId`; blank values are treated as unset.
+- `createLytxApp` supports typed signup controls via `auth.signupMode` (`open`, `bootstrap_then_invite`, `invite_only`).
 - `createLytxApp` supports auth-mode controls via `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, and `auth.socialProviders.*`.
 
 ## Deprecation and compatibility policy

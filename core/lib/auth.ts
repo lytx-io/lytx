@@ -3,10 +3,12 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { customSession } from "better-auth/plugins";
 import { env } from "cloudflare:workers";
 import { IS_DEV } from "rwsdk/constants";
+import { and, eq } from "drizzle-orm";
 
 import { d1_client } from "@db/d1/client";
 import type { DBAdapter } from "@db/d1/schema";
 import * as schema from "@db/d1/schema";
+import { invited_user, user as user_table } from "@db/d1/schema";
 import { createNewAccount, getSitesForUser } from "@db/d1/sites";
 import type { SitesContext } from "@db/d1/sites";
 import { sendVerificationEmail } from "@lib/sendMail";
@@ -16,10 +18,14 @@ type SocialProviderToggles = {
   github?: boolean;
 };
 
+export const SIGNUP_MODES = ["open", "bootstrap_then_invite", "invite_only"] as const;
+export type SignupMode = (typeof SIGNUP_MODES)[number];
+
 export type AuthRuntimeConfig = {
   emailPasswordEnabled?: boolean;
   requireEmailVerification?: boolean;
   socialProviders?: SocialProviderToggles;
+  signupMode?: SignupMode;
 };
 
 type TeamSummary = {
@@ -71,6 +77,7 @@ export type AuthProviderAvailability = {
 let auth_runtime_config: AuthRuntimeConfig = {
   emailPasswordEnabled: true,
   requireEmailVerification: true,
+  signupMode: "open",
   socialProviders: {},
 };
 
@@ -100,6 +107,46 @@ export function getAuthProviderAvailability(): AuthProviderAvailability {
     google: google_enabled,
     github: github_enabled,
   };
+}
+
+function getSignupMode(): SignupMode {
+  return auth_runtime_config.signupMode ?? "open";
+}
+
+async function hasAnyUserAccount(): Promise<boolean> {
+  const users = await d1_client.select({ id: user_table.id }).from(user_table).limit(1);
+  return typeof users[0]?.id === "string";
+}
+
+async function hasPendingInviteForEmail(email: string): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) return false;
+
+  const invites = await d1_client
+    .select({ id: invited_user.id })
+    .from(invited_user)
+    .where(and(eq(invited_user.email, normalizedEmail), eq(invited_user.accepted, false)))
+    .limit(1);
+
+  return typeof invites[0]?.id === "number";
+}
+
+export async function isPublicSignupOpen(): Promise<boolean> {
+  const signupMode = getSignupMode();
+  if (signupMode === "open") return true;
+  if (signupMode === "invite_only") return false;
+  return !(await hasAnyUserAccount());
+}
+
+export async function canRegisterEmail(email: string): Promise<boolean> {
+  const signupMode = getSignupMode();
+  if (signupMode === "open") return true;
+
+  const invited = await hasPendingInviteForEmail(email);
+  if (invited) return true;
+
+  if (signupMode === "invite_only") return false;
+  return !(await hasAnyUserAccount());
 }
 
 function getTrustedOrigins() {
@@ -245,6 +292,13 @@ function createAuthInstance() {
     databaseHooks: {
       user: {
         create: {
+          before: async (userRecord) => {
+            const email = typeof userRecord.email === "string" ? userRecord.email : "";
+            const allowed = await canRegisterEmail(email);
+            if (!allowed) {
+              throw new Error("Public sign up is disabled. Ask an admin for an invitation.");
+            }
+          },
           after: async (user) => {
             await createNewAccount(user);
           },

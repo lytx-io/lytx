@@ -34,6 +34,7 @@ Notes:
 - Use `--interactive` to fill domains, sender, API keys/secrets, AI provider/model, and feature flags.
 - Social provider keys are prompted only for providers you enabled.
 - Use `--ai-provider`, `--ai-model`, and `--ai-base-url` to preconfigure AI defaults (including `claude`, `gemini`, and `cloudflare` presets).
+- Generated projects default `LYTX_SIGNUP_MODE=bootstrap_then_invite` (first account bootstrap, then invite-only).
 - Use `--no-env` to skip writing `.env`.
 
 ## Current template

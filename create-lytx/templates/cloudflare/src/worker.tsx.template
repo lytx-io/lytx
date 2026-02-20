@@ -4,6 +4,11 @@ export { SiteDurableObject, SyncDurableObject };
 
 const googleAuthEnabled = (process.env.LYTX_AUTH_GOOGLE ?? "false") === "true";
 const githubAuthEnabled = (process.env.LYTX_AUTH_GITHUB ?? "false") === "true";
+const signupModeRaw = (process.env.LYTX_SIGNUP_MODE ?? "bootstrap_then_invite").trim();
+const signupMode =
+  signupModeRaw === "open" || signupModeRaw === "bootstrap_then_invite" || signupModeRaw === "invite_only"
+    ? signupModeRaw
+    : "bootstrap_then_invite";
 
 const app = createLytxApp({
   db: {
@@ -14,6 +19,7 @@ const app = createLytxApp({
     model: process.env.AI_MODEL?.trim() || undefined,
   },
   auth: {
+    signupMode,
     socialProviders: {
       google: googleAuthEnabled,
       github: githubAuthEnabled,

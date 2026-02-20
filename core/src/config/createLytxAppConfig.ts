@@ -4,6 +4,7 @@ export const CREATE_LYTX_APP_CONFIG_DOC_URL =
   "https://github.com/lytx-io/lytx/blob/master/core/docs/oss-contract.md#supported-extension-and-customization-points";
 
 const dbAdapterValues = ["sqlite", "postgres", "singlestore", "analytics_engine"] as const;
+const signupModeValues = ["open", "bootstrap_then_invite", "invite_only"] as const;
 
 export const LYTX_AI_PROVIDER_PRESETS = [
   "openai",
@@ -33,6 +34,7 @@ export const LYTX_AI_MODEL_PRESETS = [
 ] as const;
 
 const dbAdapterSchema = z.enum(dbAdapterValues);
+const signupModeSchema = z.enum(signupModeValues);
 const eventStoreSchema = z.enum([...dbAdapterValues, "durable_objects"] as const);
 
 const dbConfigSchema = z
@@ -43,6 +45,7 @@ const dbConfigSchema = z
   .strict();
 
 export type LytxDbAdapter = z.infer<typeof dbAdapterSchema>;
+export type LytxSignupMode = z.infer<typeof signupModeSchema>;
 export type LytxEventStore = z.infer<typeof eventStoreSchema>;
 export type LytxDbConfig = z.input<typeof dbConfigSchema>;
 
@@ -134,6 +137,7 @@ const createLytxAppConfigSchema = z
       .object({
         emailPasswordEnabled: z.boolean().optional(),
         requireEmailVerification: z.boolean().optional(),
+        signupMode: signupModeSchema.optional(),
         socialProviders: z
           .object({
             google: z.boolean().optional(),
