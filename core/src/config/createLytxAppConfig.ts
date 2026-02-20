@@ -5,6 +5,25 @@ export const CREATE_LYTX_APP_CONFIG_DOC_URL =
 
 const dbAdapterValues = ["sqlite", "postgres", "singlestore", "analytics_engine"] as const;
 
+export const LYTX_AI_PROVIDER_PRESETS = [
+  "openai",
+  "openrouter",
+  "groq",
+  "deepseek",
+  "xai",
+  "ollama",
+  "custom",
+] as const;
+
+export const LYTX_AI_MODEL_PRESETS = [
+  "gpt-5-mini",
+  "openai/gpt-4o-mini",
+  "llama-3.1-70b-versatile",
+  "deepseek-chat",
+  "grok-2-latest",
+  "llama3.2",
+] as const;
+
 const dbAdapterSchema = z.enum(dbAdapterValues);
 const eventStoreSchema = z.enum([...dbAdapterValues, "durable_objects"] as const);
 
@@ -56,17 +75,42 @@ const domainSchema = z
   }, "Domain must be a valid hostname or URL");
 
 const envKeySchema = z.string().trim().min(1, "Env var value cannot be empty");
+const optionalTrimmedStringSchema = z.string().trim().optional();
+
+const optionalUrlSchema = (message: string) =>
+  z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => {
+      if (!value) return true;
+      try {
+        new URL(value);
+        return true;
+      } catch {
+        return false;
+      }
+    }, message);
 
 const aiRuntimeConfigSchema = z
   .object({
-    provider: envKeySchema.optional(),
-    baseURL: z.string().trim().url("ai.baseURL must be a valid URL").optional(),
-    model: envKeySchema.optional(),
-    apiKey: envKeySchema.optional(),
+    provider: optionalTrimmedStringSchema,
+    baseURL: optionalUrlSchema("ai.baseURL must be a valid URL"),
+    model: optionalTrimmedStringSchema,
+    apiKey: optionalTrimmedStringSchema,
   })
   .strict();
 
-export type LytxAiConfig = z.input<typeof aiRuntimeConfigSchema>;
+export type LytxAiProviderPreset = (typeof LYTX_AI_PROVIDER_PRESETS)[number];
+export type LytxAiProvider = LytxAiProviderPreset | (string & {});
+export type LytxAiModelPreset = (typeof LYTX_AI_MODEL_PRESETS)[number];
+export type LytxAiModel = LytxAiModelPreset | (string & {});
+
+type BaseLytxAiConfig = z.input<typeof aiRuntimeConfigSchema>;
+export type LytxAiConfig = Omit<BaseLytxAiConfig, "provider" | "model"> & {
+  provider?: LytxAiProvider;
+  model?: LytxAiModel;
+};
 
 const createLytxAppConfigSchema = z
   .object({
@@ -242,7 +286,11 @@ const createLytxAppConfigSchema = z
     }
   });
 
-export type CreateLytxAppConfig = z.input<typeof createLytxAppConfigSchema>;
+type BaseCreateLytxAppConfig = z.input<typeof createLytxAppConfigSchema>;
+export type CreateLytxAppConfig = Omit<BaseCreateLytxAppConfig, "ai"> & {
+  ai?: LytxAiConfig;
+};
+type ParsedCreateLytxAppConfig = z.output<typeof createLytxAppConfigSchema>;
 
 function formatValidationErrors(error: z.ZodError): string {
   const lines = error.issues.map((issue) => {
@@ -257,10 +305,30 @@ function formatValidationErrors(error: z.ZodError): string {
   ].join("\n");
 }
 
-export function parseCreateLytxAppConfig(config: CreateLytxAppConfig): CreateLytxAppConfig {
+function normalizeOptionalValue(value: string | undefined): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export function parseCreateLytxAppConfig(config: CreateLytxAppConfig): ParsedCreateLytxAppConfig {
   const parsed = createLytxAppConfigSchema.safeParse(config ?? {});
   if (!parsed.success) {
     throw new Error(formatValidationErrors(parsed.error));
   }
-  return parsed.data;
+
+  const normalized: ParsedCreateLytxAppConfig = {
+    ...parsed.data,
+    ai: parsed.data.ai
+      ? {
+          ...parsed.data.ai,
+          provider: normalizeOptionalValue(parsed.data.ai.provider),
+          baseURL: normalizeOptionalValue(parsed.data.ai.baseURL),
+          model: normalizeOptionalValue(parsed.data.ai.model),
+          apiKey: normalizeOptionalValue(parsed.data.ai.apiKey),
+        }
+      : undefined,
+  };
+
+  return normalized;
 }

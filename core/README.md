@@ -72,7 +72,7 @@ export default app satisfies ExportedHandler<Env>;
 - `trackingRoutePrefix` (prefix all tracking routes, e.g. `/collect`)
 - `tagRoutes.scriptPath` + `tagRoutes.eventPath` (custom v2 route paths)
 - `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`
-- `ai.provider`, `ai.baseURL`, `ai.model`, `ai.apiKey` (runtime AI vendor/model overrides)
+- `ai.provider`, `ai.baseURL`, `ai.model`, `ai.apiKey` (runtime AI vendor/model overrides; blank values are ignored; provider/model include preset autocomplete values)
 - `features.reportBuilderEnabled` + `features.askAiEnabled`
 - `names.*` (typed resource binding names for D1/KV/Queue/DO)
 - `domains.app` + `domains.tracking` (typed host/domain values)

@@ -74,6 +74,10 @@ export type {
   LytxEventStore,
   LytxDbConfig,
   LytxAiConfig,
+  LytxAiProviderPreset,
+  LytxAiProvider,
+  LytxAiModelPreset,
+  LytxAiModel,
 } from "./src/config/createLytxAppConfig";
 export { DEFAULT_LYTX_RESOURCE_NAMES, resolveLytxResourceNames } from "./src/config/resourceNames";
 export type { LytxResourceNames, LytxResourceNamingOptions, LytxResourceStagePosition } from "./src/config/resourceNames";

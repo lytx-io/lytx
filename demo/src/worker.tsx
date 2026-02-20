@@ -8,9 +8,8 @@ const app = createLytxApp({
     dbAdapter: "sqlite",
   },
   ai: {
-    provider: process.env.AI_PROVIDER,
-    model: process.env.AI_MODEL,
-    baseURL: process.env.AI_BASE_URL,
+    provider: process.env.AI_PROVIDER?.trim() || undefined,
+    model: process.env.AI_MODEL?.trim() || undefined,
   },
 });
 
