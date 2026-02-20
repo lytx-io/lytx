@@ -166,6 +166,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
   setAiRuntimeOverrides({
     apiKey: parsed_config.ai?.apiKey ?? parsed_config.env?.AI_API_KEY,
+    accountId: parsed_config.ai?.accountId ?? parsed_config.env?.AI_ACCOUNT_ID,
     model: parsed_config.ai?.model ?? parsed_config.env?.AI_MODEL,
     baseURL: parsed_config.ai?.baseURL ?? parsed_config.env?.AI_BASE_URL,
     provider: parsed_config.ai?.provider ?? parsed_config.env?.AI_PROVIDER,

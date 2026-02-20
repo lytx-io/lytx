@@ -148,6 +148,7 @@ export const worker = await Redwood(resourceNames.workerName, {
 		RESEND_API_KEY: alchemy.secret(process.env.RESEND_API_KEY),
 		ENCRYPTION_KEY: alchemy.secret(process.env.ENCRYPTION_KEY),
 		AI_API_KEY: alchemy.secret(process.env.AI_API_KEY),
+		AI_ACCOUNT_ID: process.env.AI_ACCOUNT_ID ?? "",
 		AI_PROVIDER: process.env.AI_PROVIDER ?? "openai",
 		SEED_DATA_SECRET: alchemy.secret(process.env.SEED_DATA_SECRET),
 		BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? "http://localhost:5173",

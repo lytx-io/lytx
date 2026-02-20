@@ -4,6 +4,9 @@ import type { RequestInfo } from "rwsdk/worker";
 import { convertToModelMessages, generateText, streamText, tool } from "ai";
 import { IS_DEV } from "rwsdk/constants";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createWorkersAI } from "workers-ai-provider";
 import { z } from "zod";
 
 import type { AppContext } from "@/types/app-context";
@@ -23,9 +26,10 @@ import { parseDateParam, parseSiteIdParam } from "@/utilities/dashboardParams";
 
 type AiConfig = {
   provider: string;
-  baseURL: string;
+  baseURL?: string;
   model: string;
   apiKey: string;
+  accountId?: string;
 };
 
 type AiRuntimeOverrides = {
@@ -33,6 +37,7 @@ type AiRuntimeOverrides = {
   baseURL?: string;
   model?: string;
   apiKey?: string;
+  accountId?: string;
 };
 
 type NivoChartType = "bar" | "line" | "pie";
@@ -42,6 +47,21 @@ const DEFAULT_AI_PROVIDER = "openai";
 const DEFAULT_AI_BASE_URL = "https://api.openai.com/v1";
 const MAX_METRIC_LIMIT = 100;
 
+const OPENAI_COMPATIBLE_PROVIDERS = new Set([
+  "openai",
+  "openrouter",
+  "groq",
+  "deepseek",
+  "xai",
+  "ollama",
+  "custom",
+]);
+
+const AI_PROVIDER_ALIASES: Record<string, string> = {
+  claude: "anthropic",
+  gemini: "google",
+};
+
 const AI_PROVIDER_BASE_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   openrouter: "https://openrouter.ai/api/v1",
@@ -49,6 +69,8 @@ const AI_PROVIDER_BASE_URLS: Record<string, string> = {
   deepseek: "https://api.deepseek.com/v1",
   xai: "https://api.x.ai/v1",
   ollama: "http://localhost:11434/v1",
+  anthropic: "https://api.anthropic.com/v1",
+  google: "https://generativelanguage.googleapis.com/v1beta",
 };
 
 const AI_PROVIDER_DEFAULT_MODELS: Record<string, string> = {
@@ -58,6 +80,9 @@ const AI_PROVIDER_DEFAULT_MODELS: Record<string, string> = {
   deepseek: "deepseek-chat",
   xai: "grok-2-latest",
   ollama: "llama3.2",
+  anthropic: "claude-3-5-sonnet-latest",
+  google: "gemini-2.5-flash",
+  cloudflare: "@cf/meta/llama-3.1-8b-instruct",
 };
 
 let aiRuntimeOverrides: AiRuntimeOverrides = {};
@@ -68,8 +93,16 @@ function normalizeOptionalString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function resolveAiBaseUrl(provider: string, explicitBaseUrl: string | null): string {
+function normalizeProviderName(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  return AI_PROVIDER_ALIASES[normalized] ?? normalized;
+}
+
+function resolveAiBaseUrl(provider: string, explicitBaseUrl: string | null): string | undefined {
   if (explicitBaseUrl) return explicitBaseUrl;
+  if (!OPENAI_COMPATIBLE_PROVIDERS.has(provider) && provider !== "anthropic" && provider !== "google") {
+    return undefined;
+  }
   return AI_PROVIDER_BASE_URLS[provider] ?? DEFAULT_AI_BASE_URL;
 }
 
@@ -78,12 +111,66 @@ function resolveAiModel(provider: string, explicitModel: string | null): string 
   return AI_PROVIDER_DEFAULT_MODELS[provider] ?? DEFAULT_AI_MODEL;
 }
 
+function getWorkersAiBinding(envValues: Record<string, unknown>): Ai | null {
+  const binding = envValues.AI;
+  if (!binding || typeof binding !== "object") return null;
+  return binding as Ai;
+}
+
+function createAiLanguageModel(aiConfig: AiConfig) {
+  if (aiConfig.provider === "anthropic") {
+    const anthropic = createAnthropic({
+      apiKey: aiConfig.apiKey,
+      ...(aiConfig.baseURL ? { baseURL: aiConfig.baseURL } : {}),
+    });
+    return anthropic(aiConfig.model);
+  }
+
+  if (aiConfig.provider === "google") {
+    const google = createGoogleGenerativeAI({
+      apiKey: aiConfig.apiKey,
+      ...(aiConfig.baseURL ? { baseURL: aiConfig.baseURL } : {}),
+    });
+    return google(aiConfig.model);
+  }
+
+  if (aiConfig.provider === "cloudflare") {
+    const envValues = env as unknown as Record<string, unknown>;
+    const binding = getWorkersAiBinding(envValues);
+    if (binding) {
+      const workersAi = createWorkersAI({ binding });
+      return workersAi(aiConfig.model);
+    }
+
+    if (aiConfig.accountId && aiConfig.apiKey) {
+      const workersAi = createWorkersAI({
+        accountId: aiConfig.accountId,
+        apiKey: aiConfig.apiKey,
+      });
+      return workersAi(aiConfig.model);
+    }
+
+    throw new Error("Cloudflare provider requires env.AI binding or AI_ACCOUNT_ID + AI_API_KEY");
+  }
+
+  const modelProvider = createOpenAICompatible({
+    baseURL: aiConfig.baseURL ?? DEFAULT_AI_BASE_URL,
+    name: "team-model",
+    apiKey: aiConfig.apiKey,
+    includeUsage: true,
+  });
+
+  return modelProvider.chatModel(aiConfig.model);
+}
+
 export function setAiRuntimeOverrides(overrides: AiRuntimeOverrides = {}): void {
+  const provider = normalizeOptionalString(overrides.provider);
   aiRuntimeOverrides = {
-    provider: normalizeOptionalString(overrides.provider) ?? undefined,
+    provider: provider ? normalizeProviderName(provider) : undefined,
     baseURL: normalizeOptionalString(overrides.baseURL) ?? undefined,
     model: normalizeOptionalString(overrides.model) ?? undefined,
     apiKey: normalizeOptionalString(overrides.apiKey) ?? undefined,
+    accountId: normalizeOptionalString(overrides.accountId) ?? undefined,
   };
 }
 
@@ -107,7 +194,7 @@ function getAiConfigFromEnv(): AiConfig | null {
     normalizeOptionalString(aiRuntimeOverrides.provider)
     ?? normalizeOptionalString(envValues.AI_PROVIDER)
     ?? DEFAULT_AI_PROVIDER;
-  const provider = providerRaw.toLowerCase();
+  const provider = normalizeProviderName(providerRaw);
   const baseURL = resolveAiBaseUrl(
     provider,
     normalizeOptionalString(aiRuntimeOverrides.baseURL) ?? normalizeOptionalString(envValues.AI_BASE_URL),
@@ -120,10 +207,22 @@ function getAiConfigFromEnv(): AiConfig | null {
     normalizeOptionalString(aiRuntimeOverrides.apiKey)
     ?? normalizeOptionalString(envValues.AI_API_KEY)
     ?? "";
+  const accountId =
+    normalizeOptionalString(aiRuntimeOverrides.accountId)
+    ?? normalizeOptionalString(envValues.AI_ACCOUNT_ID)
+    ?? undefined;
+
+  if (provider === "cloudflare") {
+    const hasBinding = Boolean(getWorkersAiBinding(envValues));
+    if (!hasBinding && (!accountId || !apiKey)) {
+      return null;
+    }
+    return { provider, baseURL, model, apiKey, accountId };
+  }
 
   if (!apiKey) return null;
 
-  return { provider, baseURL, model, apiKey };
+  return { provider, baseURL, model, apiKey, accountId };
 }
 
 function clampLimit(value: unknown, fallback = 10): number {
@@ -657,19 +756,14 @@ export const aiTagSuggestRoute = route(
       );
     }
 
-    const modelProvider = createOpenAICompatible({
-      baseURL: aiConfig.baseURL,
-      name: "team-model",
-      apiKey: aiConfig.apiKey,
-      includeUsage: true,
-    });
+    const aiModel = createAiLanguageModel(aiConfig);
 
     const prompt = `Analyze this page HTML and suggest DOM events to track.\n\nContext:\n- Selected site domain: ${site.domain ?? "unknown"}\n- Target URL: ${url.toString()}\n- Lytx tag id (account): ${tagId}\n- Tag script detected on page: ${tagFound}\n- Tracking events seen recently: ${trackingOk === null ? "unknown" : trackingOk}\n\nHTML (truncated):\n${truncateUtf8(html, 60_000)}`;
     const aiStartedAt = Date.now();
 
     try {
       const result = await generateText({
-        model: modelProvider.chatModel(aiConfig.model),
+        model: aiModel,
         system: getSiteTagSystemPrompt(),
         prompt,
       });
@@ -828,12 +922,7 @@ export const aiChatRoute = route(
       );
     }
 
-    const modelProvider = createOpenAICompatible({
-      baseURL: aiConfig.baseURL,
-      name: "team-model",
-      apiKey: aiConfig.apiKey,
-      includeUsage: true,
-    });
+    const aiModel = createAiLanguageModel(aiConfig);
 
     const system = `${getSchemaPrompt()}\n\n${getTeamContextPrompt(ctx, siteId, defaultToolSiteId)}`;
 
@@ -1053,7 +1142,7 @@ export const aiChatRoute = route(
       };
 
       const result = streamText({
-        model: modelProvider.chatModel(aiConfig.model),
+        model: aiModel,
         system,
         messages: modelMessages,
         tools,

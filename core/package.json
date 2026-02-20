@@ -1,6 +1,6 @@
 {
   "name": "lytx",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": false,
   "license": "MIT",
   "publishConfig": {
@@ -103,6 +103,8 @@
     "wrangler": "^4.59.3"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.46",
+    "@ai-sdk/google": "^3.0.30",
     "@ai-sdk/openai-compatible": "^2.0.26",
     "@ai-sdk/react": "^3.0.70",
     "@fontsource/montserrat": "^5.2.8",
@@ -137,6 +139,7 @@
     "react-simple-maps": "^3.0.0",
     "rwsdk": "1.0.0-beta.49",
     "vite": "^7.3.1",
+    "workers-ai-provider": "^3.1.2",
     "zod": "^4.3.6"
   }
 }

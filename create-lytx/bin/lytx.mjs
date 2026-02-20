@@ -12,12 +12,17 @@ const DEFAULT_PROVISION_STAGE = "dev";
 const DEFAULT_AI_PROVIDER = "openai";
 
 const AI_PROVIDER_DEFAULTS = {
-  openai: { baseURL: "https://api.openai.com/v1", model: "gpt-5-mini" },
-  openrouter: { baseURL: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini" },
-  groq: { baseURL: "https://api.groq.com/openai/v1", model: "llama-3.1-70b-versatile" },
-  deepseek: { baseURL: "https://api.deepseek.com/v1", model: "deepseek-chat" },
-  xai: { baseURL: "https://api.x.ai/v1", model: "grok-2-latest" },
-  ollama: { baseURL: "http://localhost:11434/v1", model: "llama3.2" },
+  openai: { baseURL: "", model: "gpt-5-mini" },
+  openrouter: { baseURL: "", model: "openai/gpt-4o-mini" },
+  groq: { baseURL: "", model: "llama-3.1-70b-versatile" },
+  deepseek: { baseURL: "", model: "deepseek-chat" },
+  xai: { baseURL: "", model: "grok-2-latest" },
+  ollama: { baseURL: "", model: "llama3.2" },
+  anthropic: { baseURL: "", model: "claude-3-5-sonnet-latest" },
+  claude: { baseURL: "", model: "claude-3-5-sonnet-latest" },
+  google: { baseURL: "", model: "gemini-2.5-flash" },
+  gemini: { baseURL: "", model: "gemini-2.5-flash" },
+  cloudflare: { baseURL: "", model: "@cf/meta/llama-3.1-8b-instruct" },
   custom: { baseURL: "", model: "gpt-5-mini" },
 };
 
@@ -33,7 +38,7 @@ Options:
   --force                  Scaffold into non-empty target directory
   --interactive            Prompt for optional setup values
   --no-env                 Skip writing .env from .env.example
-  --ai-provider <name>     AI provider preset or label (openai/openrouter/groq/deepseek/xai/ollama/custom)
+  --ai-provider <name>     AI provider preset (openai/claude/gemini/cloudflare/openrouter/groq/deepseek/xai/ollama/custom)
   --ai-model <model>       AI model id written to .env
   --ai-base-url <url>      AI base URL written to .env
   --app-domain <domain>    Default app domain for .env.example
@@ -468,7 +473,7 @@ async function promptMissingValues(args, templates) {
 
     if (!args.aiProviderProvided) {
       const providerAnswer = await rl.question(
-        `AI provider (openai/openrouter/groq/deepseek/xai/ollama/custom) (${args.aiProvider}): `,
+        `AI provider (openai/claude/gemini/cloudflare/openrouter/groq/deepseek/xai/ollama/custom) (${args.aiProvider}): `,
       );
       const provider = providerAnswer.trim();
       if (provider.length > 0) {
@@ -677,6 +682,10 @@ async function createAndPopulateEnvFile(args, targetPath, projectName) {
           "AI_API_KEY",
           "AI_DAILY_TOKEN_LIMIT",
         ];
+
+        if (normalizeAiProvider(args.aiProvider) === "cloudflare") {
+          secretKeys.push("AI_ACCOUNT_ID");
+        }
 
         if (args.authGithub) {
           secretKeys.push("GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET");

@@ -12,6 +12,11 @@ export const LYTX_AI_PROVIDER_PRESETS = [
   "deepseek",
   "xai",
   "ollama",
+  "anthropic",
+  "claude",
+  "google",
+  "gemini",
+  "cloudflare",
   "custom",
 ] as const;
 
@@ -22,6 +27,9 @@ export const LYTX_AI_MODEL_PRESETS = [
   "deepseek-chat",
   "grok-2-latest",
   "llama3.2",
+  "claude-3-5-sonnet-latest",
+  "gemini-2.5-flash",
+  "@cf/meta/llama-3.1-8b-instruct",
 ] as const;
 
 const dbAdapterSchema = z.enum(dbAdapterValues);
@@ -98,6 +106,7 @@ const aiRuntimeConfigSchema = z
     baseURL: optionalUrlSchema("ai.baseURL must be a valid URL"),
     model: optionalTrimmedStringSchema,
     apiKey: optionalTrimmedStringSchema,
+    accountId: optionalTrimmedStringSchema,
   })
   .strict();
 
@@ -180,6 +189,7 @@ const createLytxAppConfigSchema = z
         BETTER_AUTH_URL: z.string().trim().url("BETTER_AUTH_URL must be a valid URL").optional(),
         ENCRYPTION_KEY: envKeySchema.optional(),
         AI_API_KEY: envKeySchema.optional(),
+        AI_ACCOUNT_ID: envKeySchema.optional(),
         AI_BASE_URL: z.string().trim().url("AI_BASE_URL must be a valid URL").optional(),
         AI_PROVIDER: envKeySchema.optional(),
         AI_MODEL: envKeySchema.optional(),
@@ -326,6 +336,7 @@ export function parseCreateLytxAppConfig(config: CreateLytxAppConfig): ParsedCre
           baseURL: normalizeOptionalValue(parsed.data.ai.baseURL),
           model: normalizeOptionalValue(parsed.data.ai.model),
           apiKey: normalizeOptionalValue(parsed.data.ai.apiKey),
+          accountId: normalizeOptionalValue(parsed.data.ai.accountId),
         }
       : undefined,
   };

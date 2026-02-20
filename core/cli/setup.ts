@@ -350,6 +350,7 @@ EMAIL_FROM=noreply@yourdomain.com
 
 # AI features (optional)
 AI_API_KEY=
+AI_ACCOUNT_ID=
 AI_PROVIDER=openai
 AI_BASE_URL=
 AI_MODEL=

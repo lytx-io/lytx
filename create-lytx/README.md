@@ -33,7 +33,7 @@ Notes:
 - The CLI now writes `.env` from `.env.example` automatically.
 - Use `--interactive` to fill domains, sender, API keys/secrets, AI provider/model, and feature flags.
 - Social provider keys are prompted only for providers you enabled.
-- Use `--ai-provider`, `--ai-model`, and `--ai-base-url` to preconfigure AI defaults.
+- Use `--ai-provider`, `--ai-model`, and `--ai-base-url` to preconfigure AI defaults (including `claude`, `gemini`, and `cloudflare` presets).
 - Use `--no-env` to skip writing `.env`.
 
 ## Current template

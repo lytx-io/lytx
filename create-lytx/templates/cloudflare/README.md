@@ -32,6 +32,7 @@ bun alchemy deploy --stage dev
 - `LYTX_AUTH_GOOGLE` / `LYTX_AUTH_GITHUB` toggle social providers in `src/worker.tsx`.
 - `LYTX_APP_DOMAIN` / `LYTX_TRACKING_DOMAIN` preconfigure domains in `alchemy.run.ts`.
 - `AI_PROVIDER`, `AI_MODEL`, and `AI_BASE_URL` configure AI vendor/model routing.
+- `AI_ACCOUNT_ID` is used for `cloudflare` provider when `env.AI` binding is not present.
 
 ## Core Docs
 
