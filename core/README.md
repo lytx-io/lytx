@@ -68,7 +68,7 @@ export default app satisfies ExportedHandler<Env>;
 - `db.dbAdapter` (`"sqlite" | "postgres" | "singlestore" | "analytics_engine"`)
 - `db.eventStore` (`db.dbAdapter` values + `"durable_objects"`; defaults to `"durable_objects"`)
 - `useQueueIngestion` (`true`/`false`)
-- `includeLegacyTagRoutes` (`true` by default for `/lytx.js` and `/trackWebEvent` compatibility)
+- `includeLegacyTagRoutes` (`true` by default for `/lytx.v2.js` and `/trackWebEvent.v2` compatibility)
 - `trackingRoutePrefix` (prefix all tracking routes, e.g. `/collect`)
 - `tagRoutes.scriptPath` + `tagRoutes.eventPath` (custom v2 route paths)
 - `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`

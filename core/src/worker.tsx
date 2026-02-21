@@ -14,7 +14,6 @@ import { resendVerificationEmailRoute, userApiRoutes } from "@api/auth_api";
 import { eventLabelsApi } from "@api/event_labels_api";
 import { reportsApi } from "@api/reports_api";
 import {
-  legacyContainerRoute,
   newSiteSetup,
 } from "@api/tag_api";
 import { lytxTag, trackWebEvent } from "@api/tag_api_v2";
@@ -65,10 +64,10 @@ export type { AppContext };
 export type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
 
 const DEFAULT_TAG_DB_ADAPTER: DBAdapter = "sqlite";
-const DEFAULT_TAG_SCRIPT_PATH = "/lytx.v2.js";
-const DEFAULT_LEGACY_TAG_SCRIPT_PATH = "/lytx.js";
-const DEFAULT_TRACK_WEB_EVENT_PATH = "/trackWebEvent.v2";
-const DEFAULT_LEGACY_TRACK_WEB_EVENT_PATH = "/trackWebEvent";
+const DEFAULT_TAG_SCRIPT_PATH = "/lytx.js";
+const DEFAULT_LEGACY_TAG_SCRIPT_PATH = "/lytx.v2.js";
+const DEFAULT_TRACK_WEB_EVENT_PATH = "/trackWebEvent";
+const DEFAULT_LEGACY_TRACK_WEB_EVENT_PATH = "/trackWebEvent.v2";
 
 const normalizeRoutePrefix = (value?: string): string => {
   if (!value) return "";
@@ -248,13 +247,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const askAiEnabled =
     aiEnabled && (parsed_config.features?.askAiEnabled ?? (reportBuilderEnabled && isAskAiEnabled()));
 
-  const tagRoutes: Array<
-    typeof legacyContainerRoute | ReturnType<typeof lytxTag> | ReturnType<typeof trackWebEvent>
-  > = [];
-
-  if (includeLegacyTagRoutes && tagScriptEnabled) {
-    tagRoutes.push(legacyContainerRoute);
-  }
+  const tagRoutes: Array<ReturnType<typeof lytxTag> | ReturnType<typeof trackWebEvent>> = [];
 
   if (tagScriptEnabled) {
     tagRoutes.push(lytxTag(tagRouteDbAdapter, tagScriptPath));

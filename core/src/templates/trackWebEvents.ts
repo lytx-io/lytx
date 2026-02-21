@@ -152,7 +152,7 @@ export function trackEvents(
     // __LYTX_DOMAIN__ is replaced at runtime by the tag API
     const lytxDomain = "__LYTX_DOMAIN__";
     const req = await window.fetch(
-      `${lytxDomain}/trackWebEvent.v2?account=${account}&platform=${platformName}`,
+      `${lytxDomain}/trackWebEvent?account=${account}&platform=${platformName}`,
       {
         method: "POST",
         body: JSON.stringify(data),

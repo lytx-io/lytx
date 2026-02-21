@@ -3,4 +3,4 @@
  */
 
 /** The path to the Lytx tracking script */
-export const LYTX_SCRIPT_PATH = "/lytx.v2.js";
+export const LYTX_SCRIPT_PATH = "/lytx.js";

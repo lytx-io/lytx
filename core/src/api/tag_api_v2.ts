@@ -67,7 +67,7 @@ function checkIfTagManager(events: PageEvent[], allowed = false) {
 
 }
 
-export const lytxTag = (adapter: DBAdapter, route_path = "/lytx.v2.js") => route(route_path, [corsMiddleware, async ({ request }) => {
+export const lytxTag = (adapter: DBAdapter, route_path = "/lytx.js") => route(route_path, [corsMiddleware, async ({ request }) => {
   if (request.method !== "GET") return new Response("Not Found.", { status: 404 });
   const url = new URL(request.url);
   const lytxDomain = url.origin;
@@ -116,7 +116,7 @@ export const lytxTag = (adapter: DBAdapter, route_path = "/lytx.v2.js") => route
       events = [];
     }
   }
-  ///trackWebEvent.v2
+  ///trackWebEvent
   const lytx_script = (lytxDomain: string) => {
     // Use core bundle (no vendors) when tag_manager is disabled, full bundle otherwise
     const baseScript = config.tag_manager ? script_tag_manager : script_core;
@@ -152,7 +152,7 @@ type TrackWebEventOptions = {
 
 export const trackWebEvent = (
   adapter: DBAdapter,
-  route_path = "/trackWebEvent.v2",
+  route_path = "/trackWebEvent",
   options: TrackWebEventOptions = {},
 ) => route(route_path, [corsMiddleware, async ({ request }) => {
   // Handle CORS preflight
