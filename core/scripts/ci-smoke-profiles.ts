@@ -14,11 +14,11 @@ function assert(condition: unknown, message: string): asserts condition {
 
 function runBaselineChecks() {
   const config = parseCreateLytxAppConfig({
-    dbAdapter: "sqlite",
+    db: { dbAdapter: "sqlite" },
     useQueueIngestion: true,
   });
 
-  assert(config.dbAdapter === "sqlite", "baseline: expected sqlite adapter");
+  assert(config.db?.dbAdapter === "sqlite", "baseline: expected sqlite adapter");
 
   const namesA = resolveLytxResourceNames({
     stage: "dev",
@@ -49,7 +49,7 @@ function runCustomizedChecks() {
       scriptPath: "/lytx.v2.js",
       eventPath: "/trackWebEvent.v2",
     },
-    dbAdapter: "sqlite",
+    db: { dbAdapter: "sqlite" },
     useQueueIngestion: true,
     includeLegacyTagRoutes: false,
     trackingRoutePrefix: "/collect",

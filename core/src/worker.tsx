@@ -221,7 +221,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const eventsEnabled = parsed_config.features?.events ?? isEventsEnabled();
   const aiEnabled = dashboardEnabled && (parsed_config.features?.ai ?? isAiFeatureEnabled());
   const tagScriptEnabled = parsed_config.features?.tagScript ?? isTagScriptEnabled();
-  const tagRouteDbAdapter = parsed_config.db?.dbAdapter ?? parsed_config.dbAdapter ?? DEFAULT_TAG_DB_ADAPTER;
+  const tagRouteDbAdapter = parsed_config.db?.dbAdapter ?? DEFAULT_TAG_DB_ADAPTER;
   const tagRouteEventStore = parsed_config.db?.eventStore ?? "durable_objects";
   const tagRouteQueueIngestionEnabled = parsed_config.useQueueIngestion ?? (tagRouteEventStore === "durable_objects");
   const includeLegacyTagRoutes = parsed_config.includeLegacyTagRoutes ?? true;

@@ -128,7 +128,6 @@ const createLytxAppConfigSchema = z
   .object({
     enableRequestLogging: z.boolean().optional(),
     db: dbConfigSchema.optional(),
-    dbAdapter: dbAdapterSchema.optional(),
     useQueueIngestion: z.boolean().optional(),
     includeLegacyTagRoutes: z.boolean().optional(),
     trackingRoutePrefix: routePrefixSchema.optional(),
@@ -212,14 +211,6 @@ const createLytxAppConfigSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    if (value.db?.dbAdapter && value.dbAdapter && value.db.dbAdapter !== value.dbAdapter) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["db", "dbAdapter"],
-        message: "db.dbAdapter must match top-level dbAdapter when both are provided",
-      });
-    }
-
     if (value.features?.dashboard === true && value.features?.auth === false) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
