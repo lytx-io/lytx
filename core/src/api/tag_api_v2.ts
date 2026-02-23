@@ -4,7 +4,7 @@ import { env } from "cloudflare:workers";
 import type { PageEvent } from "@/templates/lytxpixel";
 import { script_tag_manager, script_core } from "virtual:lytx-pixel-raw";
 // import { getSiteForTag as getSiteForTagPg } from "@db/postgres/sites";
-import { getSiteForTag as getSiteForTagD1, rotateSiteRidSalt } from "@db/d1/sites";
+import { createSite, getSiteForTag as getSiteForTagD1, rotateSiteRidSalt } from "@db/d1/sites";
 import { insertSiteEvents } from "@db/adapter";
 import { enqueueSiteEventsForProcessing } from "@/api/queueWorker";
 import { blockedQueryParams, WebEvent } from "@/templates/trackWebEvents";
@@ -13,8 +13,24 @@ import { hashIpAddress } from "@/utilities";
 import type { DBAdapter } from "@db/types";
 import { IS_DEV } from "rwsdk/constants";
 import { SiteEventInput } from "@/session/siteSchema";
+import type { AppContext } from "@/types/app-context";
 
 export const dataVariableName = "lytxDataLayer" as const;
+
+/**
+ * @deprecated
+ * GET /container.js
+ *
+ * Legacy endpoint retained for older embeds.
+ */
+export const legacyContainerRoute = route("/container.js", async ({ request }) => {
+  if (request.method !== "GET") return new Response("Not Found.", { status: 404 });
+  return new Response("console.log('This Script has been deprecated please migrate to lytx.js')", {
+    headers: {
+      "Content-Type": "text/javascript",
+    },
+  });
+});
 
 export function corsMiddleware({ response }: RequestInfo) {
   const headers = response.headers;
@@ -25,7 +41,52 @@ export function corsMiddleware({ response }: RequestInfo) {
   headers.set("Access-Control-Max-Age", "600");
   headers.set("Access-Control-Allow-Credentials", "false");
 }
-//TODO: move to seprate 
+
+/**
+ * POST /sites
+ *
+ * Creates a new site for the current team.
+ */
+export const newSiteSetup = (internal = true) =>
+  route("/sites", async ({ request, ctx }: RequestInfo<any, AppContext>) => {
+    let team_id: number | null = null;
+    if (!internal) {
+      const apiKey = request.headers.get("x-api-key");
+      if (!apiKey) return new Response("Missing API Key", { status: 400 });
+      if (!team_id) return new Response("Invalid API Key", { status: 400 });
+    } else {
+      team_id = ctx.team.id;
+    }
+
+    if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+
+    const body = await request.json() as {
+      name: string;
+      domain: string;
+      track_web_events: boolean;
+      gdpr: boolean;
+      autocapture?: boolean;
+      event_load_strategy?: "sdk" | "kv";
+    };
+
+    if (!body.name || !body.domain) {
+      return new Response("Invalid request body.", { status: 400 });
+    }
+
+    const { name, domain, gdpr, track_web_events, autocapture, event_load_strategy } = body;
+    const site = await createSite({
+      name,
+      domain,
+      track_web_events,
+      gdpr,
+      autocapture: autocapture ?? true,
+      event_load_strategy: event_load_strategy ?? "sdk",
+      team_id: team_id ?? 0,
+    });
+
+    return new Response(JSON.stringify(site), { status: 200 });
+  });
+//TODO: move to seprate
 function checkIfTagManager(events: PageEvent[], allowed = false) {
   const eventsMapped = [];
   for (const ev of events) {

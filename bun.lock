@@ -10,7 +10,7 @@
     },
     "core": {
       "name": "lytx",
-      "version": "0.3.10",
+      "version": "0.3.11",
       "bin": {
         "lytx-setup": "./cli/setup.js",
       },
@@ -38,7 +38,6 @@
         "esbuild": "^0.27.2",
         "hono": "^4.11.7",
         "modern-monaco": "^0.3.7",
-        "mustache": "^4.2.0",
         "postgres": "^3.4.3",
         "prism-react-renderer": "^2.4.1",
         "react": "^19.3.0-canary-4fdf7cf2-20251003",
@@ -54,7 +53,6 @@
         "@tailwindcss/vite": "^4.1.8",
         "@types/better-sqlite3": "^7.6.13",
         "@types/bun": "^1.2.21",
-        "@types/mustache": "^4.2.2",
         "@types/node": "^24.0.0",
         "@types/react": "^19.1.7",
         "@types/react-dom": "^19.1.6",
@@ -762,8 +760,6 @@
 
     "@types/ms": ["@types/ms@2.1.0", "", {}, "sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA=="],
 
-    "@types/mustache": ["@types/mustache@4.2.6", "", {}, "sha512-t+8/QWTAhOFlrF1IVZqKnMRJi84EgkIK5Kh0p2JV4OLywUvCwJPFxbJAl7XAow7DVIHsF+xW9f1MVzg0L6Szjw=="],
-
     "@types/node": ["@types/node@24.10.13", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-oH72nZRfDv9lADUBSo104Aq7gPHpQZc4BTx38r9xf9pg5LfP6EzSyH2n7qFmmxRQXh7YlUXODcYsg6PuTDSxGg=="],
 
     "@types/prismjs": ["@types/prismjs@1.26.6", "", {}, "sha512-vqlvI7qlMvcCBbVe0AKAb4f97//Hy0EBTaiW8AalRnG/xAN5zOiWWyrNqNXeq8+KAuvRewjCVY1+IPxk4RdNYw=="],
@@ -1465,8 +1461,6 @@
     "modern-monaco": ["modern-monaco@0.3.8", "", { "peerDependencies": { "typescript": ">= 5.0.0" } }, "sha512-vQ6tlYorvHJs9FzlOBOqErDyJ3D1sAkm9EcOUUASvpqpUaAsj71vh8kH5WruC+jNQAD2BlTsyw04m0Eo0+RpqA=="],
 
     "ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
-
-    "mustache": ["mustache@4.2.0", "", { "bin": { "mustache": "bin/mustache" } }, "sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ=="],
 
     "nanoid": ["nanoid@3.3.11", "", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w=="],
 

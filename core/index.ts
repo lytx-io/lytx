@@ -48,8 +48,7 @@ export { aiChatRoute, aiConfigRoute, aiTagSuggestRoute } from "./src/api/ai_api"
 export { resendVerificationEmailRoute, userApiRoutes } from "./src/api/auth_api";
 export { eventLabelsApi } from "./src/api/event_labels_api";
 export { reportsApi } from "./src/api/reports_api";
-export { legacyContainerRoute, newSiteSetup } from "./src/api/tag_api";
-export { lytxTag, trackWebEvent } from "./src/api/tag_api_v2";
+export { legacyContainerRoute, lytxTag, newSiteSetup, trackWebEvent } from "./src/api/tag_api_v2";
 export { handleQueueMessage } from "./src/api/queueWorker";
 
 // ── Middleware ───────────────────────────────────────────────────────────────

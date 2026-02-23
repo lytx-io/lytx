@@ -13,10 +13,7 @@ import { aiChatRoute, aiConfigRoute, aiTagSuggestRoute, getAiConfig, setAiRuntim
 import { resendVerificationEmailRoute, userApiRoutes } from "@api/auth_api";
 import { eventLabelsApi } from "@api/event_labels_api";
 import { reportsApi } from "@api/reports_api";
-import {
-  newSiteSetup,
-} from "@api/tag_api";
-import { lytxTag, trackWebEvent } from "@api/tag_api_v2";
+import { lytxTag, newSiteSetup, trackWebEvent } from "@api/tag_api_v2";
 import { authMiddleware, sessionMiddleware } from "@api/authMiddleware";
 import {
   canRegisterEmail,
