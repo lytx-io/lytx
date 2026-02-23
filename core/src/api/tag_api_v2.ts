@@ -120,8 +120,8 @@ export const lytxTag = (adapter: DBAdapter, route_path = "/lytx.js") => route(ro
   const lytx_script = (lytxDomain: string) => {
     // Use core bundle (no vendors) when tag_manager is disabled, full bundle otherwise
     const baseScript = config.tag_manager ? script_tag_manager : script_core;
-    // Replace the placeholder with the actual domain (includes protocol)
-    const domain = IS_DEV ? "http://localhost:6123" : lytxDomain;
+    // Replace the placeholder with the script request origin so local ports stay aligned.
+    const domain = lytxDomain;
     return baseScript.replace("__LYTX_DOMAIN__", domain);
   }
   if (!events) return new Response("Not Found.", { status: 404 });
