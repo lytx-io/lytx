@@ -57,13 +57,12 @@ describe("dashboard integration", () => {
     expect(response.headers.get("Content-Type")).toContain("application/json");
   });
 
-  integrationTest("serves legacy container script", async () => {
+  integrationTest("returns not found for removed legacy container route", async () => {
     const response = await fetch(`${baseUrl}/container.js`, {
       method: "GET",
     });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("text/javascript");
+    expect(response.status).toBe(404);
   });
 
   integrationTest("rejects resend verification email GET", async () => {

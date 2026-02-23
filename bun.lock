@@ -10,7 +10,7 @@
     },
     "core": {
       "name": "lytx",
-      "version": "0.3.11",
+      "version": "0.3.12",
       "bin": {
         "lytx-setup": "./cli/setup.js",
       },

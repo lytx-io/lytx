@@ -17,21 +17,6 @@ import type { AppContext } from "@/types/app-context";
 
 export const dataVariableName = "lytxDataLayer" as const;
 
-/**
- * @deprecated
- * GET /container.js
- *
- * Legacy endpoint retained for older embeds.
- */
-export const legacyContainerRoute = route("/container.js", async ({ request }) => {
-  if (request.method !== "GET") return new Response("Not Found.", { status: 404 });
-  return new Response("console.log('This Script has been deprecated please migrate to lytx.js')", {
-    headers: {
-      "Content-Type": "text/javascript",
-    },
-  });
-});
-
 export function corsMiddleware({ response }: RequestInfo) {
   const headers = response.headers;
   headers.set("Access-Control-Allow-Origin", "*");

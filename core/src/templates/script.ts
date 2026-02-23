@@ -16,7 +16,7 @@ export const pageScript = `
 window._lytxEvents = window._lytxEvents || [];
 (function () {
   const elem = document.createElement("script");
-  elem.src = "http://localhost:8787/container.js?test=true";
+  elem.src = "http://localhost:8787/lytx.js?account=test-account";
   elem.async = true;
   elem.type = "text/javascript";
   const script = document.getElementsByTagName("script")[0];

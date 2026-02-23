@@ -130,7 +130,6 @@ import {
   userApiRoutes,
   eventLabelsApi,
   reportsApi,
-  legacyContainerRoute,
   newSiteSetup,
   lytxTag,
   trackWebEvent,
@@ -168,7 +167,6 @@ const app = defineApp<AppRequestInfo>([
   },
 
   // ── Tag & event ingestion (unauthenticated) ──
-  legacyContainerRoute,
   lytxTag(dbAdapter),
   trackWebEvent(dbAdapter, "/trackWebEvent", { useQueue: true }),
   eventsApi,

@@ -30,7 +30,7 @@ The following are supported under semantic versioning guarantees (see policy bel
 - `aiChatRoute`, `aiConfigRoute`, `aiTagSuggestRoute`
 - `resendVerificationEmailRoute`, `userApiRoutes`
 - `eventLabelsApi`, `reportsApi`
-- `legacyContainerRoute`, `newSiteSetup`
+- `newSiteSetup`
 - `lytxTag`, `trackWebEvent`
 - `handleQueueMessage`
 

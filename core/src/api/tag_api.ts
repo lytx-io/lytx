@@ -1,7 +1,6 @@
 import {
   corsMiddleware,
   dataVariableName,
-  legacyContainerRoute,
   lytxTag,
   newSiteSetup,
   trackWebEvent,
@@ -15,7 +14,6 @@ import {
 export {
   corsMiddleware,
   dataVariableName,
-  legacyContainerRoute,
   lytxTag,
   newSiteSetup,
   trackWebEvent,
