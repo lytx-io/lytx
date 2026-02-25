@@ -87,7 +87,69 @@ export const AuthContext = createContext<{
 
 export type Currentsite = { name: string, id: number, tag_id: string } | null
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+type AuthProviderProps = {
+  children: React.ReactNode;
+  initialSession?: AuthUserSession | null;
+  demoModeEnabled?: boolean;
+};
+
+function useCurrentSiteState(data: AuthUserSession | null) {
+  const [current_site, setCurrentSite] = useState<Currentsite>(null);
+  const hasInitialized = useRef(false);
+
+  useEffect(() => {
+    if (hasInitialized.current || current_site) return;
+    if (!data?.userSites?.length) return;
+
+    let defaultSite = data.userSites[0];
+
+    const storedSiteId = getLastSiteFromStorage();
+    if (storedSiteId) {
+      const storedSite = data.userSites.find((site) => site.site_id === storedSiteId);
+      if (storedSite) {
+        defaultSite = storedSite;
+      }
+    } else if (data.last_site_id) {
+      const lastSite = data.userSites.find((site) => site.site_id === data.last_site_id);
+      if (lastSite) {
+        defaultSite = lastSite;
+      }
+    }
+
+    if (!defaultSite) return;
+
+    hasInitialized.current = true;
+    setCurrentSite({
+      name: defaultSite.name!,
+      id: defaultSite.site_id,
+      tag_id: defaultSite.tag_id,
+    });
+  }, [current_site, data]);
+
+  return { current_site, setCurrentSite };
+}
+
+function DemoModeAuthProvider({ children, initialSession }: { children: React.ReactNode; initialSession: AuthUserSession | null }) {
+  const data = initialSession;
+  const { current_site, setCurrentSite } = useCurrentSiteState(data);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        data,
+        isPending: false,
+        error: null,
+        refetch: () => undefined,
+        current_site,
+        setCurrentSite,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+function LiveAuthProvider({ children }: { children: React.ReactNode }) {
   const sessionState = authClient.useSession();
   const data = sessionState.data as AuthUserSession | null;
   const { isPending, error, refetch } = sessionState;
@@ -126,51 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refetch: current.refetch,
     });
   };
-  //Current Site ID
-  const [current_site, setCurrentSite] = useState<Currentsite>(null);
-
-  const hasInitialized = useRef(false);
-
-  useEffect(() => {
-    if (hasInitialized.current || current_site) return;
-    if (!data?.userSites?.length) return;
-
-    // Priority: localStorage > session.last_site_id > first site
-    let defaultSite = data.userSites[0];
-    
-    // Check localStorage first (most recent selection)
-    const storedSiteId = getLastSiteFromStorage();
-    if (storedSiteId) {
-      const storedSite = data.userSites.find(site => site.site_id === storedSiteId);
-      if (storedSite) {
-        defaultSite = storedSite;
-      }
-    } else if (data.last_site_id) {
-      // Fall back to session data (from database)
-      const lastSite = data.userSites.find(site => site.site_id === data.last_site_id);
-      if (lastSite) {
-        defaultSite = lastSite;
-      }
-    }
-    
-    if (!defaultSite) return;
-
-    hasInitialized.current = true;
-    setCurrentSite({
-      name: defaultSite.name!,
-      id: defaultSite.site_id,
-      tag_id: defaultSite.tag_id,
-    });
-  }, [current_site, data]);
-
-  //WARNING: Only using for dev
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log("🔥🔥🔥 Effect for current_site has been triggered")
-      if (current_site) console.dir(current_site);
-    }
-    //Fetch to update session in better-auth
-  }, [current_site]);
+  const { current_site, setCurrentSite } = useCurrentSiteState(data);
 
   return (
     <AuthContext.Provider
@@ -186,4 +204,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+export function AuthProvider({ children, initialSession = null, demoModeEnabled = false }: AuthProviderProps) {
+  if (demoModeEnabled) {
+    return <DemoModeAuthProvider initialSession={initialSession}>{children}</DemoModeAuthProvider>;
+  }
+
+  return <LiveAuthProvider>{children}</LiveAuthProvider>;
 }

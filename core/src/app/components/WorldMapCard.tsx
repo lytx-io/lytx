@@ -95,6 +95,13 @@ interface BubbleDatum {
   value: number;
 }
 
+type GeoFeature = {
+  rsmKey: string;
+  geometry?: {
+    type?: string | null;
+  } | null;
+};
+
 export const WorldMapCard = React.memo(function WorldMapCard({
   aggregatedCountries,
   isDark,
@@ -264,8 +271,10 @@ export const WorldMapCard = React.memo(function WorldMapCard({
           maxZoom={8}
         >
           <Geographies geography={geoData}>
-            {({ geographies }: { geographies: Array<{ rsmKey: string }> }) =>
-              geographies.map((geo: { rsmKey: string }) => (
+            {({ geographies }: { geographies: GeoFeature[] }) =>
+              geographies
+                .filter((geo) => Boolean(geo.geometry?.type && geo.geometry.type !== "Null"))
+                .map((geo) => (
                 <Geography
                   key={geo.rsmKey}
                   geography={geo}
@@ -278,7 +287,7 @@ export const WorldMapCard = React.memo(function WorldMapCard({
                     pressed: { outline: "none" },
                   }}
                 />
-              ))
+                ))
             }
           </Geographies>
 

@@ -9,6 +9,7 @@ import { eq, and } from 'drizzle-orm';
 import { IS_DEV } from 'rwsdk/constants';
 import { createId } from '@paralleldrive/cuid2';
 import { insertSiteEvents } from '@db/adapter';
+import { getSignupMode } from '@lib/auth';
 import type { SiteEventInput } from '@/session/siteSchema';
 import type { DBAdapter } from '@db/types';
 
@@ -17,16 +18,18 @@ const ENVIRONMENT = (env as { ENVIRONMENT?: string }).ENVIRONMENT;
 
 function validateSeedSecret(request: Request): Response | null {
   const seedSecretHeader = request.headers.get("x-seed-secret");
+  const demoModeEnabled = getSignupMode() === "demo";
 
-  // Multiple layers of protection to ensure this never runs in production
-  // 1. Check IS_DEV from rwsdk (based on build mode)
-  if (!IS_DEV) {
-    return new Response("Seed endpoint disabled outside dev.", { status: 403 });
+  // Multiple layers of protection to ensure this never runs unintentionally.
+  // Demo mode is an explicit opt-in override that allows seeding in non-dev environments.
+  // 1. Check IS_DEV from rwsdk (based on build mode) unless demo mode is enabled
+  if (!IS_DEV && !demoModeEnabled) {
+    return new Response("Seed endpoint disabled outside dev unless auth.signupMode is 'demo'.", { status: 403 });
   }
 
-  // 2. Explicitly check ENVIRONMENT env var
-  if (ENVIRONMENT === "production" || ENVIRONMENT === "staging") {
-    return new Response("Seed endpoint disabled in production/staging.", { status: 403 });
+  // 2. Explicitly check ENVIRONMENT env var unless demo mode is enabled
+  if ((ENVIRONMENT === "production" || ENVIRONMENT === "staging") && !demoModeEnabled) {
+    return new Response("Seed endpoint disabled in production/staging unless auth.signupMode is 'demo'.", { status: 403 });
   }
 
   // 3. Require SEED_DATA_SECRET to be configured

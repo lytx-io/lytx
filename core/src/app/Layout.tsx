@@ -12,6 +12,7 @@ export function AppLayout({
 }: LayoutProps<RequestInfo<any, AppContext>>) {
   const dashboardPrefetchHref = "/dashboard/settings";
   const session = requestInfo?.ctx?.session;
+  const demoModeEnabled = session?.session?.userAgent === "lytx-demo-mode";
   const initialNavSession: NavInitialSession | null = session
     ? {
       user: {
@@ -38,7 +39,7 @@ export function AppLayout({
 
   return (
     //NOTE: This was a way to get all the client side providers to work
-    <ClientProviders>
+    <ClientProviders initialSession={session ?? null} demoModeEnabled={demoModeEnabled}>
       {session
         ? <link rel="x-prefetch" href={dashboardPrefetchHref} />
         : null}

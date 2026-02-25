@@ -122,7 +122,7 @@ export function getAuthProviderAvailability(): AuthProviderAvailability {
   };
 }
 
-function getSignupMode(): SignupMode {
+export function getSignupMode(): SignupMode {
   return auth_runtime_config.signupMode ?? "bootstrap_then_invite";
 }
 
