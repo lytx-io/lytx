@@ -4,7 +4,7 @@ export const CREATE_LYTX_APP_CONFIG_DOC_URL =
   "https://github.com/lytx-io/lytx/blob/master/core/docs/oss-contract.md#supported-extension-and-customization-points";
 
 const dbAdapterValues = ["sqlite", "postgres", "singlestore", "analytics_engine"] as const;
-const signupModeValues = ["open", "bootstrap_then_invite", "invite_only"] as const;
+const signupModeValues = ["open", "bootstrap_then_invite", "invite_only", "demo"] as const;
 
 export const LYTX_AI_PROVIDER_PRESETS = [
   "openai",
@@ -243,10 +243,11 @@ const createLytxAppConfigSchema = z
       });
     }
 
+    const demoModeEnabled = value.auth?.signupMode === "demo";
     const emailPasswordEnabled = value.auth?.emailPasswordEnabled ?? true;
     const googleExplicitlyDisabled = value.auth?.socialProviders?.google === false;
     const githubExplicitlyDisabled = value.auth?.socialProviders?.github === false;
-    if (!emailPasswordEnabled && googleExplicitlyDisabled && githubExplicitlyDisabled) {
+    if (!demoModeEnabled && !emailPasswordEnabled && googleExplicitlyDisabled && githubExplicitlyDisabled) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["auth", "emailPasswordEnabled"],

@@ -6,13 +6,13 @@ export { SyncDurableObject, SiteDurableObject };
 const app = createLytxApp({
   db: {
     dbAdapter: "sqlite",
-    eventStore: "durable_objects"
+    eventStore: "durable_objects",
   },
   auth: {
-
-
+    signupMode: "demo",
+    // "demo" is intentionally unauthenticated for app/dashboard routes.
     // signupMode: "bootstrap_then_invite",
-  }
+  },
   // ai: {
   //   provider: process.env.AI_PROVIDER?.trim() || undefined,
   //   // model: process.env.AI_MODEL?.trim() || undefined,

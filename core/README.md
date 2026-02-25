@@ -72,7 +72,7 @@ export default app satisfies ExportedHandler<Env>;
 - `trackingRoutePrefix` (prefix all tracking routes, e.g. `/collect`)
 - `tagRoutes.scriptPath` + `tagRoutes.eventPath` (custom v2 route paths)
 - `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`
-- `auth.signupMode` (`"open" | "bootstrap_then_invite" | "invite_only"`; default is `"bootstrap_then_invite"`)
+- `auth.signupMode` (`"open" | "bootstrap_then_invite" | "invite_only" | "demo"`; default is `"bootstrap_then_invite"`)
 - `ai.provider`, `ai.model`, `ai.baseURL`, `ai.apiKey`, `ai.accountId` (runtime AI vendor/model overrides; blank values are ignored; provider/model include preset autocomplete values)
 - `features.reportBuilderEnabled` + `features.askAiEnabled`
 - `names.*` (typed resource binding names for D1/KV/Queue/DO)
@@ -369,9 +369,12 @@ createLytxApp({
     signupMode: "bootstrap_then_invite",
     // signupMode: "invite_only", // never allow public signup
     // signupMode: "open", // always allow public signup
+    // signupMode: "demo", // DISABLES auth and makes dashboard/app routes publicly accessible
   },
 });
 ```
+
+`"demo"` mode is intentionally unsafe for production. It bypasses login/session requirements for dashboard and app routes so anyone with the URL can access the product experience.
 
 If you need to bootstrap an admin user without public signup, use the CLI:
 

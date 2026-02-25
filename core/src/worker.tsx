@@ -15,6 +15,7 @@ import { eventLabelsApi } from "@api/event_labels_api";
 import { reportsApi } from "@api/reports_api";
 import { lytxTag, newSiteSetup, trackWebEvent } from "@api/tag_api_v2";
 import { authMiddleware, sessionMiddleware } from "@api/authMiddleware";
+import { demoSessionMiddleware } from "@api/demo_middleware";
 import {
   canRegisterEmail,
   getSignupAccessState,
@@ -163,9 +164,6 @@ const appRoute = <TPath extends string>(
   handlers: Parameters<typeof route<TPath, AppRequestInfo>>[1],
 ) => route<TPath, AppRequestInfo>(path, handlers);
 
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === "object" && value !== null;
-};
 
 const isEmailSignupRequest = (request: Request): boolean => {
   if (request.method !== "POST") return false;
@@ -173,31 +171,9 @@ const isEmailSignupRequest = (request: Request): boolean => {
   return url.pathname === "/api/auth/sign-up/email";
 };
 
-const readSignupEmail = async (request: Request): Promise<string> => {
-  try {
-    const body = await request.clone().json();
-    if (!isRecord(body) || typeof body.email !== "string") return "";
-    return body.email;
-  } catch {
-    return "";
-  }
-};
-
-const buildSignupClosedResponse = (): Response => {
-  return new Response(
-    JSON.stringify({
-      code: "SIGNUP_REQUIRES_INVITE",
-      message: "Public sign up is disabled. Ask an admin for an invitation.",
-    }),
-    {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    },
-  );
-};
-
 export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
+  const demoModeEnabled = parsed_config.auth?.signupMode === "demo";
   setAuthRuntimeConfig(parsed_config.auth);
   setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
   setAiRuntimeOverrides({
@@ -209,12 +185,14 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   });
   const authProviders = getAuthProviderAvailability();
   const emailPasswordEnabled = parsed_config.auth?.emailPasswordEnabled ?? true;
-  if (!emailPasswordEnabled && !authProviders.google && !authProviders.github) {
+  if (!demoModeEnabled && !emailPasswordEnabled && !authProviders.google && !authProviders.github) {
     throw new Error("Invalid auth configuration: at least one auth method must be enabled");
   }
   const enableRequestLogging = parsed_config.enableRequestLogging ?? IS_DEV;
-  const authEnabled = parsed_config.features?.auth ?? isAuthEnabled();
-  const dashboardEnabled = authEnabled && (parsed_config.features?.dashboard ?? isDashboardEnabled());
+  const authEnabled = !demoModeEnabled && (parsed_config.features?.auth ?? isAuthEnabled());
+  const dashboardEnabled = demoModeEnabled
+    ? (parsed_config.features?.dashboard ?? isDashboardEnabled())
+    : authEnabled && (parsed_config.features?.dashboard ?? isDashboardEnabled());
   const eventsEnabled = parsed_config.features?.events ?? isEventsEnabled();
   const aiEnabled = dashboardEnabled && (parsed_config.features?.ai ?? isAiFeatureEnabled());
   const tagScriptEnabled = parsed_config.features?.tagScript ?? isTagScriptEnabled();
@@ -243,6 +221,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
     dashboardEnabled && (parsed_config.features?.reportBuilderEnabled ?? isReportBuilderEnabled());
   const askAiEnabled =
     aiEnabled && (parsed_config.features?.askAiEnabled ?? (reportBuilderEnabled && isAskAiEnabled()));
+  const dashboardAccessMiddleware = demoModeEnabled ? demoSessionMiddleware : sessionMiddleware;
 
   const tagRoutes: Array<ReturnType<typeof lytxTag> | ReturnType<typeof trackWebEvent>> = [];
 
@@ -277,10 +256,25 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
       ? [
         route("/api/auth/*", async (r) => {
           if (isEmailSignupRequest(r.request)) {
-            const signupEmail = await readSignupEmail(r.request);
+            let signupEmail = "";
+            if (r.request.body) {
+              const req_body = await r.request.json() as { email?: string };
+              if (req_body && req_body.email) {
+                signupEmail = req_body.email;
+              }
+            }
             const allowed = await canRegisterEmail(signupEmail);
             if (!allowed) {
-              return buildSignupClosedResponse();
+              return new Response(
+                JSON.stringify({
+                  code: "SIGNUP_REQUIRES_INVITE",
+                  message: "Public sign up is disabled. Ask an admin for an invitation.",
+                }),
+                {
+                  status: 403,
+                  headers: { "Content-Type": "application/json" },
+                },
+              );
             }
           }
           return authMiddleware(r);
@@ -292,41 +286,44 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
     render<AppRequestInfo>(Document, [
       route("/", [
         onlyAllowGetPost, ({ request }) => {
+          if (demoModeEnabled && dashboardEnabled) {
+            return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+          }
           return Response.redirect(new URL("/login", request.url).toString(), 308);
         },
       ]),
       ...(authEnabled
         ? [
-            route("/signup", [
-              onlyAllowGetPost, async () => {
-                const signupAccess = await getSignupAccessState();
-                return (
-                  <Signup
-                    authProviders={authProviders}
-                    emailPasswordEnabled={emailPasswordEnabled}
-                    publicSignupOpen={signupAccess.publicSignupOpen}
-                    bootstrapSignupOpen={signupAccess.bootstrapSignupOpen}
-                  />
-                );
-              },
-            ]),
+          route("/signup", [
+            onlyAllowGetPost, async () => {
+              const signupAccess = await getSignupAccessState();
+              return (
+                <Signup
+                  authProviders={authProviders}
+                  emailPasswordEnabled={emailPasswordEnabled}
+                  publicSignupOpen={signupAccess.publicSignupOpen}
+                  bootstrapSignupOpen={signupAccess.bootstrapSignupOpen}
+                />
+              );
+            },
+          ]),
         ]
         : []),
       ...(authEnabled
         ? [
-            route("/login", [
-              onlyAllowGetPost,
-              async () => {
-                const signupAccess = await getSignupAccessState();
-                return (
-                  <Login
-                    authProviders={authProviders}
-                    emailPasswordEnabled={emailPasswordEnabled}
-                    allowSignupLink={signupAccess.publicSignupOpen}
-                  />
-                );
-              },
-            ]),
+          route("/login", [
+            onlyAllowGetPost,
+            async () => {
+              const signupAccess = await getSignupAccessState();
+              return (
+                <Login
+                  authProviders={authProviders}
+                  emailPasswordEnabled={emailPasswordEnabled}
+                  allowSignupLink={signupAccess.publicSignupOpen}
+                />
+              );
+            },
+          ]),
           route("/verify-email", [
             onlyAllowGetPost,
             async ({ request }) => {
@@ -354,11 +351,11 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
                 );
               }
 
-                try {
-                  const auth = getAuth();
-                  await auth.api.verifyEmail({
-                    query: {
-                      token,
+              try {
+                const auth = getAuth();
+                await auth.api.verifyEmail({
+                  query: {
+                    token,
                   },
                 });
 
@@ -406,7 +403,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
         : []),
       ...(dashboardEnabled
         ? [layout(AppLayout, [
-          sessionMiddleware,
+          dashboardAccessMiddleware,
           //PERF: This API PREFIX REQUIRES AUTHENTICATION
           prefix<"/api", AppRequestInfo>("/api", [
             world_countries,
@@ -496,90 +493,90 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
             },
           ]),
           layout<AppRequestInfo>(DashboardWorkspaceLayout, (reportBuilderEnabled
-              ? [
-                appRoute("/dashboard/reports", [
-                  ({ request }) => {
+            ? [
+              appRoute("/dashboard/reports", [
+                ({ request }) => {
+                  return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+                },
+              ]),
+              appRoute("/dashboard/reports/custom/new", [
+                checkIfTeamSetupSites,
+                ({ request }) => {
+                  const url = new URL(request.url);
+                  const template = url.searchParams.get("template");
+                  return <CustomReportBuilderPage initialTemplate={template} />;
+                },
+              ]),
+              appRoute("/dashboard/reports/custom/*", [
+                checkIfTeamSetupSites,
+                ({ request }) => {
+                  const pathname = new URL(request.url).pathname;
+                  const marker = "/dashboard/reports/custom/";
+                  const reportUuid = pathname.includes(marker)
+                    ? decodeURIComponent(pathname.slice(pathname.indexOf(marker) + marker.length))
+                    : "";
+
+                  if (!reportUuid || reportUuid.includes("/") || reportUuid === "new") {
                     return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
-                  },
-                ]),
-                appRoute("/dashboard/reports/custom/new", [
-                  checkIfTeamSetupSites,
-                  ({ request }) => {
-                    const url = new URL(request.url);
-                    const template = url.searchParams.get("template");
-                    return <CustomReportBuilderPage initialTemplate={template} />;
-                  },
-                ]),
-                appRoute("/dashboard/reports/custom/*", [
-                  checkIfTeamSetupSites,
-                  ({ request }) => {
-                    const pathname = new URL(request.url).pathname;
-                    const marker = "/dashboard/reports/custom/";
-                    const reportUuid = pathname.includes(marker)
-                      ? decodeURIComponent(pathname.slice(pathname.indexOf(marker) + marker.length))
-                      : "";
+                  }
 
-                    if (!reportUuid || reportUuid.includes("/") || reportUuid === "new") {
-                      return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
-                    }
+                  return <CustomReportBuilderPage reportUuid={reportUuid} />;
+                },
+              ]),
+              appRoute("/dashboard/reports/create-report", [
+                checkIfTeamSetupSites,
+                (_info) => {
+                  return <ReportBuilderWorkspace activeReportBuilderItemId="create-report" />;
+                },
+              ]),
+              appRoute("/dashboard/reports/create-reference", [
+                checkIfTeamSetupSites,
+                (_info) => {
+                  return <ReportBuilderWorkspace activeReportBuilderItemId="create-reference" />;
+                },
+              ]),
+              appRoute("/dashboard/reports/ask-ai", [
+                checkIfTeamSetupSites,
+                ({ ctx, request }) => {
+                  if (!askAiEnabled) {
+                    return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
+                  }
 
-                    return <CustomReportBuilderPage reportUuid={reportUuid} />;
-                  },
-                ]),
-                appRoute("/dashboard/reports/create-report", [
-                  checkIfTeamSetupSites,
-                  (_info) => {
-                    return <ReportBuilderWorkspace activeReportBuilderItemId="create-report" />;
-                  },
-                ]),
-                appRoute("/dashboard/reports/create-reference", [
-                  checkIfTeamSetupSites,
-                  (_info) => {
-                    return <ReportBuilderWorkspace activeReportBuilderItemId="create-reference" />;
-                  },
-                ]),
-                appRoute("/dashboard/reports/ask-ai", [
-                  checkIfTeamSetupSites,
-                  ({ ctx, request }) => {
-                    if (!askAiEnabled) {
-                      return Response.redirect(new URL("/dashboard/reports/create-report", request.url).toString(), 308);
-                    }
+                  const aiConfig = getAiConfig(ctx.team.id);
+                  const askAiWorkspaceProps = {
+                    activeReportBuilderItemId: "ask-ai" as const,
+                    initialAiConfigured: Boolean(aiConfig),
+                    initialAiModel: aiConfig?.model ?? "",
+                  } as const;
 
-                    const aiConfig = getAiConfig(ctx.team.id);
-                    const askAiWorkspaceProps = {
-                      activeReportBuilderItemId: "ask-ai" as const,
-                      initialAiConfigured: Boolean(aiConfig),
-                      initialAiModel: aiConfig?.model ?? "",
-                    } as const;
-
-                    return <ReportBuilderWorkspace {...askAiWorkspaceProps} />;
-                  },
-                ]),
-                appRoute("/dashboard/reports/create-dashboard", [
-                  checkIfTeamSetupSites,
-                  (_info) => {
-                    return <ReportBuilderWorkspace activeReportBuilderItemId="create-dashboard" />;
-                  },
-                ]),
-                appRoute("/dashboard/reports/create-notification", [
-                  checkIfTeamSetupSites,
-                  (_info) => {
-                    return <ReportBuilderWorkspace activeReportBuilderItemId="create-notification" />;
-                  },
-                ]),
-              ]
-              : [
-                appRoute("/dashboard/reports", [
-                  ({ request }) => {
-                    return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
-                  },
-                ]),
-                appRoute("/dashboard/reports/*", [
-                  ({ request }) => {
-                    return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
-                  },
-                ]),
-              ])),
+                  return <ReportBuilderWorkspace {...askAiWorkspaceProps} />;
+                },
+              ]),
+              appRoute("/dashboard/reports/create-dashboard", [
+                checkIfTeamSetupSites,
+                (_info) => {
+                  return <ReportBuilderWorkspace activeReportBuilderItemId="create-dashboard" />;
+                },
+              ]),
+              appRoute("/dashboard/reports/create-notification", [
+                checkIfTeamSetupSites,
+                (_info) => {
+                  return <ReportBuilderWorkspace activeReportBuilderItemId="create-notification" />;
+                },
+              ]),
+            ]
+            : [
+              appRoute("/dashboard/reports", [
+                ({ request }) => {
+                  return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+                },
+              ]),
+              appRoute("/dashboard/reports/*", [
+                ({ request }) => {
+                  return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+                },
+              ]),
+            ])),
           ...(eventsEnabled
             ? [
               appRoute("/dashboard/events", [

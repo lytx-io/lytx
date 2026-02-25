@@ -18,7 +18,7 @@ type SocialProviderToggles = {
   github?: boolean;
 };
 
-export const SIGNUP_MODES = ["open", "bootstrap_then_invite", "invite_only"] as const;
+export const SIGNUP_MODES = ["open", "bootstrap_then_invite", "invite_only", "demo"] as const;
 export type SignupMode = (typeof SIGNUP_MODES)[number];
 
 export type SignupAccessState = {
@@ -173,7 +173,7 @@ async function hasPendingInviteForEmail(email: string): Promise<boolean> {
 export async function getSignupAccessState(): Promise<SignupAccessState> {
   const mode = getSignupMode();
 
-  if (mode === "open") {
+  if (mode === "open" || mode === "demo") {
     return {
       mode,
       hasUsers: true,
@@ -207,7 +207,7 @@ export async function isPublicSignupOpen(): Promise<boolean> {
 
 export async function canRegisterEmail(email: string): Promise<boolean> {
   const signupMode = getSignupMode();
-  if (signupMode === "open") return true;
+  if (signupMode === "open" || signupMode === "demo") return true;
 
   const invited = await hasPendingInviteForEmail(email);
   if (invited) return true;

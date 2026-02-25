@@ -8,7 +8,10 @@ const githubAuthEnabled = (process.env.LYTX_AUTH_GITHUB ?? "false") === "true";
 const DEFAULT_SIGNUP_MODE: LytxSignupMode = "bootstrap_then_invite";
 const signupModeRaw = process.env.LYTX_SIGNUP_MODE?.trim();
 const signupMode: LytxSignupMode =
-  signupModeRaw === "open" || signupModeRaw === "bootstrap_then_invite" || signupModeRaw === "invite_only"
+  signupModeRaw === "open" ||
+    signupModeRaw === "bootstrap_then_invite" ||
+    signupModeRaw === "invite_only" ||
+    signupModeRaw === "demo"
     ? signupModeRaw
     : DEFAULT_SIGNUP_MODE;
 
@@ -25,6 +28,7 @@ const app = createLytxApp({
     // - "bootstrap_then_invite" (default): first account bootstraps admin, then closes public signup
     // - "invite_only": only invited emails can register
     // - "open": anyone can sign up
+    // - "demo": DISABLES AUTH FOR DASHBOARD/APP ROUTES (public demo mode)
     signupMode,
     socialProviders: {
       google: googleAuthEnabled,
