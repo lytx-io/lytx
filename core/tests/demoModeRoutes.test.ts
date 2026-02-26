@@ -205,6 +205,30 @@ describe("createLytxApp demo mode route behavior", () => {
 
     const appLayoutEntry = layoutEntries.find((entry) => entry.component === AppLayoutComponent);
     expect(appLayoutEntry?.handlers[0]).toBe(demoSessionMiddlewareMock);
+
+    const dashboardSettingsRoute = routeEntries.find((entry) => entry.path === "/dashboard/settings");
+    expect(dashboardSettingsRoute).toBeDefined();
+    const dashboardSettingsResponse = await dashboardSettingsRoute?.handlers[0]({
+      request: new Request("https://example.com/dashboard/settings", { method: "GET" }),
+      ctx: {
+        session: {
+          user: { id: "demo-user" },
+          userSites: [],
+          team: null,
+          timezone: null,
+        },
+      },
+    }) as Response;
+    expect(dashboardSettingsResponse.status).toBe(308);
+    expect(dashboardSettingsResponse.headers.get("location")).toBe("https://example.com/dashboard");
+
+    const settingsAliasRoute = routeEntries.find((entry) => entry.path === "/settings");
+    expect(settingsAliasRoute).toBeDefined();
+    const settingsAliasResponse = settingsAliasRoute?.handlers[0]({
+      request: new Request("https://example.com/settings", { method: "GET" }),
+    }) as Response;
+    expect(settingsAliasResponse.status).toBe(308);
+    expect(settingsAliasResponse.headers.get("location")).toBe("https://example.com/dashboard");
   });
 
   test("keeps default / -> /login redirect and session middleware", async () => {
@@ -237,5 +261,13 @@ describe("createLytxApp demo mode route behavior", () => {
 
     const appLayoutEntry = layoutEntries.find((entry) => entry.component === AppLayoutComponent);
     expect(appLayoutEntry?.handlers[0]).toBe(sessionMiddlewareMock);
+
+    const settingsAliasRoute = routeEntries.find((entry) => entry.path === "/settings");
+    expect(settingsAliasRoute).toBeDefined();
+    const settingsAliasResponse = settingsAliasRoute?.handlers[0]({
+      request: new Request("https://example.com/settings", { method: "GET" }),
+    }) as Response;
+    expect(settingsAliasResponse.status).toBe(308);
+    expect(settingsAliasResponse.headers.get("location")).toBe("https://example.com/dashboard/settings");
   });
 });

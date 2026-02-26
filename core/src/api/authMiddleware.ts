@@ -39,7 +39,7 @@ export async function sessionMiddleware({ request, ctx }: RequestInfo<unknown, A
 export function getSiteFromContext(ctx: AppContext, site_id: number) {
     if (!ctx.session) return null;
     if (!ctx.sites) return null;
-    return ctx.sites.find(s => s.site_id == site_id);
+    return ctx.sites.find((site) => site.site_id == site_id);
 }
 
 export const sessionName = 'lytx_session';

@@ -65,6 +65,7 @@ export interface DashboardPageProps {
     preset: "Today";
   };
   initialTimezone?: string | null;
+  settingsEnabled?: boolean;
 }
 const getBrowserIcon = (name: string | null | undefined) => {
   const value = typeof name === "string" ? name.toLowerCase() : "";
@@ -338,6 +339,7 @@ export function DashboardPage(props: DashboardPageProps) {
     initialDashboardData = null,
     initialDashboardDateRange,
     initialTimezone = null,
+    settingsEnabled = true,
   } = props;
 
   const { data: session, isPending: isSessionLoading, current_site } = useContext(
@@ -445,7 +447,7 @@ export function DashboardPage(props: DashboardPageProps) {
     || filters.dateRange.preset === "Last 30 min";
 
   const dashboardStaleTime = isRealtimePreset ? 0 : 5 * 60 * 1000;
-  const dashboardGcTime = isRealtimePreset ? 0 : 10 * 60 * 1000;
+  const dashboardGcTime = isRealtimePreset ? 0 : 5 * 60 * 1000;
 
   useEffect(() => {
     hasConsumedInitialDashboardData.current = true;
@@ -600,7 +602,8 @@ export function DashboardPage(props: DashboardPageProps) {
     },
     enabled: Boolean(effectiveSiteId),
     staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    //NOTE: gcTime is set to 5 minutes to ensure that the query is not removed from the cache
+    gcTime: 10 * 30 * 1000,
   });
 
   const eventLabelsMap = useMemo(() => {
@@ -789,12 +792,14 @@ export function DashboardPage(props: DashboardPageProps) {
                 >
                   Try again
                 </button>
-                <a
-                  href="/dashboard/settings"
-                  className="bg-(--theme-button-bg) hover:bg-(--theme-button-hover) text-white font-medium py-2 px-4 rounded-md transition-colors"
-                >
-                  Check Settings
-                </a>
+                {settingsEnabled ? (
+                  <a
+                    href="/dashboard/settings"
+                    className="bg-(--theme-button-bg) hover:bg-(--theme-button-hover) text-white font-medium py-2 px-4 rounded-md transition-colors"
+                  >
+                    Check Settings
+                  </a>
+                ) : null}
               </div>
             </div>
           </div>
@@ -829,12 +834,14 @@ export function DashboardPage(props: DashboardPageProps) {
               <p className="text-(--theme-text-secondary) mb-4">
                 We couldn’t find any metrics to display for this site yet.
               </p>
-              <a
-                href="/dashboard/settings"
-                className="bg-(--theme-button-bg) hover:bg-(--theme-button-hover) text-white font-medium py-2 px-4 rounded-md transition-colors inline-flex focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
-              >
-                Go to Settings
-              </a>
+              {settingsEnabled ? (
+                <a
+                  href="/dashboard/settings"
+                  className="bg-(--theme-button-bg) hover:bg-(--theme-button-hover) text-white font-medium py-2 px-4 rounded-md transition-colors inline-flex focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
+                >
+                  Go to Settings
+                </a>
+              ) : null}
             </div>
           </div>
         </main>
@@ -916,12 +923,14 @@ export function DashboardPage(props: DashboardPageProps) {
                     Add the Lytx site tag, then refresh this page once traffic starts flowing.
                   </p>
                   <div className="flex flex-wrap items-center justify-center gap-3">
-                    <a
-                      href="/dashboard/settings"
-                      className="inline-flex items-center px-4 py-2 bg-(--theme-input-bg) text-(--theme-text-primary) border border-(--theme-input-border) rounded hover:bg-(--theme-bg-secondary) transition-colors focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
-                    >
-                      Open settings
-                    </a>
+                    {settingsEnabled ? (
+                      <a
+                        href="/dashboard/settings"
+                        className="inline-flex items-center px-4 py-2 bg-(--theme-input-bg) text-(--theme-text-primary) border border-(--theme-input-border) rounded hover:bg-(--theme-bg-secondary) transition-colors focus:outline-none focus:ring-2 focus:ring-(--theme-border-secondary)"
+                      >
+                        Open settings
+                      </a>
+                    ) : null}
                   </div>
                 </div>
                 {currentSiteTag ? (

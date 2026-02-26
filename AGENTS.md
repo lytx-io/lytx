@@ -148,6 +148,7 @@ Inspired by [TigerStyle](https://github.com/tigerbeetle/tigerbeetle/blob/main/do
   agent-browser --session opendemolytx state load demo/.agent-browser/opendemolytx.json
   agent-browser --session opendemolytx open http://localhost:5173/dashboard
   ```
+- When validating `/dashboard` with `agent-browser`, always cycle date presets in this order and check browser console/errors after each change: `Last 30 min` -> `Last hour` -> `Yesterday` -> `Today`.
 - Local demo login credentials should come from your local secrets manager/env.
 - Do not store plaintext passwords in repository docs; keep local test passwords in your local secrets manager/env.
 

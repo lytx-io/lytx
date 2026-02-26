@@ -41,9 +41,10 @@ const saveLastTeamToStorage = (teamId: number): void => {
 
 type NavProps = {
   initialSession?: NavInitialSession | null;
+  showSettingsLink?: boolean;
 };
 
-export function Nav({ initialSession = null }: NavProps) {
+export function Nav({ initialSession = null, showSettingsLink = true }: NavProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isTeamMenuOpen, setIsTeamMenuOpen] = useState(false);
@@ -452,13 +453,15 @@ export function Nav({ initialSession = null }: NavProps) {
                     </div>
                   </div>
                 )}
-                <Link
-                  href="/dashboard/settings"
-                  className="block cursor-pointer px-3 py-2 text-sm text-[var(--theme-text-primary)] hover:text-[var(--color-primary)] transition-colors"
-                  onClick={() => setIsUserMenuOpen(false)}
-                >
-                  Settings
-                </Link>
+                {showSettingsLink ? (
+                  <Link
+                    href="/dashboard/settings"
+                    className="block cursor-pointer px-3 py-2 text-sm text-[var(--theme-text-primary)] hover:text-[var(--color-primary)] transition-colors"
+                    onClick={() => setIsUserMenuOpen(false)}
+                  >
+                    Settings
+                  </Link>
+                ) : null}
                 <div className="flex items-center justify-between px-3 py-2 text-sm text-[var(--theme-text-primary)]">
                   <span>Theme</span>
                   <ThemeToggle />
@@ -620,16 +623,18 @@ export function Nav({ initialSession = null }: NavProps) {
                       )}
                     </div>
                   )}
-                  <Link
-                    href="/dashboard/settings"
-                    className="block cursor-pointer px-3 py-2 text-sm text-[var(--theme-text-primary)] hover:text-[var(--color-primary)] transition-colors"
-                    onClick={() => {
-                      setIsUserMenuOpen(false);
-                      setIsMenuOpen(false);
-                    }}
-                  >
-                    Settings
-                  </Link>
+                  {showSettingsLink ? (
+                    <Link
+                      href="/dashboard/settings"
+                      className="block cursor-pointer px-3 py-2 text-sm text-[var(--theme-text-primary)] hover:text-[var(--color-primary)] transition-colors"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      Settings
+                    </Link>
+                  ) : null}
                   <div className="flex items-center justify-between px-3 py-2 text-sm text-[var(--theme-text-primary)]">
                     <span>Theme</span>
                     <ThemeToggle />

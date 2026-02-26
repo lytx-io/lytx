@@ -439,10 +439,31 @@ export const ChartComponent: React.FC<ChartComponentProps> = (props) => {
     } else if (props.type === "line") {
       const lineData = chartData as NivoLineChartData;
       const rawSeries = lineData?.data || [];
-      const isSinglePoint = rawSeries.length > 0 && rawSeries.every((s) => s.data.length === 1);
-      const singlePointDate = isSinglePoint ? String(rawSeries[0].data[0].x) : null;
+      const normalizedSeries = rawSeries
+        .map((series) => ({
+          ...series,
+          data: (series.data || []).filter((point) => {
+            const xValue = point?.x;
+            const yValue = point?.y;
+            if (xValue === null || xValue === undefined) return false;
+            if (typeof yValue !== "number" || !Number.isFinite(yValue)) return false;
+            return String(xValue).trim().length > 0;
+          }),
+        }))
+        .filter((series) => series.data.length > 0);
 
-      const series = rawSeries.map((s) => {
+      if (normalizedSeries.length === 0) {
+        return (
+          <div className="flex h-full min-h-[220px] items-center justify-center text-sm text-(--theme-text-secondary)">
+            No page view data for this date range.
+          </div>
+        );
+      }
+
+      const isSinglePoint = normalizedSeries.length > 0 && normalizedSeries.every((series) => series.data.length === 1);
+      const singlePointDate = isSinglePoint ? String(normalizedSeries[0].data[0].x) : null;
+
+      const series = normalizedSeries.map((s) => {
         if (s.data.length !== 1) return s;
         const pt = s.data[0];
         const xVal = String(pt.x);
@@ -455,7 +476,7 @@ export const ChartComponent: React.FC<ChartComponentProps> = (props) => {
           const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
           return { ...s, data: [{ x: fmt(prev), y: 0 }, pt, { x: fmt(next), y: 0 }] };
         }
-        return { ...s, data: [{ x: "", y: 0 }, pt, { x: " ", y: 0 }] };
+        return { ...s, data: [{ x: `${xVal} (start)`, y: 0 }, pt, { x: `${xVal} (end)`, y: 0 }] };
       });
 
       return (
@@ -1478,4 +1499,3 @@ export const Scorecard: React.FC<ScorecardProps> = ({
     </div>
   );
 };
-

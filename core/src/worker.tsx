@@ -479,6 +479,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
                   activeReportBuilderItemId="create-report"
                   reportBuilderEnabled={reportBuilderEnabled}
                   askAiEnabled={askAiEnabled}
+                  settingsEnabled={!demoModeEnabled}
                   initialToolbarSites={toolbarState.initialSites}
                   initialToolbarSiteId={toolbarState.initialSiteId}
                   initialDashboardDateRange={{
@@ -593,7 +594,11 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
             },
           ]),
           appRoute("/dashboard/settings", [
-            async ({ ctx }) => {
+            async ({ request, ctx }) => {
+              if (demoModeEnabled) {
+                return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
+              }
+
               const toolbarState = getInitialToolbarState(ctx);
               const initialCurrentSite = toolbarState.initialSites.find(
                 (site) => site.site_id === toolbarState.initialSiteId,
@@ -708,7 +713,8 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
           ]),
           appRoute("/settings", [
             ({ request }) => {
-              return Response.redirect(new URL("/dashboard/settings", request.url).toString(), 308);
+              const destination = demoModeEnabled ? "/dashboard" : "/dashboard/settings";
+              return Response.redirect(new URL(destination, request.url).toString(), 308);
             },
           ]),
           appRoute("/explore", [
