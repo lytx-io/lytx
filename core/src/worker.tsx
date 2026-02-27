@@ -54,12 +54,27 @@ import { getTeamSettings } from "@db/d1/teams";
 import { d1_client } from "@db/d1/client";
 import { user } from "@db/d1/schema";
 import { eq } from "drizzle-orm";
+import type { DashboardPageProps } from "@/app/Dashboard";
+import type {
+  LytxDashboardRouteUiOverrideArgs,
+  LytxExploreRouteUiOverrideArgs,
+  LytxRouteUiOverrides,
+  LytxToolbarSiteOption,
+} from "@/config/routeUiOverrides";
 export { SyncDurableObject } from "@/session/durableObject";
 export { SiteDurableObject } from "@db/durable/siteDurableObject";
 
 //TODO: Define things on context and create a middleware function where users can set adapters and override defaults
 export type { AppContext };
 export type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
+export type {
+  LytxDashboardRouteUiOverrideArgs,
+  LytxEventsRouteUiOverrideArgs,
+  LytxExploreRouteUiOverrideArgs,
+  LytxRouteUiOverrides,
+  LytxRoutesConfig,
+  LytxToolbarSiteOption,
+} from "@/config/routeUiOverrides";
 
 const DEFAULT_TAG_DB_ADAPTER: DBAdapter = "sqlite";
 const DEFAULT_TAG_SCRIPT_PATH = "/lytx.js";
@@ -81,14 +96,8 @@ const withRoutePrefix = (prefix: string, routePath: string): string => {
   return `${prefix}${normalizedPath}`;
 };
 
-type ToolbarSiteOption = {
-  site_id: number;
-  name: string;
-  tag_id: string;
-};
-
 const getInitialToolbarState = (ctx: AppContext) => {
-  const initialSites: ToolbarSiteOption[] = (ctx.sites ?? []).map((site) => ({
+  const initialSites: LytxToolbarSiteOption[] = (ctx.sites ?? []).map((site) => ({
     site_id: site.site_id,
     name: site.name || `Site ${site.site_id}`,
     tag_id: site.tag_id,
@@ -173,6 +182,7 @@ const isEmailSignupRequest = (request: Request): boolean => {
 
 export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
+  const routeUiOverrides: LytxRouteUiOverrides = parsed_config.routes?.ui ?? {};
   const demoModeEnabled = parsed_config.auth?.signupMode === "demo";
   setAuthRuntimeConfig(parsed_config.auth);
   setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
@@ -422,7 +432,8 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
           onlyAllowGetPost,
           route("/dashboard", [
             checkIfTeamSetupSites,
-            async ({ request, ctx }) => {
+            async (info) => {
+              const { request, ctx } = info;
               const pathname = new URL(request.url).pathname;
               if (pathname === "/dashboard/") {
                 return Response.redirect(new URL("/dashboard", request.url).toString(), 308);
@@ -474,23 +485,36 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
                 }
               }
 
-              return (
-                <DashboardPage
-                  activeReportBuilderItemId="create-report"
-                  reportBuilderEnabled={reportBuilderEnabled}
-                  askAiEnabled={askAiEnabled}
-                  settingsEnabled={!demoModeEnabled}
-                  initialToolbarSites={toolbarState.initialSites}
-                  initialToolbarSiteId={toolbarState.initialSiteId}
-                  initialDashboardDateRange={{
-                    start: today,
-                    end: today,
-                    preset: "Today",
-                  }}
-                  initialTimezone={timezone}
-                  initialDashboardData={initialDashboardData}
-                />
-              );
+              const dashboardDefaultProps: DashboardPageProps = {
+                activeReportBuilderItemId: "create-report",
+                reportBuilderEnabled,
+                askAiEnabled,
+                settingsEnabled: !demoModeEnabled,
+                initialToolbarSites: toolbarState.initialSites,
+                initialToolbarSiteId: toolbarState.initialSiteId,
+                initialDashboardDateRange: {
+                  start: today,
+                  end: today,
+                  preset: "Today",
+                },
+                initialTimezone: timezone,
+                initialDashboardData,
+              };
+
+              if (routeUiOverrides.dashboard) {
+                const overrideArgs: LytxDashboardRouteUiOverrideArgs = {
+                  info,
+                  defaultProps: dashboardDefaultProps,
+                  toolbarState,
+                  initialDashboardData,
+                  helpers: {
+                    getDashboardDataCore,
+                  },
+                };
+                return routeUiOverrides.dashboard(overrideArgs);
+              }
+
+              return <DashboardPage {...dashboardDefaultProps} />;
             },
           ]),
           layout<AppRequestInfo>(DashboardWorkspaceLayout, (reportBuilderEnabled
@@ -582,7 +606,10 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
             ? [
               appRoute("/dashboard/events", [
                 checkIfTeamSetupSites,
-                async (_info) => {
+                async (info) => {
+                  if (routeUiOverrides.events) {
+                    return routeUiOverrides.events({ info });
+                  }
                   return <EventsPage />;
                 },
               ]),
@@ -687,14 +714,22 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
           ]),
           appRoute("/dashboard/explore", [
             checkIfTeamSetupSites,
-            ({ ctx }) => {
+            (info) => {
+              const { ctx } = info;
               const toolbarState = getInitialToolbarState(ctx);
-              return (
-                <ExplorePage
-                  initialSites={toolbarState.initialSites}
-                  initialSiteId={toolbarState.initialSiteId}
-                />
-              );
+              const exploreDefaultProps: LytxExploreRouteUiOverrideArgs["defaultProps"] = {
+                initialSites: toolbarState.initialSites,
+                initialSiteId: toolbarState.initialSiteId,
+              };
+
+              if (routeUiOverrides.explore) {
+                return routeUiOverrides.explore({
+                  info,
+                  defaultProps: exploreDefaultProps,
+                });
+              }
+
+              return <ExplorePage {...exploreDefaultProps} />;
             },
           ]),
           ...(eventsEnabled

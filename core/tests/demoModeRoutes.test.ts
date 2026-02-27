@@ -270,4 +270,72 @@ describe("createLytxApp demo mode route behavior", () => {
     expect(settingsAliasResponse.status).toBe(308);
     expect(settingsAliasResponse.headers.get("location")).toBe("https://example.com/dashboard/settings");
   });
+
+  test("applies typed route UI overrides for dashboard, events, and explore", async () => {
+    setupWorkerRouteTestMocks();
+
+    const dashboardOverride = mock(() => new Response("dashboard override"));
+    const eventsOverride = mock(() => new Response("events override"));
+    const exploreOverride = mock(() => new Response("explore override"));
+
+    const { createLytxApp } = await import("../src/worker");
+    routeEntries = [];
+    layoutEntries = [];
+
+    createLytxApp({
+      features: {
+        auth: true,
+        dashboard: true,
+        events: true,
+        ai: false,
+        tagScript: false,
+        reportBuilderEnabled: false,
+        askAiEnabled: false,
+      },
+      routes: {
+        ui: {
+          dashboard: dashboardOverride,
+          events: eventsOverride,
+          explore: exploreOverride,
+        },
+      },
+    });
+
+    const baseCtx = {
+      sites: [{ site_id: 7, name: "Main", tag_id: "tag-7" }],
+      session: {
+        user: { id: "user-1" },
+        last_site_id: 7,
+        timezone: "UTC",
+      },
+      team: { id: "team-1" },
+    };
+
+    const dashboardRoute = routeEntries.find((entry) => entry.path === "/dashboard");
+    const dashboardResponse = await dashboardRoute?.handlers[1]({
+      request: new Request("https://example.com/dashboard", { method: "GET" }),
+      ctx: baseCtx,
+    }) as Response;
+    expect(dashboardResponse.status).toBe(200);
+    expect(await dashboardResponse.text()).toBe("dashboard override");
+    expect(dashboardOverride).toHaveBeenCalledTimes(1);
+
+    const eventsRoute = routeEntries.find((entry) => entry.path === "/dashboard/events");
+    const eventsResponse = await eventsRoute?.handlers[1]({
+      request: new Request("https://example.com/dashboard/events", { method: "GET" }),
+      ctx: baseCtx,
+    }) as Response;
+    expect(eventsResponse.status).toBe(200);
+    expect(await eventsResponse.text()).toBe("events override");
+    expect(eventsOverride).toHaveBeenCalledTimes(1);
+
+    const exploreRoute = routeEntries.find((entry) => entry.path === "/dashboard/explore");
+    const exploreResponse = await exploreRoute?.handlers[1]({
+      request: new Request("https://example.com/dashboard/explore", { method: "GET" }),
+      ctx: baseCtx,
+    }) as Response;
+    expect(exploreResponse.status).toBe(200);
+    expect(await exploreResponse.text()).toBe("explore override");
+    expect(exploreOverride).toHaveBeenCalledTimes(1);
+  });
 });

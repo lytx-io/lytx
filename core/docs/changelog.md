@@ -1,0 +1,17 @@
+# `lytx` Changelog
+
+## Unreleased
+
+### Added
+
+- `createLytxApp` now supports typed route UI overrides via `routes.ui.dashboard`, `routes.ui.events`, and `routes.ui.explore`.
+- Route override callbacks expose strongly typed route `info` and route-specific default props/helpers for safer customization with editor autocomplete.
+
+### Changed
+
+- `CreateLytxAppConfig` now accepts a `routes` object for route UI overrides while preserving existing defaults when no override is provided.
+
+### Migration notes
+
+- This is additive and backward-compatible. Existing `createLytxApp(...)` calls continue to work unchanged.
+- When overriding route UI, keep core API contracts in sync with your custom page logic; review `/api` docs before replacing default behavior.

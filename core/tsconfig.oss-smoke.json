@@ -2,9 +2,11 @@
   "extends": "./tsconfig.json",
   "include": [
     "src/config/createLytxAppConfig.ts",
+    "src/config/routeUiOverrides.ts",
     "src/config/resourceNames.ts",
     "src/lib/featureFlags.ts",
     "src/worker.tsx",
-    "index.ts"
+    "index.ts",
+    "tests/createLytxAppRoutes.typecheck.ts"
   ]
 }

@@ -121,6 +121,7 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 - `createLytxApp` supports typed AI runtime controls via `ai.provider`, `ai.model`, `ai.baseURL`, `ai.apiKey`, and `ai.accountId`; blank values are treated as unset.
 - `createLytxApp` supports typed signup controls via `auth.signupMode` (`open`, `bootstrap_then_invite`, `invite_only`, `demo`).
 - `createLytxApp` supports auth-mode controls via `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, and `auth.socialProviders.*`.
+- `createLytxApp` supports typed per-route UI overrides via `routes.ui.dashboard`, `routes.ui.events`, and `routes.ui.explore`.
 
 ## Deprecation and compatibility policy
 

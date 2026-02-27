@@ -77,6 +77,25 @@ When upgrading `lytx`:
 - Move adapter/event-store settings from `tagRoutes` to `db`.
 - Keep route-path customization in `tagRoutes`.
 
+## Route UI override support (`routes.ui.*`)
+
+### Previous pattern
+
+- Replace route UI by forking `lytx/worker` or manually wiring your own route handlers.
+
+### Current pattern
+
+- Override supported route UIs directly in `createLytxApp(...)`:
+  - `routes.ui.dashboard`
+  - `routes.ui.events`
+  - `routes.ui.explore`
+- Overrides are strongly typed with route-specific `info` and default props/helpers.
+
+### Migration
+
+- Keep existing setup as-is (no breaking change), or migrate custom route UI into `routes.ui.*` callbacks to keep core middleware and routing defaults.
+- Review `/api` docs before replacing route UI behavior so your custom pages keep expected fetch/helper contracts.
+
 ## Worker bootstrap migration (manual wiring -> app factory)
 
 ### Previous pattern

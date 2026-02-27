@@ -1,4 +1,11 @@
 import { z } from "zod";
+import type {
+  LytxDashboardRouteUiOverrideArgs,
+  LytxEventsRouteUiOverrideArgs,
+  LytxExploreRouteUiOverrideArgs,
+  LytxRouteOverrideResult,
+  LytxRoutesConfig,
+} from "./routeUiOverrides";
 
 export const CREATE_LYTX_APP_CONFIG_DOC_URL =
   "https://github.com/lytx-io/lytx/blob/master/core/docs/oss-contract.md#supported-extension-and-customization-points";
@@ -113,6 +120,24 @@ const aiRuntimeConfigSchema = z
   })
   .strict();
 
+const routeUiOverrideSchema = <TFn extends (...args: any[]) => LytxRouteOverrideResult>() =>
+  z.custom<TFn>((value) => typeof value === "function", {
+    message: "Route UI override must be a function",
+  });
+
+const routesConfigSchema = z
+  .object({
+    ui: z
+      .object({
+        dashboard: routeUiOverrideSchema<(args: LytxDashboardRouteUiOverrideArgs) => LytxRouteOverrideResult>().optional(),
+        events: routeUiOverrideSchema<(args: LytxEventsRouteUiOverrideArgs) => LytxRouteOverrideResult>().optional(),
+        explore: routeUiOverrideSchema<(args: LytxExploreRouteUiOverrideArgs) => LytxRouteOverrideResult>().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 export type LytxAiProviderPreset = (typeof LYTX_AI_PROVIDER_PRESETS)[number];
 export type LytxAiProvider = LytxAiProviderPreset | (string & {});
 export type LytxAiModelPreset = (typeof LYTX_AI_MODEL_PRESETS)[number];
@@ -208,6 +233,7 @@ const createLytxAppConfigSchema = z
       })
       .strict()
       .optional(),
+    routes: routesConfigSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -295,6 +321,14 @@ const createLytxAppConfigSchema = z
 type BaseCreateLytxAppConfig = z.input<typeof createLytxAppConfigSchema>;
 export type CreateLytxAppConfig = Omit<BaseCreateLytxAppConfig, "ai"> & {
   ai?: LytxAiConfig;
+  /**
+   * Route customization hooks for `createLytxApp`.
+   *
+   * Use this to override the default UI rendered by core routes
+   * (for example dashboard/events/explore) while keeping core routing
+   * and middleware behavior.
+   */
+  routes?: LytxRoutesConfig;
 };
 type ParsedCreateLytxAppConfig = z.output<typeof createLytxAppConfigSchema>;
 

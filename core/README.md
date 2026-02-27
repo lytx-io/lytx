@@ -9,6 +9,7 @@ The supported public API surface for `lytx` is documented in `core/docs/oss-cont
 - Contract doc: [`docs/oss-contract.md`](./docs/oss-contract.md)
 - Self-host quickstart: [`docs/self-host-quickstart.md`](./docs/self-host-quickstart.md)
 - Semver/release policy: [`docs/release-policy.md`](./docs/release-policy.md)
+- Changelog: [`docs/changelog.md`](./docs/changelog.md)
 - Upgrade/migration guide: [`docs/migration-guide.md`](./docs/migration-guide.md)
 - Read this first before relying on any non-root or deep import path.
 
@@ -80,6 +81,50 @@ export default app satisfies ExportedHandler<Env>;
 - `startupValidation.*` + `env.*` (startup env requirement checks with field-level errors)
 - `env.AI_PROVIDER`, `env.AI_BASE_URL`, `env.AI_MODEL` (AI vendor/model routing overrides)
 - `env.EMAIL_FROM` (optional factory override for outgoing email sender)
+- `routes.ui.dashboard`, `routes.ui.events`, `routes.ui.explore` (typed per-route UI overrides with route-specific `info`/props)
+
+### Route UI overrides
+
+Use `routes.ui` when you want to keep core routing/middleware but swap page UI for specific routes:
+
+```tsx
+import {
+  DashboardPage,
+  EventsPage,
+  ExplorePage,
+  createLytxApp,
+  type DashboardPageProps,
+} from "lytx";
+
+const app = createLytxApp({
+  routes: {
+    ui: {
+      dashboard: ({ info, defaultProps, helpers }) => {
+        // Keep calling the same APIs/helpers core expects for this route.
+        // See /api docs before replacing route UI behavior.
+        const _teamId = info.ctx.team.id;
+        const _dashboardFetcher = helpers.getDashboardDataCore;
+
+        const customProps: DashboardPageProps = {
+          ...defaultProps,
+          activeReportBuilderItemId: "create-report",
+        };
+
+        return <DashboardPage {...customProps} />;
+      },
+      events: ({ info }) => {
+        const _userId = info.ctx.session.user.id;
+        return <EventsPage />;
+      },
+      explore: ({ defaultProps }) => {
+        return <ExplorePage {...defaultProps} />;
+      },
+    },
+  },
+});
+```
+
+TypeScript autocomplete is route-specific. For example, `routes.ui.dashboard` exposes dashboard defaults/helpers, while `routes.ui.explore` only exposes explore defaults.
 
 For deployment scripts, use `resolveLytxResourceNames(...)` from `lytx/resource-names` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
 

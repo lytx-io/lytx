@@ -79,6 +79,16 @@ export type {
   LytxAiModelPreset,
   LytxAiModel,
 } from "./src/config/createLytxAppConfig";
+export type {
+  LytxDashboardRouteUiOverrideArgs,
+  LytxEventsRouteUiOverrideArgs,
+  LytxExploreRouteUiOverrideArgs,
+  LytxRouteOverrideResult,
+  LytxRouteRequestInfo,
+  LytxRouteUiOverrides,
+  LytxRoutesConfig,
+  LytxToolbarSiteOption,
+} from "./src/config/routeUiOverrides";
 export { DEFAULT_LYTX_RESOURCE_NAMES, resolveLytxResourceNames } from "./src/config/resourceNames";
 export type { LytxResourceNames, LytxResourceNamingOptions, LytxResourceStagePosition } from "./src/config/resourceNames";
 

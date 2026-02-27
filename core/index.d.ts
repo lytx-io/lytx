@@ -57,6 +57,16 @@ export type {
   LytxAiModelPreset,
   LytxAiModel,
 } from "./src/config/createLytxAppConfig";
+export type {
+  LytxDashboardRouteUiOverrideArgs,
+  LytxEventsRouteUiOverrideArgs,
+  LytxExploreRouteUiOverrideArgs,
+  LytxRouteOverrideResult,
+  LytxRouteRequestInfo,
+  LytxRouteUiOverrides,
+  LytxRoutesConfig,
+  LytxToolbarSiteOption,
+} from "./src/config/routeUiOverrides";
 export function createLytxApp(
   config?: CreateLytxAppConfig,
 ): ReturnType<typeof import("./src/worker").createLytxApp>;
