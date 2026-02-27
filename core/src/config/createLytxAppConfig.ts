@@ -120,8 +120,8 @@ const aiRuntimeConfigSchema = z
   })
   .strict();
 
-const routeUiOverrideSchema = <TFn extends (...args: any[]) => LytxRouteOverrideResult>() =>
-  z.custom<TFn>((value) => typeof value === "function", {
+const routeUiOverrideSchema = <TArgs>() =>
+  z.custom<(args: TArgs) => LytxRouteOverrideResult>((value) => typeof value === "function", {
     message: "Route UI override must be a function",
   });
 
@@ -129,9 +129,9 @@ const routesConfigSchema = z
   .object({
     ui: z
       .object({
-        dashboard: routeUiOverrideSchema<(args: LytxDashboardRouteUiOverrideArgs) => LytxRouteOverrideResult>().optional(),
-        events: routeUiOverrideSchema<(args: LytxEventsRouteUiOverrideArgs) => LytxRouteOverrideResult>().optional(),
-        explore: routeUiOverrideSchema<(args: LytxExploreRouteUiOverrideArgs) => LytxRouteOverrideResult>().optional(),
+        dashboard: routeUiOverrideSchema<LytxDashboardRouteUiOverrideArgs>().optional(),
+        events: routeUiOverrideSchema<LytxEventsRouteUiOverrideArgs>().optional(),
+        explore: routeUiOverrideSchema<LytxExploreRouteUiOverrideArgs>().optional(),
       })
       .strict()
       .optional(),

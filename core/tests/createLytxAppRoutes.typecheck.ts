@@ -14,6 +14,9 @@ createLytxApp({
       dashboard: ({ info, defaultProps, helpers, toolbarState }) => {
         info.ctx.team.id;
         defaultProps.initialDashboardDateRange?.preset;
+        defaultProps.reportData.initialDashboardData;
+        // @ts-expect-error moved under reportData
+        defaultProps.initialDashboardData;
         toolbarState.initialSiteId;
         helpers.getDashboardDataCore;
         return new Response("ok");
@@ -35,6 +38,7 @@ createLytxApp({
   routes: {
     ui: {
       dashboard: ({ defaultProps }) => {
+        defaultProps.reportData.initialDashboardData;
         // @ts-expect-error dashboard preset is only "Today"
         const _: "Yesterday" = defaultProps.initialDashboardDateRange!.preset;
         return new Response("ok");

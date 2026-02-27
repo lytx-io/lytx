@@ -104,9 +104,13 @@ const app = createLytxApp({
         // See /api docs before replacing route UI behavior.
         const _teamId = info.ctx.team.id;
         const _dashboardFetcher = helpers.getDashboardDataCore;
+        const _initialData = defaultProps.reportData.initialDashboardData;
+
+        const { reportData, ...pageProps } = defaultProps;
 
         const customProps: DashboardPageProps = {
-          ...defaultProps,
+          ...pageProps,
+          ...reportData,
           activeReportBuilderItemId: "create-report",
         };
 

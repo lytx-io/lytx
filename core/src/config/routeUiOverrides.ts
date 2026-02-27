@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 import type { RequestInfo } from "rwsdk/worker";
 import type { DashboardPageProps } from "../app/Dashboard";
-import type { DashboardResponseData } from "../../db/tranformReports";
 import type { getDashboardDataCore } from "../api/sites_api";
 import type { AppContext } from "../types/app-context";
 
@@ -24,17 +23,37 @@ export type LytxToolbarSiteOption = {
   tag_id: string;
 };
 
-export type LytxDashboardDefaultProps = DashboardPageProps;
+export type LytxDashboardReportData = Pick<
+  DashboardPageProps,
+  | "PageViewsData"
+  | "ReferrersData"
+  | "EventTypesData"
+  | "DeviceGeoData"
+  | "TopPagesData"
+  | "TopSourcesData"
+  | "BrowserData"
+  | "EventSummary"
+  | "initialDashboardData"
+>;
+
+export type LytxDashboardDefaultProps = Omit<DashboardPageProps, keyof LytxDashboardReportData> & {
+  reportData: LytxDashboardReportData;
+};
+
 export type LytxGetDashboardDataCore = typeof getDashboardDataCore;
 
 export type LytxDashboardRouteUiOverrideArgs = {
   info: LytxRouteRequestInfo<"/dashboard">;
+  /**
+   * Default dashboard props from core. Report payloads are grouped under
+   * `defaultProps.reportData` so consumers can override non-data props
+   * independently from fetched report data.
+   */
   defaultProps: LytxDashboardDefaultProps;
   toolbarState: {
     initialSites: LytxToolbarSiteOption[];
     initialSiteId: number | null;
   };
-  initialDashboardData: DashboardResponseData | null;
   helpers: {
     getDashboardDataCore: LytxGetDashboardDataCore;
   };

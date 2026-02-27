@@ -68,6 +68,7 @@ export { SiteDurableObject } from "@db/durable/siteDurableObject";
 export type { AppContext };
 export type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
 export type {
+  LytxDashboardReportData,
   LytxDashboardRouteUiOverrideArgs,
   LytxEventsRouteUiOverrideArgs,
   LytxExploreRouteUiOverrideArgs,
@@ -501,12 +502,33 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
                 initialDashboardData,
               };
 
+              const dashboardOverrideDefaultProps: LytxDashboardRouteUiOverrideArgs["defaultProps"] = {
+                activeReportBuilderItemId: dashboardDefaultProps.activeReportBuilderItemId,
+                reportBuilderEnabled: dashboardDefaultProps.reportBuilderEnabled,
+                askAiEnabled: dashboardDefaultProps.askAiEnabled,
+                settingsEnabled: dashboardDefaultProps.settingsEnabled,
+                initialToolbarSites: dashboardDefaultProps.initialToolbarSites,
+                initialToolbarSiteId: dashboardDefaultProps.initialToolbarSiteId,
+                initialDashboardDateRange: dashboardDefaultProps.initialDashboardDateRange,
+                initialTimezone: dashboardDefaultProps.initialTimezone,
+                reportData: {
+                  PageViewsData: dashboardDefaultProps.PageViewsData,
+                  ReferrersData: dashboardDefaultProps.ReferrersData,
+                  EventTypesData: dashboardDefaultProps.EventTypesData,
+                  DeviceGeoData: dashboardDefaultProps.DeviceGeoData,
+                  TopPagesData: dashboardDefaultProps.TopPagesData,
+                  TopSourcesData: dashboardDefaultProps.TopSourcesData,
+                  BrowserData: dashboardDefaultProps.BrowserData,
+                  EventSummary: dashboardDefaultProps.EventSummary,
+                  initialDashboardData: dashboardDefaultProps.initialDashboardData,
+                },
+              };
+
               if (routeUiOverrides.dashboard) {
                 const overrideArgs: LytxDashboardRouteUiOverrideArgs = {
                   info,
-                  defaultProps: dashboardDefaultProps,
+                  defaultProps: dashboardOverrideDefaultProps,
                   toolbarState,
-                  initialDashboardData,
                   helpers: {
                     getDashboardDataCore,
                   },

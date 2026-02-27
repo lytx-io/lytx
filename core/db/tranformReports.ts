@@ -1,18 +1,82 @@
 import { DasboardDataResult, Pagination } from "@db/types";
 
+type NivoDatumValue = string | number;
+
+type NivoAxisLegendPosition = "start" | "middle" | "end";
+
+type NivoLegendAnchor =
+  | "top"
+  | "top-right"
+  | "right"
+  | "bottom-right"
+  | "bottom"
+  | "bottom-left"
+  | "left"
+  | "top-left"
+  | "center";
+
+type NivoLegendDirection = "row" | "column";
+
+type NivoLegendItemDirection =
+  | "left-to-right"
+  | "right-to-left"
+  | "top-to-bottom"
+  | "bottom-to-top";
+
+type NivoLegendEffect = {
+  on: "hover";
+  style: {
+    itemBackground?: string;
+    itemOpacity?: number;
+  };
+};
+
+export interface NivoAxisConfig {
+  tickSize?: number;
+  tickPadding?: number;
+  tickRotation?: number;
+  truncateTickAt?: number;
+  legend?: string;
+  legendOffset?: number;
+  legendPosition?: NivoAxisLegendPosition;
+}
+
+type NivoLegendBase = {
+  anchor: NivoLegendAnchor;
+  direction: NivoLegendDirection;
+  justify: boolean;
+  translateX: number;
+  translateY: number;
+  itemWidth: number;
+  itemHeight: number;
+  itemTextColor?: string;
+  itemDirection: NivoLegendItemDirection;
+  itemsSpacing: number;
+  itemOpacity: number;
+  symbolSize: number;
+  symbolShape?: "circle" | "diamond" | "square" | "triangle";
+  effects?: NivoLegendEffect[];
+};
+
+export type NivoBarLegendConfig = NivoLegendBase & {
+  dataFrom: "keys";
+};
+
+export type NivoPieLegendConfig = NivoLegendBase;
+
 export interface NivoBarChartData {
-  data: Record<string, any>[];
+  data: Array<Record<string, NivoDatumValue>>;
   keys: string[];
   indexBy: string;
-  axisBottom?: any;
-  axisLeft?: any;
-  legends?: any[];
+  axisBottom?: NivoAxisConfig;
+  axisLeft?: NivoAxisConfig;
+  legends?: NivoBarLegendConfig[];
   options: { chart: { type: "bar" } }; // Mandatory type
 }
 
 export interface NivoPieChartData {
   data: { id: string | number; value: number }[];
-  legends?: any[];
+  legends?: NivoPieLegendConfig[];
   options: { chart: { type: "pie" } }; // Mandatory type
 }
 
@@ -21,10 +85,10 @@ export interface NivoLineChartData {
     id: string | number;
     data: { x: string | number; y: string | number }[];
   }[];
-  legends?: any[]; // Optional
+  legends?: NivoPieLegendConfig[]; // Optional
   options: { chart: { type: "line" } }; // Mandatory type
-  axisBottom?: any; // Optional, can be customized per chart
-  axisLeft?: any; // Optional
+  axisBottom?: NivoAxisConfig; // Optional, can be customized per chart
+  axisLeft?: NivoAxisConfig; // Optional
   // Add other line-specific Nivo props if they need to be dynamic from data source
 }
 

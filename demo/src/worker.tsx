@@ -2,12 +2,17 @@ import { createLytxApp, SiteDurableObject, SyncDurableObject } from "lytx";
 
 export { SyncDurableObject, SiteDurableObject };
 
-const DashboardUiReplacement = (props: { defaultSettingsEnabled?: boolean; settingsEnabled: boolean }) => {
+const DashboardUiReplacement = (props: {
+  defaultSettingsEnabled?: boolean;
+  settingsEnabled: boolean;
+  hasInitialDashboardData: boolean;
+}) => {
   return (
     <main>
       <h1>Custom Dashboard UI</h1>
       <p>Default settingsEnabled: {String(props.defaultSettingsEnabled)}</p>
       <p>Overridden settingsEnabled: {String(props.settingsEnabled)}</p>
+      <p>Has initial dashboard data: {String(props.hasInitialDashboardData)}</p>
     </main>
   );
 };
@@ -43,6 +48,7 @@ const app = createLytxApp({
           <DashboardUiReplacement
             defaultSettingsEnabled={defaultProps.settingsEnabled}
             settingsEnabled={false}
+            hasInitialDashboardData={Boolean(defaultProps.reportData.initialDashboardData)}
           />
         );
       },
