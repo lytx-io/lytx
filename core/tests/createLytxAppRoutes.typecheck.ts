@@ -5,8 +5,17 @@ type CreateLytxAppConfigInput = Parameters<typeof createLytxApp>[0];
 type RoutesInput = NonNullable<CreateLytxAppConfigInput>["routes"];
 type RoutesIsAny = IsAny<RoutesInput>;
 
+type DashboardOverrideArgs = Parameters<
+  NonNullable<NonNullable<NonNullable<RoutesInput>["ui"]>["dashboard"]>
+>[0];
+type TopSourcesDataType = DashboardOverrideArgs["defaultProps"]["reportData"]["TopSourcesData"];
+type TopSourcesDataIsAny = IsAny<TopSourcesDataType>;
+
 const routesMustNotBeAny: RoutesIsAny = false;
 void routesMustNotBeAny;
+
+const topSourcesDataMustNotBeAny: TopSourcesDataIsAny = false;
+void topSourcesDataMustNotBeAny;
 
 createLytxApp({
   routes: {

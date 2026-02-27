@@ -1,4 +1,29 @@
-import { DasboardDataResult, Pagination } from "@db/types";
+export type Pagination = {
+  limit: number;
+  offset: number;
+  total: number;
+  hasMore: boolean;
+};
+
+export type DashboardEventRow = {
+  page_url: string | null;
+  client_page_url: string | null;
+  referer: string | null;
+  event: string | null;
+  createdAt: Date | null;
+  operating_system: string | null;
+  browser: string | null;
+  country: string | null;
+  region: string | null;
+  rid: string | null;
+  city: string | null;
+  postal: string | null;
+  screen_width: number | null;
+  screen_height: number | null;
+  device_type: string | null;
+};
+
+export type DasboardDataResult = DashboardEventRow[];
 
 type NivoDatumValue = string | number;
 
