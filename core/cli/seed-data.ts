@@ -28,6 +28,7 @@ Requires the dev server to be running (bun run dev).
 Options:
   -t, --team-id <id>        Team ID to create sites for (required)
   -s, --sites <number>      Number of sites to create (default: 3)
+  --site-names <csv>        Comma-separated site names (used in order when creating sites)
   --site-id <id>            Populate existing site ID with events (skips site creation)
   -e, --events <number>     Number of events per site (default: 100)
   --days <number>           Number of days back to generate events (default: 30)
@@ -37,6 +38,7 @@ Options:
 
 Example:
   bun run cli/seed-data.ts --team-id 1 --sites 2 --events 50 --seed-secret "$SEED_DATA_SECRET"
+  bun run cli/seed-data.ts --team-id 1 --sites 2 --site-names "Site1,Site2" --events 50 --seed-secret "$SEED_DATA_SECRET"
   bun run cli/seed-data.ts --team-id 1 --site-id 3 --events 100 --seed-secret "$SEED_DATA_SECRET"
 `);
   process.exit(0);
@@ -91,11 +93,26 @@ const getSiteIdArg = () => {
   }
 };
 
+const getSiteNamesArg = () => {
+  try {
+    const value = getArg("--site-names");
+    const parsed = value
+      .split(",")
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+
+    return parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 const teamId = getTeamIdArg();
 const numSites = getSitesArg();
 const numEvents = getEventsArg();
 const numDays = getDaysArg();
 const siteId = getSiteIdArg();
+const customSiteNames = getSiteNamesArg();
 const devUrl = hasFlag("--dev-url") ? getArg("--dev-url") : "http://localhost:6123";
 const seedSecret = hasFlag("--seed-secret") ? getArg("--seed-secret") : "";
 
@@ -156,6 +173,13 @@ const sampleReferrers = [
   "https://medium.com",
   "https://dev.to",
   "https://hackernews.com",
+  "https://chatgpt.com",
+  "https://chat.openai.com",
+  "https://claude.ai",
+  "https://gemini.google.com",
+  "https://perplexity.ai",
+  "https://copilot.microsoft.com",
+  "https://poe.com",
   "",
   "direct",
 ];
@@ -180,15 +204,129 @@ const sampleDeviceTypes = ["desktop", "mobile", "tablet"];
 
 const sampleGeo = [
   { country: "US", region: "California", city: "San Francisco" },
+  { country: "US", region: "Virginia", city: "Ashburn" },
+  { country: "US", region: "Oregon", city: "Portland" },
   { country: "US", region: "Texas", city: "Austin" },
+  { country: "US", region: "Washington", city: "Seattle" },
   { country: "US", region: "New York", city: "New York" },
-  { country: "GB", region: "London", city: "London" },
+  { country: "US", region: "North Carolina", city: "Charlotte" },
+  { country: "US", region: "Illinois", city: "Chicago" },
+  { country: "US", region: "Florida", city: "Miami" },
+  { country: "US", region: "Ohio", city: "Columbus" },
+  { country: "US", region: "New Jersey", city: "Newark" },
+  { country: "US", region: "Minnesota", city: "Minneapolis" },
+  { country: "US", region: "Michigan", city: "Detroit" },
+  { country: "US", region: "Maryland", city: "Baltimore" },
+  { country: "US", region: "Iowa", city: "Des Moines" },
   { country: "CA", region: "Ontario", city: "Toronto" },
-  { country: "DE", region: "Bavaria", city: "Munich" },
+  { country: "CA", region: "Quebec", city: "Montreal" },
+  { country: "CA", region: "British Columbia", city: "Vancouver" },
+  { country: "GB", region: "England", city: "London" },
+  { country: "DE", region: "Saxony", city: "Dresden" },
+  { country: "DE", region: "Hesse", city: "Frankfurt" },
+  { country: "DE", region: "Lower Saxony", city: "Hanover" },
+  { country: "DE", region: "State of Berlin", city: "Berlin" },
   { country: "FR", region: "Ile-de-France", city: "Paris" },
-  { country: "AU", region: "New South Wales", city: "Sydney" },
+  { country: "FR", region: "Brittany", city: "Rennes" },
+  { country: "FR", region: "Grand Est", city: "Strasbourg" },
+  { country: "NL", region: "North Holland", city: "Amsterdam" },
+  { country: "NL", region: "Overijssel", city: "Zwolle" },
+  { country: "BE", region: "Brussels Capital", city: "Brussels" },
+  { country: "PL", region: "Mazovia", city: "Warsaw" },
+  { country: "CH", region: "Ticino", city: "Lugano" },
+  { country: "SE", region: "Stockholm", city: "Stockholm" },
+  { country: "FI", region: "Uusimaa", city: "Helsinki" },
+  { country: "DK", region: "Capital Region", city: "Copenhagen" },
+  { country: "PT", region: "Lisbon", city: "Lisbon" },
+  { country: "IT", region: "Lombardy", city: "Milan" },
+  { country: "IT", region: "Sicily", city: "Palermo" },
+  { country: "IE", region: "Leinster", city: "Dublin" },
+  { country: "ES", region: "Madrid", city: "Madrid" },
+  { country: "CN", region: "Beijing", city: "Beijing" },
+  { country: "CN", region: "Shanghai", city: "Shanghai" },
+  { country: "CN", region: "Hebei", city: "Shijiazhuang" },
+  { country: "CN", region: "Fujian", city: "Fuzhou" },
+  { country: "CN", region: "Tianjin", city: "Tianjin" },
+  { country: "CN", region: "Xinjiang", city: "Urumqi" },
+  { country: "IN", region: "Telangana", city: "Hyderabad" },
+  { country: "IN", region: "Punjab", city: "Ludhiana" },
+  { country: "IN", region: "Maharashtra", city: "Mumbai" },
+  { country: "IN", region: "Tamil Nadu", city: "Chennai" },
+  { country: "IN", region: "Madhya Pradesh", city: "Bhopal" },
+  { country: "IN", region: "Uttarakhand", city: "Dehradun" },
+  { country: "VN", region: "Vinh Long", city: "Vinh Long" },
+  { country: "VN", region: "Thanh Hoa Province", city: "Thanh Hoa" },
+  { country: "VN", region: "Ninh Binh", city: "Ninh Binh" },
+  { country: "VN", region: "Quang Tri", city: "Dong Ha" },
+  { country: "BD", region: "Chittagong", city: "Chittagong" },
+  { country: "BD", region: "Sylhet Division", city: "Sylhet" },
+  { country: "BD", region: "Rajshahi Division", city: "Rajshahi" },
+  { country: "KR", region: "Seoul", city: "Seoul" },
+  { country: "KR", region: "Gyeonggi-do", city: "Suwon" },
   { country: "JP", region: "Tokyo", city: "Tokyo" },
+  { country: "TW", region: "Taiwan", city: "Taipei" },
+  { country: "SG", region: "Singapore", city: "Singapore" },
+  { country: "MY", region: "Selangor", city: "Shah Alam" },
+  { country: "ID", region: "North Sumatra", city: "Medan" },
+  { country: "PH", region: "Metro Manila", city: "Manila" },
+  { country: "TH", region: "Bangkok", city: "Bangkok" },
+  { country: "AU", region: "New South Wales", city: "Sydney" },
+  { country: "AU", region: "Victoria", city: "Melbourne" },
+  { country: "NZ", region: "Auckland", city: "Auckland" },
+  { country: "AQ", region: "Ross Dependency", city: "McMurdo Station" },
   { country: "BR", region: "Sao Paulo", city: "Sao Paulo" },
+  { country: "BR", region: "Rio de Janeiro", city: "Rio de Janeiro" },
+  { country: "BR", region: "Rio Grande do Sul", city: "Porto Alegre" },
+  { country: "BR", region: "Minas Gerais", city: "Belo Horizonte" },
+  { country: "BR", region: "Goias", city: "Goiania" },
+  { country: "BR", region: "Paraiba", city: "Joao Pessoa" },
+  { country: "MX", region: "Nuevo Leon", city: "Monterrey" },
+  { country: "MX", region: "Puebla", city: "Puebla" },
+  { country: "MX", region: "Queretaro", city: "Queretaro" },
+  { country: "MX", region: "Veracruz", city: "Veracruz" },
+  { country: "MX", region: "Mexico", city: "Mexico City" },
+  { country: "CO", region: "Bogota D.C.", city: "Bogota" },
+  { country: "AR", region: "Buenos Aires F.D.", city: "Buenos Aires" },
+  { country: "EC", region: "Pichincha", city: "Quito" },
+  { country: "PA", region: "Panama", city: "Panama City" },
+  { country: "JM", region: "Kingston", city: "Kingston" },
+  { country: "TT", region: "Port of Spain", city: "Port of Spain" },
+  { country: "DO", region: "Distrito Nacional", city: "Santo Domingo" },
+  { country: "PR", region: "San Juan", city: "San Juan" },
+  { country: "BS", region: "New Providence", city: "Nassau" },
+  { country: "BB", region: "Saint Michael", city: "Bridgetown" },
+  { country: "CU", region: "La Habana", city: "Havana" },
+  { country: "VE", region: "Zulia", city: "Maracaibo" },
+  { country: "ZA", region: "Western Cape", city: "Cape Town" },
+  { country: "ZA", region: "Gauteng", city: "Johannesburg" },
+  { country: "ZA", region: "KwaZulu-Natal", city: "Durban" },
+  { country: "SA", region: "Riyadh Region", city: "Riyadh" },
+  { country: "SA", region: "Mecca Region", city: "Jeddah" },
+  { country: "IL", region: "Tel Aviv", city: "Tel Aviv" },
+  { country: "JO", region: "Amman", city: "Amman" },
+  { country: "TR", region: "Istanbul", city: "Istanbul" },
+  { country: "TN", region: "Tunis Governorate", city: "Tunis" },
+  { country: "DZ", region: "Oran", city: "Oran" },
+  { country: "DZ", region: "M'Sila", city: "M'Sila" },
+  { country: "IQ", region: "Nineveh", city: "Mosul" },
+  { country: "LB", region: "Liban-Nord", city: "Tripoli" },
+  { country: "KG", region: "Bishkek", city: "Bishkek" },
+  { country: "UZ", region: "Tashkent", city: "Tashkent" },
+  { country: "KE", region: "Meru County", city: "Meru" },
+  { country: "KE", region: "Nairobi County", city: "Nairobi" },
+  { country: "KE", region: "Mombasa County", city: "Mombasa" },
+  { country: "NG", region: "Lagos", city: "Lagos" },
+  { country: "NG", region: "Federal Capital Territory", city: "Abuja" },
+  { country: "NG", region: "Rivers", city: "Port Harcourt" },
+  { country: "GH", region: "Greater Accra", city: "Accra" },
+  { country: "GH", region: "Ashanti", city: "Kumasi" },
+  { country: "AE", region: "Dubai", city: "Dubai" },
+  { country: "RO", region: "Bucharest", city: "Bucharest" },
+  { country: "LT", region: "Vilnius", city: "Vilnius" },
+  { country: "AZ", region: "Baku", city: "Baku" },
+  { country: "AL", region: "Vlore County", city: "Vlore" },
+  { country: "GT", region: "Guatemala", city: "Guatemala City" },
+  { country: "EG", region: "Cairo", city: "Cairo" },
 ];
 
 const sampleEvents = ["page_view", "form_fill", "phone_call"];
@@ -342,6 +480,9 @@ async function seedData() {
       console.log(`📈 Events to generate: ${numEvents}`);
     } else {
       console.log(`🌐 Sites to create: ${numSites}`);
+      if (customSiteNames) {
+        console.log(`🏷️  Custom site names: ${customSiteNames.join(", ")}`);
+      }
       console.log(`📈 Events per site: ${numEvents}`);
     }
     console.log(`📅 Days back: ${numDays}`);
@@ -367,7 +508,7 @@ async function seedData() {
     } else {
       // Create sample sites
       for (let i = 0; i < numSites; i++) {
-        const name = sampleSiteNames[i % sampleSiteNames.length];
+        const name = customSiteNames?.[i] || sampleSiteNames[i % sampleSiteNames.length];
         const domain = sampleDomains[i % sampleDomains.length];
 
         console.log(`📡 Creating site: ${name}...`);
@@ -453,6 +594,21 @@ if ((!siteId && numSites <= 0) || numEvents <= 0 || numDays <= 0) {
 
 if (siteId && numSites !== 3) {
   console.log("ℹ️  Note: --sites parameter is ignored when using --site-id");
+}
+
+if (siteId && customSiteNames) {
+  console.log("ℹ️  Note: --site-names parameter is ignored when using --site-id");
+}
+
+if (!siteId && customSiteNames && customSiteNames.length < numSites) {
+  console.error(
+    `❌ Error: --site-names provided ${customSiteNames.length} name(s), but --sites is ${numSites}. Provide at least ${numSites} names.`,
+  );
+  process.exit(1);
+}
+
+if (!siteId && customSiteNames && customSiteNames.length > numSites) {
+  console.log(`ℹ️  Note: --site-names provided ${customSiteNames.length} names; only the first ${numSites} will be used.`);
 }
 
 // Run the seeding

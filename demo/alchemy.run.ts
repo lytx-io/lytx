@@ -42,14 +42,15 @@ const resourceNames = resolveLytxResourceNames({
 	suffix: process.env.LYTX_RESOURCE_SUFFIX,
 	stagePosition,
 	overrides: {
-		workerName: process.env.LYTX_WORKER_NAME,
-		durableHostWorkerName: process.env.LYTX_DURABLE_HOST_WORKER_NAME,
-		durableObjectNamespaceName: process.env.LYTX_DURABLE_OBJECT_NAMESPACE_NAME,
-		d1DatabaseName: process.env.LYTX_D1_DATABASE_NAME,
-		eventsKvNamespaceName: process.env.LYTX_KV_EVENTS_NAME,
-		configKvNamespaceName: process.env.LYTX_KV_CONFIG_NAME,
-		sessionsKvNamespaceName: process.env.LYTX_KV_SESSIONS_NAME,
-		eventsQueueName: process.env.LYTX_QUEUE_NAME,
+		appName: "lytx-demo",
+		workerName: "lytx-app",
+		durableHostWorkerName: "lytx-app-do-host-demo",
+		durableObjectNamespaceName: "site-durable-object-demo",
+		d1DatabaseName: "lytx-db-demo",
+		eventsKvNamespaceName: "lytx_events-demo",
+		configKvNamespaceName: "lytx_config-demo",
+		sessionsKvNamespaceName: "lytx_sessions-demo",
+		eventsQueueName: "events-queue-demo",
 	},
 });
 

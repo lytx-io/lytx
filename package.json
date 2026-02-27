@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "bun --filter core dev",
     "demo": "bun --filter demo dev",
+    "deploy-demo": "bun --filter demo deploy",
     "lint": "oxlint core demo create-lytx --quiet",
     "lint:fix": "oxlint core demo create-lytx --fix",
     "lint:ci": "oxlint core demo create-lytx",
