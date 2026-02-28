@@ -1,4 +1,5 @@
 import { createLytxApp } from "../index";
+import { route } from "rwsdk/router";
 
 type IsAny<T> = 0 extends (1 & T) ? true : false;
 type CreateLytxAppConfigInput = Parameters<typeof createLytxApp>[0];
@@ -19,6 +20,13 @@ void topSourcesDataMustNotBeAny;
 
 createLytxApp({
   routes: {
+    additionalRoutes: [
+      route("/dashboard/custom/:slug", ({ params, ctx }) => {
+        params.slug;
+        ctx.team.id;
+        return new Response("ok");
+      }),
+    ],
     ui: {
       dashboard: ({ info, defaultProps, helpers, toolbarState }) => {
         info.ctx.team.id;
@@ -58,6 +66,8 @@ createLytxApp({
 
 createLytxApp({
   routes: {
+    // @ts-expect-error additionalRoutes must be route entries
+    additionalRoutes: ["/not-a-route"],
     ui: {
       // @ts-expect-error route override must be a function
       events: "not-a-function",

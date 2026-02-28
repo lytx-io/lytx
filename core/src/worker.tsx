@@ -68,6 +68,7 @@ export { SiteDurableObject } from "@db/durable/siteDurableObject";
 export type { AppContext };
 export type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
 export type {
+  LytxAdditionalRoute,
   LytxDashboardReportData,
   LytxDashboardRouteUiOverrideArgs,
   LytxEventsRouteUiOverrideArgs,
@@ -184,6 +185,7 @@ const isEmailSignupRequest = (request: Request): boolean => {
 export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
   const routeUiOverrides: LytxRouteUiOverrides = parsed_config.routes?.ui ?? {};
+  const additionalRoutes = parsed_config.routes?.additionalRoutes ?? [];
   const demoModeEnabled = parsed_config.auth?.signupMode === "demo";
   setAuthRuntimeConfig(parsed_config.auth);
   setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
@@ -779,6 +781,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
               return Response.redirect(new URL("/dashboard/explore", request.url).toString(), 308);
             },
           ]),
+          ...additionalRoutes,
         ])]
         : []),
 

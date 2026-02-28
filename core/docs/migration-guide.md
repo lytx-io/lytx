@@ -96,6 +96,22 @@ When upgrading `lytx`:
 - Keep existing setup as-is (no breaking change), or migrate custom route UI into `routes.ui.*` callbacks to keep core middleware and routing defaults.
 - Review `/api` docs before replacing route UI behavior so your custom pages keep expected fetch/helper contracts.
 
+## Additional RedwoodSDK routes (`routes.additionalRoutes`)
+
+### Previous pattern
+
+- Add custom app routes by forking `lytx/worker` route definitions.
+
+### Current pattern
+
+- Add custom RedwoodSDK routes directly in config via `routes.additionalRoutes`.
+- Entries are typed as RedwoodSDK `Route` values (for example `route(...)`, `prefix(...)`, `layout(...)`).
+
+### Migration
+
+- Move custom route definitions into `routes.additionalRoutes` to keep core worker wiring intact.
+- If a custom route path conflicts with a core path, core route order still wins.
+
 ## Worker bootstrap migration (manual wiring -> app factory)
 
 ### Previous pattern

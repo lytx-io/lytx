@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { RequestInfo } from "rwsdk/worker";
+import type { Route } from "rwsdk/router";
 import type {
   BrowserData,
   DashboardResponseData,
@@ -154,6 +155,14 @@ export type LytxExploreRouteUiOverrideArgs = {
 };
 
 /**
+ * Additional RedwoodSDK route entry accepted by `createLytxApp({ routes })`.
+ *
+ * Use `route(...)`, `layout(...)`, `prefix(...)`, `except(...)`, or middleware
+ * values from `rwsdk/router` and pass them in `routes.additionalRoutes`.
+ */
+export type LytxAdditionalRoute = Route;
+
+/**
  * Route-level UI override hooks for `createLytxApp({ routes: { ui } })`.
  *
  * Read the `/api` docs before replacing a route UI so your custom page calls
@@ -190,5 +199,11 @@ export type LytxRouteUiOverrides = {
  * the built-in route tree and middleware.
  */
 export type LytxRoutesConfig = {
+  /**
+   * Additional RedwoodSDK routes appended to the core worker route tree.
+   *
+   * Use this when you need to register extra app routes beyond core defaults.
+   */
+  additionalRoutes?: readonly LytxAdditionalRoute[];
   ui?: LytxRouteUiOverrides;
 };

@@ -338,4 +338,23 @@ describe("createLytxApp demo mode route behavior", () => {
     expect(await exploreResponse.text()).toBe("explore override");
     expect(exploreOverride).toHaveBeenCalledTimes(1);
   });
+
+  test("appends routes.additionalRoutes into the core route tree", async () => {
+    setupWorkerRouteTestMocks();
+
+    const customRoute = {
+      path: "/dashboard/custom",
+      handler: () => new Response("custom route"),
+    };
+
+    const { createLytxApp } = await import("../src/worker");
+    createLytxApp({
+      routes: {
+        additionalRoutes: [customRoute],
+      },
+    });
+
+    const appLayoutEntry = layoutEntries.find((entry) => entry.component === AppLayoutComponent);
+    expect(appLayoutEntry?.handlers.includes(customRoute as never)).toBe(true);
+  });
 });

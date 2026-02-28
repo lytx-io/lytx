@@ -58,6 +58,7 @@ export type {
   LytxAiModel,
 } from "./src/config/createLytxAppConfig";
 export type {
+  LytxAdditionalRoute,
   LytxDashboardReportData,
   LytxDashboardRouteUiOverrideArgs,
   LytxEventsRouteUiOverrideArgs,

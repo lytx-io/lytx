@@ -82,6 +82,7 @@ export default app satisfies ExportedHandler<Env>;
 - `env.AI_PROVIDER`, `env.AI_BASE_URL`, `env.AI_MODEL` (AI vendor/model routing overrides)
 - `env.EMAIL_FROM` (optional factory override for outgoing email sender)
 - `routes.ui.dashboard`, `routes.ui.events`, `routes.ui.explore` (typed per-route UI overrides with route-specific `info`/props)
+- `routes.additionalRoutes` (typed RedwoodSDK route entries appended to core route tree)
 
 ### Route UI overrides
 
@@ -95,9 +96,15 @@ import {
   createLytxApp,
   type DashboardPageProps,
 } from "lytx";
+import { route } from "rwsdk/router";
 
 const app = createLytxApp({
   routes: {
+    additionalRoutes: [
+      route("/dashboard/custom", ({ ctx }) => {
+        return new Response(`Hello team ${ctx.team.id}`);
+      }),
+    ],
     ui: {
       dashboard: ({ info, defaultProps, helpers }) => {
         // Keep calling the same APIs/helpers core expects for this route.
@@ -129,6 +136,7 @@ const app = createLytxApp({
 ```
 
 TypeScript autocomplete is route-specific. For example, `routes.ui.dashboard` exposes dashboard defaults/helpers, while `routes.ui.explore` only exposes explore defaults.
+`routes.additionalRoutes` enforces RedwoodSDK route entry types.
 
 For deployment scripts, use `resolveLytxResourceNames(...)` from `lytx/resource-names` to derive deterministic Cloudflare resource names with optional stage-based prefix/suffix strategy.
 
