@@ -59,6 +59,7 @@
 		},
 		/* Enable importing .json files */
 		"resolveJsonModule": true,
+		"allowImportingTsExtensions": true,
 		/* Enable error reporting in type-checked JavaScript files. */
 		"checkJs": false,
 		/* Disable emitting files from a compilation. */

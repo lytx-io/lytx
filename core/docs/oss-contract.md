@@ -47,6 +47,13 @@ The following are supported under semantic versioning guarantees (see policy bel
 
 For Node/Alchemy deployment scripts, prefer importing naming helpers from `lytx/resource-names` to avoid loading worker-only modules.
 
+Stable subpath exports:
+
+- `lytx/resource-names`
+  - Node-safe naming helpers (`resolveLytxResourceNames`, related types/constants).
+- `lytx/vite`
+  - Vite integration helpers for consumers (`lytxConsumerVitePlugin`, `lytxPixelBundlePlugin`).
+
 ## Supported public exports (experimental / unstable)
 
 These are allowed for consumers but may change in minor releases and may be removed after deprecation notice.
@@ -57,8 +64,6 @@ These are allowed for consumers but may change in minor releases and may be remo
 - `lytx/db/durable/siteDurableObject`
   - Legacy typed subpath export.
   - Prefer `SiteDurableObject` from `lytx`.
-- `lytx/resource-names`
-  - Node-safe subpath for deployment naming helpers (`resolveLytxResourceNames`, related types/constants).
 
 ## Internal/private modules (not supported)
 
@@ -71,7 +76,7 @@ The following are not supported for external consumers and can change at any tim
   - `lytx/endpoints/*`
   - `lytx/cli/*`
   - `lytx/public/*`
-  - `lytx/vite/*`
+  - `lytx/vite/*` (except the documented stable `lytx/vite` subpath)
 - Internal file layout, route implementation details, and schema internals.
 
 ## Supported extension and customization points

@@ -7,7 +7,7 @@ For full setup and troubleshooting guidance, see `../core/docs/self-host-quickst
 Template files:
 
 - `demo/src/worker.tsx`
-- `demo/vite.config.ts`
+- `demo/vite.config.ts` (uses `lytxConsumerVitePlugin` from `lytx/vite`)
 - `demo/alchemy.run.ts`
 
 The starter uses only documented public `lytx` entrypoints (`createLytxApp`, `SiteDurableObject`) and the documented naming helper subpath (`lytx/resource-names`).
@@ -49,3 +49,4 @@ bun run dev
 - `alchemy.run.ts` supports deterministic resource naming (`LYTX_RESOURCE_*`) and optional app/tracking domains (`LYTX_APP_DOMAIN`, `LYTX_TRACKING_DOMAIN`).
 - Modular feature flags (`LYTX_FEATURE_*`) default to enabled in `alchemy.run.ts` when unset.
 - `src/worker.tsx` uses `createLytxApp(...)`, including optional tracking route prefix via `trackingRoutePrefix`.
+- `lytx/vite` now exports `lytxConsumerVitePlugin(...)` so consumers do not need to manually copy alias/public-dir/pixel-bundling setup.

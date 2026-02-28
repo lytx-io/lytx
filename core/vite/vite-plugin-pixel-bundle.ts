@@ -23,7 +23,11 @@ interface CachedBundles {
   core: string | null;
 }
 
-export function lytxPixelBundlePlugin(): Plugin {
+export interface LytxPixelBundlePluginOptions {
+  templatesRoot?: string;
+}
+
+export function lytxPixelBundlePlugin(options: LytxPixelBundlePluginOptions = {}): Plugin {
   let cachedBundles: CachedBundles = { full: null, core: null };
   let rootDir: string;
 
@@ -31,7 +35,7 @@ export function lytxPixelBundlePlugin(): Plugin {
     name: 'vite-plugin-lytx-pixel-bundle',
 
     configResolved(config) {
-      rootDir = config.root;
+      rootDir = options.templatesRoot ?? config.root;
     },
 
     resolveId(id) {

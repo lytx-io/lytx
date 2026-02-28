@@ -63,6 +63,11 @@
       "import": "./src/config/resourceNames.ts",
       "default": "./src/config/resourceNames.ts"
     },
+    "./vite": {
+      "types": "./vite/index.ts",
+      "import": "./vite/index.ts",
+      "default": "./vite/index.ts"
+    },
     "./package.json": "./package.json"
   },
   "bin": {

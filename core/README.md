@@ -63,6 +63,20 @@ export { SyncDurableObject, SiteDurableObject };
 export default app satisfies ExportedHandler<Env>;
 ```
 
+Add the Vite plugin preset so Redwood can resolve Lytx internals without manual alias setup:
+
+```ts
+// vite.config.ts
+import { defineConfig } from "vite";
+import alchemy from "alchemy/cloudflare/redwood";
+import tailwindcss from "@tailwindcss/vite";
+import { lytxConsumerVitePlugin } from "lytx/vite";
+
+export default defineConfig({
+  plugins: [...lytxConsumerVitePlugin(), alchemy(), tailwindcss()],
+});
+```
+
 `createLytxApp` supports:
 
 - `features.dashboard`, `features.events`, `features.auth`, `features.ai`, `features.tagScript`
