@@ -50,3 +50,4 @@ bun run dev
 - Modular feature flags (`LYTX_FEATURE_*`) default to enabled in `alchemy.run.ts` when unset.
 - `src/worker.tsx` uses `createLytxApp(...)`, including optional tracking route prefix via `trackingRoutePrefix`.
 - `lytx/vite` now exports `lytxConsumerVitePlugin(...)` so consumers do not need to manually copy alias/public-dir/pixel-bundling setup.
+- `src/Document.tsx` is optional with `lytxConsumerVitePlugin()`; default document comes from `lytx`, and custom document wrappers should be passed via `createLytxApp({ routes: { document } })`.

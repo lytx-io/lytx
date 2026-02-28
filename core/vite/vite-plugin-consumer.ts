@@ -14,7 +14,6 @@ export interface LytxConsumerVitePluginOptions {
 
 export function lytxConsumerVitePlugin(options: LytxConsumerVitePluginOptions = {}): Plugin[] {
   const projectRoot = options.projectRoot ?? process.cwd();
-  const documentPath = options.documentPath ?? './src/Document.tsx';
   const defaultFsAllow = [path.resolve(projectRoot, '..')];
 
   const configPlugin: Plugin = {
@@ -24,7 +23,9 @@ export function lytxConsumerVitePlugin(options: LytxConsumerVitePluginOptions = 
         publicDir: path.resolve(PACKAGE_ROOT, 'public'),
         resolve: {
           alias: {
-            '@/Document': path.resolve(projectRoot, documentPath),
+            ...(options.documentPath
+              ? { '@/Document': path.resolve(projectRoot, options.documentPath) }
+              : {}),
             '@': path.resolve(PACKAGE_ROOT, 'src'),
             '@cli': path.resolve(PACKAGE_ROOT, 'cli'),
             '@app': path.resolve(PACKAGE_ROOT, 'src/app'),

@@ -77,6 +77,8 @@ export default defineConfig({
 });
 ```
 
+`lytxConsumerVitePlugin()` uses the built-in `lytx` document by default, so consumers do not need a local `src/Document.tsx`. To customize the document wrapper, use `createLytxApp({ routes: { document } })`.
+
 `createLytxApp` supports:
 
 - `features.dashboard`, `features.events`, `features.auth`, `features.ai`, `features.tagScript`
