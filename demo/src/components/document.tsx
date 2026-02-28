@@ -1,22 +1,14 @@
 import type { ReactNode } from "react";
-// @ts-ignore
-import styles from "./index.css?url";
+import styles from "lytx/styles.css?url";
 
-type DocumentProps = {
-  children: ReactNode;
-};
-
-export function Document({ children }: DocumentProps) {
+export function Document({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Lytx</title>
         <link rel="stylesheet" href={styles} />
         <link rel="modulepreload" href="/src/client.tsx" />
       </head>
-      <body>
+      <body className="overflow-x-hidden">
         {children}
         <script>import("/src/client.tsx")</script>
       </body>

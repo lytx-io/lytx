@@ -4,6 +4,7 @@ import {
   SyncDurableObject,
 } from "lytx";
 import { route } from "rwsdk/router";
+import { Document } from "./components/document";
 
 export { SyncDurableObject, SiteDurableObject };
 
@@ -13,6 +14,7 @@ const app = createLytxApp({
     eventStore: "durable_objects",
   },
   routes: {
+    document: Document,
     additionalRoutes: [
       route("/test", ({ request }) => {
         const url = new URL(request.url);

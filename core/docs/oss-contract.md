@@ -53,6 +53,8 @@ Stable subpath exports:
   - Node-safe naming helpers (`resolveLytxResourceNames`, related types/constants).
 - `lytx/vite`
   - Vite integration helpers for consumers (`lytxConsumerVitePlugin`, `lytxPixelBundlePlugin`).
+- `lytx/styles.css`
+  - Public stylesheet entrypoint for custom document wrappers (`import styles from "lytx/styles.css?url"`).
 
 ## Supported public exports (experimental / unstable)
 

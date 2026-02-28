@@ -1,9 +1,12 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
 import { lytxPixelBundlePlugin } from './vite-plugin-pixel-bundle.ts';
 
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const CLIENT_ENTRY_URL_PATH = '/src/client.tsx';
+const RESOLVED_CLIENT_FALLBACK_ID = '\0virtual:lytx-client-entry-fallback';
 
 export interface LytxConsumerVitePluginOptions {
   projectRoot?: string;
@@ -15,6 +18,25 @@ export interface LytxConsumerVitePluginOptions {
 export function lytxConsumerVitePlugin(options: LytxConsumerVitePluginOptions = {}): Plugin[] {
   const projectRoot = options.projectRoot ?? process.cwd();
   const defaultFsAllow = [path.resolve(projectRoot, '..')];
+  const localClientEntryPath = path.resolve(projectRoot, 'src/client.tsx');
+  const fallbackClientModulePath = path.resolve(PACKAGE_ROOT, 'src/client.tsx');
+  const fallbackClientFsUrl = `/@fs/${fallbackClientModulePath.replace(/\\/g, '/')}`;
+  let isServe = false;
+
+  const buildClientFallbackModule = (forDevServer: boolean): string => {
+    const targetImport = forDevServer ? fallbackClientFsUrl : fallbackClientModulePath;
+    return [
+      'import RefreshRuntime from "/@react-refresh";',
+      'if (!window.__vite_plugin_react_preamble_installed__) {',
+      '  RefreshRuntime.injectIntoGlobalHook(window);',
+      '  window.$RefreshReg$ = () => {};',
+      '  window.$RefreshSig$ = () => (type) => type;',
+      '  window.__vite_plugin_react_preamble_installed__ = true;',
+      '}',
+      `import ${JSON.stringify(targetImport)};`,
+      '',
+    ].join('\n');
+  };
 
   const configPlugin: Plugin = {
     name: 'vite-plugin-lytx-consumer-config',
@@ -50,8 +72,41 @@ export function lytxConsumerVitePlugin(options: LytxConsumerVitePluginOptions = 
     },
   };
 
+  const clientEntryFallbackPlugin: Plugin = {
+    name: 'vite-plugin-lytx-consumer-client-entry-fallback',
+    enforce: 'pre',
+    configResolved(config) {
+      isServe = config.command === 'serve';
+    },
+    resolveId(id) {
+      if (id === CLIENT_ENTRY_URL_PATH && !fs.existsSync(localClientEntryPath)) {
+        return RESOLVED_CLIENT_FALLBACK_ID;
+      }
+    },
+    load(id) {
+      if (id !== RESOLVED_CLIENT_FALLBACK_ID) return;
+      return isServe
+        ? buildClientFallbackModule(true)
+        : `import ${JSON.stringify(fallbackClientModulePath)};`;
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const requestPath = req.url?.split('?')[0];
+        if (requestPath !== CLIENT_ENTRY_URL_PATH || fs.existsSync(localClientEntryPath)) {
+          next();
+          return;
+        }
+
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/javascript');
+        res.end(buildClientFallbackModule(true));
+      });
+    },
+  };
+
   return [
     lytxPixelBundlePlugin({ templatesRoot: PACKAGE_ROOT }),
     configPlugin,
+    clientEntryFallbackPlugin,
   ];
 }

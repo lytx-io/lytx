@@ -77,7 +77,19 @@ export default defineConfig({
 });
 ```
 
-`lytxConsumerVitePlugin()` uses the built-in `lytx` document by default, so consumers do not need a local `src/Document.tsx`. To customize the document wrapper, use `createLytxApp({ routes: { document } })`.
+`lytxConsumerVitePlugin()` uses built-in `lytx` defaults for both document and client entry, so consumers do not need local `src/Document.tsx` or `src/client.tsx`. To customize the document wrapper, use `createLytxApp({ routes: { document } })`.
+
+For custom document wrappers, import the public stylesheet entrypoint:
+
+```tsx
+import styles from "lytx/styles.css?url";
+```
+
+When providing a custom document, render `{children}` directly (do not wrap it in another `hydrate-root` container):
+
+```tsx
+{children}
+```
 
 `createLytxApp` supports:
 

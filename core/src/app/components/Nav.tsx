@@ -56,7 +56,7 @@ export function Nav({ initialSession = null, showSettingsLink = true }: NavProps
   const [activeTeamId, setActiveTeamId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
-  const { data: authSession, refetch, setCurrentSite } = useContext(AuthContext);
+  const { data: authSession, refetch, setCurrentSite, demoModeEnabled } = useContext(AuthContext);
   const session = authSession ?? initialSession;
   const user = session?.user as { name?: string | null; email?: string | null; image?: string | null } | undefined;
   const sessionTeamId = session?.team?.id ?? null;
@@ -220,6 +220,12 @@ export function Nav({ initialSession = null, showSettingsLink = true }: NavProps
 
     setSwitchingTeamId(teamId);
     try {
+      if (demoModeEnabled) {
+        setActiveTeamId(teamId);
+        saveLastTeamToStorage(teamId);
+        return;
+      }
+
       const response = await fetch("/api/user/update-last-team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

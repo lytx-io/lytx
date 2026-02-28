@@ -737,7 +737,6 @@ export function DashboardPage(props: DashboardPageProps) {
       setFilters,
       timezone: effectiveTimezone,
       onNotify: notify,
-      isUpdating: isFetching && !isLoading,
       deviceTypeOptions: deviceTypeFilterOptions,
       countryOptions: countryFilterOptions,
       cityOptions: cityFilterOptions,

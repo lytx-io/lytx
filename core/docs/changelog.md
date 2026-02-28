@@ -9,6 +9,7 @@
 - Route override callbacks expose strongly typed route `info` and route-specific default props/helpers for safer customization with editor autocomplete.
 - `createLytxApp` now supports typed RedwoodSDK route extension via `routes.additionalRoutes`.
 - Stable `lytx/vite` consumer helpers are now exported (`lytxConsumerVitePlugin`, `lytxPixelBundlePlugin`).
+- Public stylesheet subpath export `lytx/styles.css` is now available for custom document wrappers.
 
 ### Changed
 
@@ -16,7 +17,10 @@
 - `routes.document` overrides the render wrapper component used by core `render(...)`.
 - `routes.additionalRoutes` entries are appended to the core worker route tree.
 - `lytxConsumerVitePlugin()` now defaults to the built-in `lytx` document instead of requiring a local `src/Document.tsx`.
+- `lytxConsumerVitePlugin()` now falls back to the built-in `lytx` client entry when local `src/client.tsx` is absent.
 - Core stylesheet includes explicit `@source` scanning so default document styling works in consumer apps without a local document wrapper.
+- Custom document wrappers should render `{children}` directly so RedwoodSDK can inject and hydrate the root container.
+- Demo-mode dashboard selectors now skip `/api/user/*` persistence calls that are unavailable without full auth routes.
 
 ### Migration notes
 

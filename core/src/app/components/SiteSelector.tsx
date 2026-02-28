@@ -55,6 +55,7 @@ export const SiteSelector: React.FC<SiteSelectorProps> = ({
     data: session,
     current_site,
     setCurrentSite,
+    demoModeEnabled,
   } = useContext(AuthContext);
 
   const sites = session?.userSites && session.userSites.length > 0
@@ -91,7 +92,9 @@ export const SiteSelector: React.FC<SiteSelectorProps> = ({
             // Save to localStorage for immediate access on page reload
             saveLastSiteToStorage(selectedSite.site_id);
             // Persist to database for cross-device sync (fire and forget)
-            updateLastSiteInDB(selectedSite.site_id);
+            if (!demoModeEnabled) {
+              updateLastSiteInDB(selectedSite.site_id);
+            }
           }
         }}
         className={`appearance-none bg-[var(--theme-input-bg)] pl-4 pr-10 py-2 text-sm text-left text-[var(--theme-text-primary)] rounded-lg border border-[var(--theme-input-border)] focus:border-[var(--theme-border-primary)] focus:outline-none transition-colors ${selectClassName ?? ""}`}

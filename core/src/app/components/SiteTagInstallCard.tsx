@@ -66,7 +66,7 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
       case "html":
         return `<script defer \n src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n></script>`;
       case "rwsdk":
-        return `// In your Document.tsx\nexport const Document = ({ children }) => (\n  <html>\n    <head>{/* ... */}</head>\n    <body>\n      <div id="root">{children}</div>\n      <script>import("/src/client.tsx")</script>\n      <script\n        defer\n        src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n      ></script>\n    </body>\n  </html>\n);`;
+        return `// In your Document.tsx\nexport const Document = ({ children }) => (\n  <html>\n    <head>{/* ... */}</head>\n    <body>\n      {children}\n      <script>import("/src/client.tsx")</script>\n      <script\n        defer\n        src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n      ></script>\n    </body>\n  </html>\n);`;
       case "sveltekit":
         return `<!-- In your src/app.html -->\n<script\n  defer\n  src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n></script>\n\n<!-- Or in your +layout.svelte -->\n<svelte:head>\n  <script\n    defer\n    src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n  ></script>\n</svelte:head>`;
       case "solid":
@@ -175,7 +175,7 @@ export function SiteTagInstallCard({ site, className }: SiteTagInstallCardProps)
               <CodeBlock
                 id="install-content-rwsdk"
                 language="tsx"
-                code={`// In your Document.tsx\nexport const Document = ({ children }) => (\n  <html>\n    <head>{/* ... */}</head>\n    <body>\n      <div id="root">{children}</div>\n      <script>import("/src/client.tsx")</script>\n      <script\n        defer\n        src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n      ></script>\n    </body>\n  </html>\n);`}
+                code={`// In your Document.tsx\nexport const Document = ({ children }) => (\n  <html>\n    <head>{/* ... */}</head>\n    <body>\n      {children}\n      <script>import("/src/client.tsx")</script>\n      <script\n        defer\n        src="${lytxDomain}${LYTX_SCRIPT_PATH}?account=${site.tag_id}"\n      ></script>\n    </body>\n  </html>\n);`}
               />
               <p className="text-xs text-[var(--theme-text-secondary)] mt-2">
                 Add this to your Document.tsx or root layout component.

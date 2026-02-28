@@ -76,6 +76,7 @@ export const AuthContext = createContext<{
   refetch: () => void | Promise<void>;
   current_site: Currentsite;
   setCurrentSite: (site: Currentsite) => void;
+  demoModeEnabled: boolean;
 }>(null as unknown as {
   data: UserData;
   isPending: boolean;
@@ -83,6 +84,7 @@ export const AuthContext = createContext<{
   refetch: () => void | Promise<void>;
   current_site: Currentsite;
   setCurrentSite: (site: Currentsite) => void;
+  demoModeEnabled: boolean;
 });
 
 export type Currentsite = { name: string, id: number, tag_id: string } | null
@@ -142,6 +144,7 @@ function DemoModeAuthProvider({ children, initialSession }: { children: React.Re
         refetch: () => undefined,
         current_site,
         setCurrentSite,
+        demoModeEnabled: true,
       }}
     >
       {children}
@@ -199,6 +202,7 @@ function LiveAuthProvider({ children }: { children: React.ReactNode }) {
         refetch: refetchFreshSession,
         current_site,
         setCurrentSite,
+        demoModeEnabled: false,
       }}
     >
       {children}
