@@ -12,6 +12,7 @@ type LayoutEntry = {
 
 let routeEntries: RouteEntry[] = [];
 let layoutEntries: LayoutEntry[] = [];
+let renderDocumentComponent: unknown = null;
 
 const sessionMiddlewareMock = mock(() => undefined);
 const demoSessionMiddlewareMock = mock(() => undefined);
@@ -23,6 +24,7 @@ const AppLayoutComponent = function AppLayoutComponent() {
 function setupWorkerRouteTestMocks() {
   routeEntries = [];
   layoutEntries = [];
+  renderDocumentComponent = null;
 
   mock.module("rwsdk/worker", () => ({
     defineApp: (entries: unknown[]) => ({ entries }),
@@ -35,7 +37,10 @@ function setupWorkerRouteTestMocks() {
       routeEntries.push(entry);
       return entry;
     },
-    render: (_document: unknown, entries: unknown[]) => ({ type: "render", entries }),
+    render: (document: unknown, entries: unknown[]) => {
+      renderDocumentComponent = document;
+      return { type: "render", entries };
+    },
     prefix: (path: string, entries: unknown[]) => ({ type: "prefix", path, entries }),
     layout: (component: unknown, handlers: unknown) => {
       const normalizedHandlers = (Array.isArray(handlers) ? handlers : [handlers]) as Array<(args: any) => unknown>;
@@ -356,5 +361,20 @@ describe("createLytxApp demo mode route behavior", () => {
 
     const appLayoutEntry = layoutEntries.find((entry) => entry.component === AppLayoutComponent);
     expect(appLayoutEntry?.handlers.includes(customRoute as never)).toBe(true);
+  });
+
+  test("uses routes.document as render wrapper when provided", async () => {
+    setupWorkerRouteTestMocks();
+
+    const customDocument = () => null;
+    const { createLytxApp } = await import("../src/worker");
+
+    createLytxApp({
+      routes: {
+        document: customDocument,
+      },
+    });
+
+    expect(renderDocumentComponent).toBe(customDocument);
   });
 });

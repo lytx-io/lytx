@@ -5,12 +5,14 @@
 ### Added
 
 - `createLytxApp` now supports typed route UI overrides via `routes.ui.dashboard`, `routes.ui.events`, and `routes.ui.explore`.
+- `createLytxApp` now supports typed document override via `routes.document`.
 - Route override callbacks expose strongly typed route `info` and route-specific default props/helpers for safer customization with editor autocomplete.
 - `createLytxApp` now supports typed RedwoodSDK route extension via `routes.additionalRoutes`.
 
 ### Changed
 
 - `CreateLytxAppConfig` now accepts a `routes` object for route UI overrides while preserving existing defaults when no override is provided.
+- `routes.document` overrides the render wrapper component used by core `render(...)`.
 - `routes.additionalRoutes` entries are appended to the core worker route tree.
 
 ### Migration notes

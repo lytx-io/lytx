@@ -82,6 +82,7 @@ export default app satisfies ExportedHandler<Env>;
 - `env.AI_PROVIDER`, `env.AI_BASE_URL`, `env.AI_MODEL` (AI vendor/model routing overrides)
 - `env.EMAIL_FROM` (optional factory override for outgoing email sender)
 - `routes.ui.dashboard`, `routes.ui.events`, `routes.ui.explore` (typed per-route UI overrides with route-specific `info`/props)
+- `routes.document` (typed RedwoodSDK `Document` override for render wrapper)
 - `routes.additionalRoutes` (typed RedwoodSDK route entries appended to core route tree)
 
 ### Route UI overrides
@@ -96,10 +97,19 @@ import {
   createLytxApp,
   type DashboardPageProps,
 } from "lytx";
-import { route } from "rwsdk/router";
+import { route, type DocumentProps } from "rwsdk/router";
+
+function CustomDocument({ children }: DocumentProps) {
+  return (
+    <html lang="en">
+      <body data-app="custom-document">{children}</body>
+    </html>
+  );
+}
 
 const app = createLytxApp({
   routes: {
+    document: CustomDocument,
     additionalRoutes: [
       route("/dashboard/custom", ({ ctx }) => {
         return new Response(`Hello team ${ctx.team.id}`);

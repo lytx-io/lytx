@@ -96,6 +96,21 @@ When upgrading `lytx`:
 - Keep existing setup as-is (no breaking change), or migrate custom route UI into `routes.ui.*` callbacks to keep core middleware and routing defaults.
 - Review `/api` docs before replacing route UI behavior so your custom pages keep expected fetch/helper contracts.
 
+## Document override support (`routes.document`)
+
+### Previous pattern
+
+- Replace the document shell by forking `lytx/worker` and editing `render(Document, ...)` manually.
+
+### Current pattern
+
+- Override the document shell directly via `createLytxApp({ routes: { document } })`.
+- `document` is typed as a RedwoodSDK `Document` component.
+
+### Migration
+
+- Move custom document wrappers into `routes.document` to avoid worker forking.
+
 ## Additional RedwoodSDK routes (`routes.additionalRoutes`)
 
 ### Previous pattern

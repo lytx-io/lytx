@@ -122,6 +122,7 @@ Consumers may choose deployment-level names, but the runtime bindings exposed to
 - `createLytxApp` supports typed signup controls via `auth.signupMode` (`open`, `bootstrap_then_invite`, `invite_only`, `demo`).
 - `createLytxApp` supports auth-mode controls via `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, and `auth.socialProviders.*`.
 - `createLytxApp` supports typed per-route UI overrides via `routes.ui.dashboard`, `routes.ui.events`, and `routes.ui.explore`.
+- `createLytxApp` supports typed render wrapper override via `routes.document`.
 - `createLytxApp` supports typed RedwoodSDK route extension via `routes.additionalRoutes`.
 
 ## Deprecation and compatibility policy

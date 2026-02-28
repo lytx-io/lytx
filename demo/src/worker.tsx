@@ -4,6 +4,7 @@ import {
   SyncDurableObject,
   type LytxDashboardReportData,
 } from "lytx";
+import { route, type DocumentProps } from "rwsdk/router";
 
 export { SyncDurableObject, SiteDurableObject };
 
@@ -15,9 +16,8 @@ const DashboardUiReplacement = (props: {
   return (
     <main>
       <h1>Custom Dashboard UI</h1>
-      <p>Default settingsEnabled: {String(props.defaultSettingsEnabled)}</p>
-      <p>Overridden settingsEnabled: {String(props.settingsEnabled)}</p>
-      <p>Has initial dashboard data: {String(Boolean(props.initialDashboardData))}</p>
+      <p>Default settingsEnabled: {props.defaultSettingsEnabled}</p>
+      <p>Overridden settingsEnabled: {props.settingsEnabled}</p>
     </main>
   );
 };
@@ -40,6 +40,14 @@ const ExploreUiReplacement = (props: { initialSiteId: number | null }) => {
   );
 };
 
+const CustomDocument = ({ children }: DocumentProps) => {
+  return (
+    <html lang="en">
+      <body data-demo="custom-document">{children}</body>
+    </html>
+  );
+};
+
 //TODO: show other types of combinatiosn ie clickhouse/singlestore etc with redis over kv etc
 const app = createLytxApp({
   db: {
@@ -47,24 +55,39 @@ const app = createLytxApp({
     eventStore: "durable_objects",
   },
   routes: {
-    ui: {
-      dashboard: ({ defaultProps }) => {
+    // document: CustomDocument,
+    ui: {},
+    additionalRoutes: [
+      route("/test", ({ request }) => {
+        const url = new URL(request.url);
         return (
-          <DashboardUiReplacement
-            defaultSettingsEnabled={defaultProps.settingsEnabled}
-            settingsEnabled={false}
-            initialDashboardData={defaultProps.reportData.initialDashboardData}
-          />
+          <main>
+            <h1>Custom Route</h1>
+            <p>Path: {url.pathname}</p>
+          </main>
         );
-      },
-      events: () => {
-        return <EventsUiReplacement />;
-      },
-      explore: ({ defaultProps }) => {
-        return <ExploreUiReplacement initialSiteId={defaultProps.initialSiteId} />;
-      },
-    },
+      }),
+    ],
   },
+  // routes: {
+  //   ui: {
+  //     dashboard: ({ defaultProps }) => {
+  //       return (
+  //         <DashboardUiReplacement
+  //           defaultSettingsEnabled={defaultProps.settingsEnabled}
+  //           settingsEnabled={false}
+  //           initialDashboardData={defaultProps.reportData.initialDashboardData}
+  //         />
+  //       );
+  //     },
+  //     events: () => {
+  //       return <EventsUiReplacement />;
+  //     },
+  //     explore: ({ defaultProps }) => {
+  //       return <ExploreUiReplacement initialSiteId={defaultProps.initialSiteId} />;
+  //     },
+  //   },
+  // },
   auth: {
     signupMode: "demo",
     // "demo" is intentionally unauthenticated for app/dashboard routes.

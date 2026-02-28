@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   LytxAdditionalRoute,
   LytxDashboardRouteUiOverrideArgs,
+  LytxDocumentComponent,
   LytxEventsRouteUiOverrideArgs,
   LytxExploreRouteUiOverrideArgs,
   LytxRouteOverrideResult,
@@ -130,8 +131,13 @@ const additionalRouteSchema = z.custom<LytxAdditionalRoute>((value) => value != 
   message: "Additional route must be a RedwoodSDK route entry",
 });
 
+const documentComponentSchema = z.custom<LytxDocumentComponent>((value) => typeof value === "function", {
+  message: "Document override must be a component function",
+});
+
 const routesConfigSchema = z
   .object({
+    document: documentComponentSchema.optional(),
     additionalRoutes: z.array(additionalRouteSchema).optional(),
     ui: z
       .object({
@@ -329,6 +335,10 @@ export type CreateLytxAppConfig = Omit<BaseCreateLytxAppConfig, "ai"> & {
   ai?: LytxAiConfig;
   /**
    * Route customization hooks for `createLytxApp`.
+   *
+   * Use `routes.document` to override the default render wrapper,
+   * `routes.ui.*` to override core page UI, and
+   * `routes.additionalRoutes` to append custom RedwoodSDK routes.
    *
    * Use this to override the default UI rendered by core routes
    * (for example dashboard/events/explore) and/or append additional

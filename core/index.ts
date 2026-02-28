@@ -81,6 +81,7 @@ export type {
 } from "./src/config/createLytxAppConfig";
 export type {
   LytxAdditionalRoute,
+  LytxDocumentComponent,
   LytxDashboardReportData,
   LytxDashboardRouteUiOverrideArgs,
   LytxEventsRouteUiOverrideArgs,

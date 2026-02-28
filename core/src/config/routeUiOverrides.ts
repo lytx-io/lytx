@@ -1,6 +1,6 @@
-import type { ReactElement } from "react";
+import type { FC, ReactElement } from "react";
 import type { RequestInfo } from "rwsdk/worker";
-import type { Route } from "rwsdk/router";
+import type { DocumentProps, Route } from "rwsdk/router";
 import type {
   BrowserData,
   DashboardResponseData,
@@ -163,6 +163,13 @@ export type LytxExploreRouteUiOverrideArgs = {
 export type LytxAdditionalRoute = Route;
 
 /**
+ * Custom RedwoodSDK Document component used by `render(...)`.
+ *
+ * Override this to replace core's default `Document` wrapper.
+ */
+export type LytxDocumentComponent = FC<DocumentProps>;
+
+/**
  * Route-level UI override hooks for `createLytxApp({ routes: { ui } })`.
  *
  * Read the `/api` docs before replacing a route UI so your custom page calls
@@ -199,6 +206,12 @@ export type LytxRouteUiOverrides = {
  * the built-in route tree and middleware.
  */
 export type LytxRoutesConfig = {
+  /**
+   * Custom RedwoodSDK Document component for the app render wrapper.
+   *
+   * Use this to replace core `Document` with your own component.
+   */
+  document?: LytxDocumentComponent;
   /**
    * Additional RedwoodSDK routes appended to the core worker route tree.
    *

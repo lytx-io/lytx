@@ -69,6 +69,7 @@ export type { AppContext };
 export type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
 export type {
   LytxAdditionalRoute,
+  LytxDocumentComponent,
   LytxDashboardReportData,
   LytxDashboardRouteUiOverrideArgs,
   LytxEventsRouteUiOverrideArgs,
@@ -185,6 +186,7 @@ const isEmailSignupRequest = (request: Request): boolean => {
 export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const parsed_config = parseCreateLytxAppConfig(config);
   const routeUiOverrides: LytxRouteUiOverrides = parsed_config.routes?.ui ?? {};
+  const documentComponent = parsed_config.routes?.document ?? Document;
   const additionalRoutes = parsed_config.routes?.additionalRoutes ?? [];
   const demoModeEnabled = parsed_config.auth?.signupMode === "demo";
   setAuthRuntimeConfig(parsed_config.auth);
@@ -296,7 +298,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
         userApiRoutes,
       ]
       : []),
-    render<AppRequestInfo>(Document, [
+    render<AppRequestInfo>(documentComponent, [
       route("/", [
         onlyAllowGetPost, ({ request }) => {
           if (demoModeEnabled && dashboardEnabled) {

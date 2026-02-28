@@ -2,10 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { route } from "rwsdk/router";
 import { parseCreateLytxAppConfig } from "../src/config/createLytxAppConfig";
 
-describe("createLytxApp routes.ui config", () => {
+describe("createLytxApp routes config", () => {
   test("accepts route override functions", () => {
     const parsed = parseCreateLytxAppConfig({
       routes: {
+        document: ({ children }) => children,
         additionalRoutes: [
           route("/dashboard/custom", () => new Response("custom")),
         ],
@@ -17,6 +18,7 @@ describe("createLytxApp routes.ui config", () => {
       },
     });
 
+    expect(typeof parsed.routes?.document).toBe("function");
     expect(parsed.routes?.additionalRoutes?.length).toBe(1);
     expect(typeof parsed.routes?.ui?.dashboard).toBe("function");
     expect(typeof parsed.routes?.ui?.events).toBe("function");
@@ -45,5 +47,16 @@ describe("createLytxApp routes.ui config", () => {
         },
       })
     ).toThrow("routes.additionalRoutes");
+  });
+
+  test("rejects non-function document override", () => {
+    expect(() =>
+      parseCreateLytxAppConfig({
+        routes: {
+          // @ts-expect-error runtime validation path
+          document: "not-a-component",
+        },
+      })
+    ).toThrow("routes.document");
   });
 });

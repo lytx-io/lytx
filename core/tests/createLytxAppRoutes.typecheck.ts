@@ -20,6 +20,11 @@ void topSourcesDataMustNotBeAny;
 
 createLytxApp({
   routes: {
+    document: ({ children, request, path }) => {
+      request.url;
+      path;
+      return children;
+    },
     additionalRoutes: [
       route("/dashboard/custom/:slug", ({ params, ctx }) => {
         params.slug;
@@ -66,6 +71,8 @@ createLytxApp({
 
 createLytxApp({
   routes: {
+    // @ts-expect-error document override must be a component function
+    document: "not-a-component",
     // @ts-expect-error additionalRoutes must be route entries
     additionalRoutes: ["/not-a-route"],
     ui: {
