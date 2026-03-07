@@ -35,6 +35,7 @@ export interface DateRange {
   start: string;
   end: string;
   preset?: string;
+  refreshKey?: number;
 }
 export interface DashboardFilters {
   dateRange: DateRange;
@@ -109,6 +110,97 @@ export const shiftDateString = (dateString: string, days: number): string => {
     month: shifted.getUTCMonth() + 1,
     day: shifted.getUTCDate(),
   });
+};
+
+const REALTIME_DATE_RANGE_PRESETS = new Set([
+  "Last 30 min",
+  "Last hour",
+  "Today",
+]);
+
+export const isRealtimeDateRangePreset = (preset?: string): boolean => {
+  if (!preset) return false;
+  return REALTIME_DATE_RANGE_PRESETS.has(preset);
+};
+
+export const createPresetDateRange = (
+  preset: string,
+  timezone: string,
+  now: Date = new Date(),
+): DateRange => {
+  const today = getDateStringInTimeZone(now, timezone);
+  const daysAgo = (days: number) => shiftDateString(today, -days);
+  const todayParts = getDatePartsInTimeZone(now, timezone);
+  const currentYear = todayParts.year;
+  const currentMonth = todayParts.month;
+  const refreshKey = isRealtimeDateRangePreset(preset) ? now.getTime() : undefined;
+
+  switch (preset) {
+    case "Last 30 min": {
+      const start = new Date(now.getTime() - 30 * 60 * 1000);
+      return { start: start.toISOString(), end: now.toISOString(), preset, refreshKey };
+    }
+    case "Last hour": {
+      const start = new Date(now.getTime() - 60 * 60 * 1000);
+      return { start: start.toISOString(), end: now.toISOString(), preset, refreshKey };
+    }
+    case "Today":
+      return { start: today, end: today, preset, refreshKey };
+    case "Yesterday": {
+      const yesterday = daysAgo(1);
+      return { start: yesterday, end: yesterday, preset };
+    }
+    case "Last 7 days":
+      return { start: daysAgo(7), end: today, preset };
+    case "Last 30 days":
+      return { start: daysAgo(30), end: today, preset };
+    case "Last 6 months":
+      return { start: daysAgo(180), end: today, preset };
+    case "Last 12 months":
+      return { start: daysAgo(365), end: today, preset };
+    case "Month to Date":
+      return {
+        start: formatDateParts({ year: currentYear, month: currentMonth, day: 1 }),
+        end: today,
+        preset,
+      };
+    case "Last Month": {
+      const firstOfCurrentMonthUtc = new Date(Date.UTC(currentYear, currentMonth - 1, 1));
+      const firstOfLastMonthUtc = new Date(firstOfCurrentMonthUtc);
+      firstOfLastMonthUtc.setUTCMonth(firstOfLastMonthUtc.getUTCMonth() - 1);
+      const lastOfLastMonthUtc = new Date(firstOfCurrentMonthUtc);
+      lastOfLastMonthUtc.setUTCDate(0);
+      return {
+        start: formatDateParts({
+          year: firstOfLastMonthUtc.getUTCFullYear(),
+          month: firstOfLastMonthUtc.getUTCMonth() + 1,
+          day: firstOfLastMonthUtc.getUTCDate(),
+        }),
+        end: formatDateParts({
+          year: lastOfLastMonthUtc.getUTCFullYear(),
+          month: lastOfLastMonthUtc.getUTCMonth() + 1,
+          day: lastOfLastMonthUtc.getUTCDate(),
+        }),
+        preset,
+      };
+    }
+    case "Year to Date":
+      return {
+        start: formatDateParts({ year: currentYear, month: 1, day: 1 }),
+        end: today,
+        preset,
+      };
+    case "Last year": {
+      const previousYear = currentYear - 1;
+      return {
+        start: formatDateParts({ year: previousYear, month: 1, day: 1 }),
+        end: formatDateParts({ year: previousYear, month: 12, day: 31 }),
+        preset,
+      };
+    }
+    default:
+      return { start: daysAgo(7), end: today, preset };
+  }
 };
 
 
@@ -1173,80 +1265,6 @@ export const DatePicker: React.FC<{
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen, onToggle]);
 
-  const computePresetRange = (key: string): { start: string; end: string } => {
-    const now = new Date();
-    const today = getDateStringInTimeZone(now, timezone);
-    const daysAgo = (n: number) => shiftDateString(today, -n);
-    const todayParts = getDatePartsInTimeZone(now, timezone);
-    const currentYear = todayParts.year;
-    const currentMonth = todayParts.month;
-
-    switch (key) {
-      case "Last 30 min": {
-        const s = new Date(now.getTime() - 30 * 60 * 1000);
-        return { start: s.toISOString(), end: now.toISOString() };
-      }
-      case "Last hour": {
-        const s = new Date(now.getTime() - 60 * 60 * 1000);
-        return { start: s.toISOString(), end: now.toISOString() };
-      }
-      case "Today":
-        return { start: today, end: today };
-      case "Yesterday": {
-        const y = daysAgo(1);
-        return { start: y, end: y };
-      }
-      case "Last 7 days":
-        return { start: daysAgo(7), end: today };
-      case "Last 30 days":
-        return { start: daysAgo(30), end: today };
-      case "Last 6 months":
-        return { start: daysAgo(180), end: today };
-      case "Last 12 months":
-        return { start: daysAgo(365), end: today };
-      case "Month to Date": {
-        return {
-          start: formatDateParts({ year: currentYear, month: currentMonth, day: 1 }),
-          end: today,
-        };
-      }
-      case "Last Month": {
-        const firstOfCurrentMonthUtc = new Date(Date.UTC(currentYear, currentMonth - 1, 1));
-        const firstOfLastMonthUtc = new Date(firstOfCurrentMonthUtc);
-        firstOfLastMonthUtc.setUTCMonth(firstOfLastMonthUtc.getUTCMonth() - 1);
-        const lastOfLastMonthUtc = new Date(firstOfCurrentMonthUtc);
-        lastOfLastMonthUtc.setUTCDate(0);
-        return {
-          start: formatDateParts({
-            year: firstOfLastMonthUtc.getUTCFullYear(),
-            month: firstOfLastMonthUtc.getUTCMonth() + 1,
-            day: firstOfLastMonthUtc.getUTCDate(),
-          }),
-          end: formatDateParts({
-            year: lastOfLastMonthUtc.getUTCFullYear(),
-            month: lastOfLastMonthUtc.getUTCMonth() + 1,
-            day: lastOfLastMonthUtc.getUTCDate(),
-          }),
-        };
-      }
-      case "Year to Date": {
-        return {
-          start: formatDateParts({ year: currentYear, month: 1, day: 1 }),
-          end: today,
-        };
-      }
-      case "Last year": {
-        const previousYear = currentYear - 1;
-        return {
-          start: formatDateParts({ year: previousYear, month: 1, day: 1 }),
-          end: formatDateParts({ year: previousYear, month: 12, day: 31 }),
-        };
-      }
-      default:
-        return { start: daysAgo(7), end: today };
-    }
-  };
-
   type PresetItem = { label: string; shortcut: string } | "separator";
 
   const presetGroups: PresetItem[] = [
@@ -1268,8 +1286,7 @@ export const DatePicker: React.FC<{
   ];
 
   const handlePresetClick = (label: string) => {
-    const { start, end } = computePresetRange(label);
-    const newRange: DateRange = { start, end, preset: label };
+    const newRange = createPresetDateRange(label, timezone);
     setDraft(newRange);
     onDateRangeChange(newRange);
     onToggle();

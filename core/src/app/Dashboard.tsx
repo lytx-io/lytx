@@ -18,7 +18,7 @@ import { AlertBanner } from "@/app/components/ui/AlertBanner";
 import { DashboardToolbar } from "@/app/components/reports/DashboardToolbar";
 import type { ReportBuilderMenuActiveId } from "@/app/components/ui/ReportBuilderMenu";
 import { EventSummaryTable } from "@components/charts/EventSummary";
-import { ChartComponent, ChartSkeleton, CardTabs, TableComponent, getCountryFlagIcon, getBrowserTimeZone, getDateStringInTimeZone, isValidTimeZone, ScorecardSkeleton, SkeletonBlock, DashboardFilters, DashboardNotice, Scorecard } from "@/app/components/charts/ChartComponents";
+import { ChartComponent, ChartSkeleton, CardTabs, getCountryFlagIcon, getBrowserTimeZone, getDateStringInTimeZone, isRealtimeDateRangePreset, isValidTimeZone, ScorecardSkeleton, SkeletonBlock, DashboardFilters, DashboardNotice, Scorecard } from "@/app/components/charts/ChartComponents";
 
 import { useMediaQuery } from "@/app/utils/media";
 import {
@@ -441,10 +441,7 @@ export function DashboardPage(props: DashboardPageProps) {
     && !filters.pageUrl
     && !filters.eventName;
 
-  const isRealtimePreset =
-    filters.dateRange.preset === "Today"
-    || filters.dateRange.preset === "Last hour"
-    || filters.dateRange.preset === "Last 30 min";
+  const isRealtimePreset = isRealtimeDateRangePreset(filters.dateRange.preset);
 
   const dashboardStaleTime = isRealtimePreset ? 0 : 5 * 60 * 1000;
   const dashboardGcTime = isRealtimePreset ? 0 : 5 * 60 * 1000;
@@ -587,7 +584,7 @@ export function DashboardPage(props: DashboardPageProps) {
     initialData: shouldUseInitialDashboardData ? initialDashboardData ?? undefined : undefined,
     initialDataUpdatedAt: shouldUseInitialDashboardData ? Date.now() : undefined,
     refetchOnMount: isRealtimePreset ? "always" : false,
-    placeholderData: (previousData) => previousData,
+    placeholderData: isRealtimePreset ? undefined : (previousData) => previousData,
     staleTime: dashboardStaleTime,
     gcTime: dashboardGcTime,
   });
