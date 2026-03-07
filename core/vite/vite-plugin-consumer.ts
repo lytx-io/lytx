@@ -8,6 +8,11 @@ const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const CLIENT_ENTRY_URL_PATH = '/src/client.tsx';
 const RESOLVED_CLIENT_FALLBACK_ID = '\0virtual:lytx-client-entry-fallback';
 
+type ViteManifestEntry = {
+  file: string;
+  src?: string;
+};
+
 export interface LytxConsumerVitePluginOptions {
   projectRoot?: string;
   documentPath?: string;
@@ -22,6 +27,7 @@ export function lytxConsumerVitePlugin(options: LytxConsumerVitePluginOptions = 
   const fallbackClientModulePath = path.resolve(PACKAGE_ROOT, 'src/client.tsx');
   const fallbackClientFsUrl = `/@fs/${fallbackClientModulePath.replace(/\\/g, '/')}`;
   let isServe = false;
+  let base = '/';
 
   const buildClientFallbackModule = (forDevServer: boolean): string => {
     const targetImport = forDevServer ? fallbackClientFsUrl : fallbackClientModulePath;
@@ -77,6 +83,7 @@ export function lytxConsumerVitePlugin(options: LytxConsumerVitePluginOptions = 
     enforce: 'pre',
     configResolved(config) {
       isServe = config.command === 'serve';
+      base = config.base;
     },
     resolveId(id) {
       if (id === CLIENT_ENTRY_URL_PATH && !fs.existsSync(localClientEntryPath)) {
@@ -104,9 +111,66 @@ export function lytxConsumerVitePlugin(options: LytxConsumerVitePluginOptions = 
     },
   };
 
+  const resolveBuiltClientEntryPath = (manifest: Record<string, ViteManifestEntry>): string | null => {
+    const directMatch = manifest['src/client.tsx'] ?? manifest[CLIENT_ENTRY_URL_PATH];
+    const fallbackMatch = manifest['virtual:lytx-client-entry-fallback'];
+    const nestedMatch = Object.values(manifest).find((entry) => {
+      if (!entry.src) return false;
+      return (
+        entry.src === 'src/client.tsx'
+        || entry.src === CLIENT_ENTRY_URL_PATH
+        || entry.src.endsWith('/src/client.tsx')
+        || entry.src === 'virtual:lytx-client-entry-fallback'
+      );
+    });
+    const resolvedFile = directMatch?.file ?? fallbackMatch?.file ?? nestedMatch?.file;
+    if (!resolvedFile) return null;
+
+    const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+    return `${normalizedBase}${resolvedFile}`;
+  };
+
+  const rewriteRenderedClientEntryPlugin: Plugin = {
+    name: 'vite-plugin-lytx-consumer-rewrite-rendered-client-entry',
+    async generateBundle(_, bundle) {
+      if (process.env.RWSDK_BUILD_PASS !== 'linker') {
+        return;
+      }
+      const manifestPath = path.resolve(projectRoot, 'dist/client/.vite/manifest.json');
+      if (!fs.existsSync(manifestPath)) {
+        return;
+      }
+
+      const manifestContent = await fs.promises.readFile(manifestPath, 'utf8');
+      const manifest = JSON.parse(manifestContent) as Record<string, ViteManifestEntry>;
+      const builtClientEntryPath = resolveBuiltClientEntryPath(manifest);
+      if (!builtClientEntryPath) {
+        return;
+      }
+
+      for (const output of Object.values(bundle)) {
+        if (output.type !== 'chunk' || !output.code.includes(CLIENT_ENTRY_URL_PATH)) {
+          continue;
+        }
+
+        let rewrittenCode = output.code;
+        rewrittenCode = rewrittenCode.replaceAll(`href:"${CLIENT_ENTRY_URL_PATH}"`, `href:"${builtClientEntryPath}"`);
+        rewrittenCode = rewrittenCode.replaceAll(`href:'${CLIENT_ENTRY_URL_PATH}'`, `href:'${builtClientEntryPath}'`);
+        rewrittenCode = rewrittenCode.replaceAll(`src:"${CLIENT_ENTRY_URL_PATH}"`, `src:"${builtClientEntryPath}"`);
+        rewrittenCode = rewrittenCode.replaceAll(`src:'${CLIENT_ENTRY_URL_PATH}'`, `src:'${builtClientEntryPath}'`);
+        rewrittenCode = rewrittenCode.replaceAll(`'import("${CLIENT_ENTRY_URL_PATH}")'`, `'import("${builtClientEntryPath}")'`);
+        rewrittenCode = rewrittenCode.replaceAll(`"import('${CLIENT_ENTRY_URL_PATH}')"`, `"import('${builtClientEntryPath}')"`);
+        rewrittenCode = rewrittenCode.replaceAll(`"import(\\"${CLIENT_ENTRY_URL_PATH}\\")"`, `"import(\\"${builtClientEntryPath}\\")"`);
+        rewrittenCode = rewrittenCode.replaceAll(`'import(\\'${CLIENT_ENTRY_URL_PATH}\\')'`, `'import(\\'${builtClientEntryPath}\\')'`);
+        output.code = rewrittenCode;
+      }
+    },
+  };
+
   return [
     lytxPixelBundlePlugin({ templatesRoot: PACKAGE_ROOT }),
     configPlugin,
     clientEntryFallbackPlugin,
+    rewriteRenderedClientEntryPlugin,
   ];
 }
