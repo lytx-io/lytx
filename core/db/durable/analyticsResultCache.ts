@@ -6,6 +6,7 @@ const DEFAULT_MAX_ENTRIES = 128;
 const ANALYTICS_RESULT_CACHE_VERSION = 1;
 
 export type AnalyticsResultCacheKind = "dashboard-aggregates" | "event-summary";
+const ANALYTICS_RESULT_KV_PREFIX = "analytics-cache:v1:";
 
 export type AnalyticsResultCacheEntry<T> = {
   expiresAt: number;
@@ -44,6 +45,69 @@ const noopAnalyticsResultCachePersistence: AnalyticsResultCachePersistence = {
   },
   async set() {},
 };
+
+async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function getEventsKvNamespace(envValue: unknown): KVNamespace | null {
+  if (!envValue || typeof envValue !== "object") return null;
+  const candidate = (envValue as { LYTX_EVENTS?: unknown }).LYTX_EVENTS;
+  if (!candidate || typeof candidate !== "object") return null;
+
+  if (
+    typeof (candidate as KVNamespace).get !== "function"
+    || typeof (candidate as KVNamespace).put !== "function"
+  ) {
+    return null;
+  }
+
+  return candidate as KVNamespace;
+}
+
+class EventsKvAnalyticsResultCachePersistence implements AnalyticsResultCachePersistence {
+  constructor(private readonly kv: KVNamespace) {}
+
+  async get<T>(
+    kind: AnalyticsResultCacheKind,
+    key: string,
+  ): Promise<AnalyticsResultCacheEntry<T> | null> {
+    const storageKey = await this.toStorageKey(kind, key);
+    const result = await this.kv.get<AnalyticsResultCacheEntry<T>>(storageKey, "json");
+    if (!result || typeof result !== "object") return null;
+
+    const expiresAt = (result as { expiresAt?: unknown }).expiresAt;
+    if (typeof expiresAt !== "number") return null;
+
+    return {
+      expiresAt,
+      value: (result as AnalyticsResultCacheEntry<T>).value,
+    };
+  }
+
+  async set<T>(
+    kind: AnalyticsResultCacheKind,
+    key: string,
+    entry: AnalyticsResultCacheEntry<T>,
+  ): Promise<void> {
+    const ttlSeconds = Math.max(0, Math.ceil((entry.expiresAt - Date.now()) / 1000));
+    if (ttlSeconds <= 0) return;
+
+    const storageKey = await this.toStorageKey(kind, key);
+    await this.kv.put(storageKey, JSON.stringify(entry), {
+      expirationTtl: ttlSeconds,
+    });
+  }
+
+  private async toStorageKey(kind: AnalyticsResultCacheKind, key: string): Promise<string> {
+    const hash = await sha256Hex(key);
+    return `${ANALYTICS_RESULT_KV_PREFIX}${kind}:${hash}`;
+  }
+}
 
 function normalizeTimeZone(timezone?: string | null): string {
   if (typeof timezone !== "string") return "UTC";
@@ -137,7 +201,9 @@ export function buildAnalyticsResultCacheKey(
 }
 
 export function createAnalyticsResultCachePersistence(_env: unknown): AnalyticsResultCachePersistence {
-  return noopAnalyticsResultCachePersistence;
+  const kv = getEventsKvNamespace(_env);
+  if (!kv) return noopAnalyticsResultCachePersistence;
+  return new EventsKvAnalyticsResultCachePersistence(kv);
 }
 
 export class HistoricalAnalyticsResultMemoryCache {

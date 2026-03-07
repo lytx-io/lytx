@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   HistoricalAnalyticsResultMemoryCache,
   buildAnalyticsResultCacheKey,
+  createAnalyticsResultCachePersistence,
   getHistoricalAnalyticsCacheTtlMs,
   isHistoricalAnalyticsRange,
 } from "../db/durable/analyticsResultCache";
@@ -107,5 +108,46 @@ describe("HistoricalAnalyticsResultMemoryCache", () => {
     expect(cache.get("first")).toBeNull();
     expect(cache.get<number>("second")?.value).toBe(2);
     expect(cache.get<number>("third")?.value).toBe(3);
+  });
+});
+
+describe("createAnalyticsResultCachePersistence", () => {
+  test("uses LYTX_EVENTS when available", async () => {
+    const stored = new Map<string, string>();
+    const kv = {
+      async get(key: string, type?: "json") {
+        const value = stored.get(key);
+        if (!value) return null;
+        return type === "json" ? JSON.parse(value) : value;
+      },
+      async put(key: string, value: string, options?: { expirationTtl?: number }) {
+        expect(options?.expirationTtl).toBeGreaterThan(0);
+        stored.set(key, value);
+      },
+    };
+
+    const persistence = createAnalyticsResultCachePersistence({
+      LYTX_EVENTS: kv,
+    });
+
+    await persistence.set("dashboard-aggregates", "test-key", {
+      expiresAt: Date.now() + 60_000,
+      value: { total: 7 },
+    });
+
+    const loaded = await persistence.get<{ total: number }>("dashboard-aggregates", "test-key");
+    expect(loaded?.value).toEqual({ total: 7 });
+  });
+
+  test("falls back to noop when LYTX_EVENTS is missing", async () => {
+    const persistence = createAnalyticsResultCachePersistence({});
+    await persistence.set("dashboard-aggregates", "test-key", {
+      expiresAt: Date.now() + 60_000,
+      value: { total: 7 },
+    });
+
+    expect(
+      await persistence.get("dashboard-aggregates", "test-key"),
+    ).toBeNull();
   });
 });

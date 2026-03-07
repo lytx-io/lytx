@@ -85,6 +85,7 @@ const localDurableHost = app.local
       entrypoint: "./endpoints/site_do_worker.ts",
       bindings: {
         SITE_DURABLE_OBJECT: siteDurableObject,
+        LYTX_EVENTS: lytxKv,
         lytx_core_db: lytxCoreDb,
         ENVIRONMENT: process.env.ENVIRONMENT ?? "development",
       },

@@ -1,14 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { route } from "rwsdk/router";
 import { parseCreateLytxAppConfig } from "../src/config/createLytxAppConfig";
 
 describe("createLytxApp routes config", () => {
   test("accepts route override functions", () => {
     const parsed = parseCreateLytxAppConfig({
+      cache: {
+        persistHistoricalAnalyticsToEventsKv: true,
+      },
       routes: {
         document: ({ children }) => children,
         additionalRoutes: [
-          route("/dashboard/custom", () => new Response("custom")),
+          { type: "custom-route" } as any,
         ],
         ui: {
           dashboard: () => new Response("dashboard"),
@@ -19,6 +21,7 @@ describe("createLytxApp routes config", () => {
     });
 
     expect(typeof parsed.routes?.document).toBe("function");
+    expect(parsed.cache?.persistHistoricalAnalyticsToEventsKv).toBe(true);
     expect(parsed.routes?.additionalRoutes?.length).toBe(1);
     expect(typeof parsed.routes?.ui?.dashboard).toBe("function");
     expect(typeof parsed.routes?.ui?.events).toBe("function");
@@ -58,5 +61,16 @@ describe("createLytxApp routes config", () => {
         },
       })
     ).toThrow("routes.document");
+  });
+
+  test("rejects non-boolean cache persistence override", () => {
+    expect(() =>
+      parseCreateLytxAppConfig({
+        cache: {
+          // @ts-expect-error runtime validation path
+          persistHistoricalAnalyticsToEventsKv: "yes",
+        },
+      })
+    ).toThrow("cache.persistHistoricalAnalyticsToEventsKv");
   });
 });

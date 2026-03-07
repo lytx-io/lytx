@@ -33,6 +33,7 @@ import { ReportBuilderWorkspace } from "@/app/components/reports/ReportBuilderWo
 import { CustomReportBuilderPage } from "@/app/components/reports/custom/CustomReportBuilderPage";
 import { checkIfTeamSetupSites, onlyAllowGetPost } from "@utilities/route_interuptors";
 import type { DBAdapter } from "@db/types";
+import { setDurableAnalyticsCacheRuntimeConfig } from "@db/durable/runtimeAnalyticsCacheConfig";
 import { IS_DEV } from "rwsdk/constants";
 import type { AppContext, AppRequestInfo } from "@/types/app-context";
 import { handleQueueMessage } from "@/api/queueWorker";
@@ -66,7 +67,7 @@ export { SiteDurableObject } from "@db/durable/siteDurableObject";
 
 //TODO: Define things on context and create a middleware function where users can set adapters and override defaults
 export type { AppContext };
-export type { CreateLytxAppConfig } from "@/config/createLytxAppConfig";
+export type { CreateLytxAppConfig, LytxCacheConfig } from "@/config/createLytxAppConfig";
 export type {
   LytxAdditionalRoute,
   LytxDocumentComponent,
@@ -191,6 +192,7 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   const demoModeEnabled = parsed_config.auth?.signupMode === "demo";
   setAuthRuntimeConfig(parsed_config.auth);
   setEmailFromAddress(parsed_config.env?.EMAIL_FROM);
+  setDurableAnalyticsCacheRuntimeConfig(parsed_config.cache);
   setAiRuntimeOverrides({
     apiKey: parsed_config.ai?.apiKey ?? parsed_config.env?.AI_API_KEY,
     accountId: parsed_config.ai?.accountId ?? parsed_config.env?.AI_ACCOUNT_ID,

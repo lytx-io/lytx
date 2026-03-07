@@ -19,6 +19,9 @@ const topSourcesDataMustNotBeAny: TopSourcesDataIsAny = false;
 void topSourcesDataMustNotBeAny;
 
 createLytxApp({
+  cache: {
+    persistHistoricalAnalyticsToEventsKv: true,
+  },
   routes: {
     document: ({ children, request, path }) => {
       request.url;
@@ -70,6 +73,10 @@ createLytxApp({
 });
 
 createLytxApp({
+  cache: {
+    // @ts-expect-error cache toggle must be a boolean
+    persistHistoricalAnalyticsToEventsKv: "not-a-boolean",
+  },
   routes: {
     // @ts-expect-error document override must be a component function
     document: "not-a-component",

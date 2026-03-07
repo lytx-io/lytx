@@ -122,6 +122,12 @@ const aiRuntimeConfigSchema = z
   })
   .strict();
 
+const cacheConfigSchema = z
+  .object({
+    persistHistoricalAnalyticsToEventsKv: z.boolean().optional(),
+  })
+  .strict();
+
 const routeUiOverrideSchema = <TArgs>() =>
   z.custom<(args: TArgs) => LytxRouteOverrideResult>((value) => typeof value === "function", {
     message: "Route UI override must be a function",
@@ -161,6 +167,17 @@ export type LytxAiConfig = Omit<BaseLytxAiConfig, "provider" | "model"> & {
   model?: LytxAiModel;
 };
 
+export type LytxCacheConfig = {
+  /**
+   * Persist finalized historical dashboard/event-summary cache entries into the
+   * existing `LYTX_EVENTS` KV namespace already provisioned by the default Alchemy setup.
+   *
+   * This is off by default. Enable it if you want historical Durable Object analytics
+   * cache entries to survive cold starts and be reusable beyond the in-memory DO cache.
+   */
+  persistHistoricalAnalyticsToEventsKv?: boolean;
+};
+
 const createLytxAppConfigSchema = z
   .object({
     enableRequestLogging: z.boolean().optional(),
@@ -169,6 +186,7 @@ const createLytxAppConfigSchema = z
     includeLegacyTagRoutes: z.boolean().optional(),
     trackingRoutePrefix: routePrefixSchema.optional(),
     ai: aiRuntimeConfigSchema.optional(),
+    cache: cacheConfigSchema.optional(),
     auth: z
       .object({
         emailPasswordEnabled: z.boolean().optional(),
@@ -331,8 +349,12 @@ const createLytxAppConfigSchema = z
   });
 
 type BaseCreateLytxAppConfig = z.input<typeof createLytxAppConfigSchema>;
-export type CreateLytxAppConfig = Omit<BaseCreateLytxAppConfig, "ai"> & {
+export type CreateLytxAppConfig = Omit<BaseCreateLytxAppConfig, "ai" | "cache"> & {
   ai?: LytxAiConfig;
+  /**
+   * Server-side analytics cache controls for Durable Object-backed historical queries.
+   */
+  cache?: LytxCacheConfig;
   /**
    * Route customization hooks for `createLytxApp`.
    *

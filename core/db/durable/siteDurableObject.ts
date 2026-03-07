@@ -168,10 +168,15 @@ export class SiteDurableObject extends DurableObject {
   private async getCachedAnalyticsResult<T>(
     kind: AnalyticsResultCacheKind,
     key: string,
+    persistToKv = false,
   ): Promise<T | null> {
     const memoryEntry = this.analyticsResultCache.get<T>(key);
     if (memoryEntry) {
       return memoryEntry.value;
+    }
+
+    if (!persistToKv) {
+      return null;
     }
 
     const persistedEntry = await this.analyticsResultCachePersistence.get<T>(kind, key);
@@ -188,6 +193,7 @@ export class SiteDurableObject extends DurableObject {
     key: string,
     ttlMs: number,
     value: T,
+    persistToKv = false,
   ) {
     if (ttlMs <= 0) return;
 
@@ -197,7 +203,9 @@ export class SiteDurableObject extends DurableObject {
     };
 
     this.analyticsResultCache.set(key, entry);
-    await this.analyticsResultCachePersistence.set(kind, key, entry);
+    if (persistToKv) {
+      await this.analyticsResultCachePersistence.set(kind, key, entry);
+    }
   }
 
   private shouldInvalidateHistoricalAnalyticsCache(events: SiteEventInput[]): boolean {
@@ -492,6 +500,9 @@ export class SiteDurableObject extends DurableObject {
     city?: string;
     region?: string;
     event?: string;
+    cache?: {
+      persistToKv?: boolean;
+    };
   } = {}) {
     try {
       const { startDate, endDate, endDateIsExact, timezone, country, deviceType, source, pageUrl, city, region, event } = options;
@@ -520,6 +531,7 @@ export class SiteDurableObject extends DurableObject {
         const cached = await this.getCachedAnalyticsResult<DashboardAggregatesResult>(
           "dashboard-aggregates",
           cacheKey,
+          options.cache?.persistToKv === true,
         );
         if (cached) {
           return cached;
@@ -857,7 +869,13 @@ export class SiteDurableObject extends DurableObject {
       };
 
       if (cacheKey) {
-        await this.setCachedAnalyticsResult("dashboard-aggregates", cacheKey, cacheTtlMs, result);
+        await this.setCachedAnalyticsResult(
+          "dashboard-aggregates",
+          cacheKey,
+          cacheTtlMs,
+          result,
+          options.cache?.persistToKv === true,
+        );
       }
 
       return result;
@@ -919,6 +937,9 @@ export class SiteDurableObject extends DurableObject {
     action?: "all" | "click" | "submit" | "change" | "rule";
     sortBy?: "count" | "first_seen" | "last_seen";
     sortDirection?: "asc" | "desc";
+    cache?: {
+      persistToKv?: boolean;
+    };
   } = {}) {
     try {
       const { startDate, endDate, endDateIsExact } = options;
@@ -947,6 +968,7 @@ export class SiteDurableObject extends DurableObject {
         const cached = await this.getCachedAnalyticsResult<EventSummaryResult>(
           "event-summary",
           cacheKey,
+          options.cache?.persistToKv === true,
         );
         if (cached) {
           return cached;
@@ -1064,7 +1086,13 @@ export class SiteDurableObject extends DurableObject {
       };
 
       if (cacheKey) {
-        await this.setCachedAnalyticsResult("event-summary", cacheKey, cacheTtlMs, result);
+        await this.setCachedAnalyticsResult(
+          "event-summary",
+          cacheKey,
+          cacheTtlMs,
+          result,
+          options.cache?.persistToKv === true,
+        );
       }
 
       return result;

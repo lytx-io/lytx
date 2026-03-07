@@ -1,6 +1,7 @@
 import type { SiteEventInput, DashboardOptions } from "@db/durable/types";
 import { AdapterResult } from "@db/types";
 import { env } from "cloudflare:workers";
+import { getDurableAnalyticsCacheRuntimeConfig } from "./runtimeAnalyticsCacheConfig";
 
 export interface DurableObjectStats {
   totalEvents: number;
@@ -146,6 +147,7 @@ export async function getDashboardAggregatesFromDurableObject(
 ): Promise<DashboardAggregates | null> {
   try {
     const stub = await getDurableDatabaseStub(options.site_uuid, options.site_id);
+    const cacheConfig = getDurableAnalyticsCacheRuntimeConfig();
 
     const result = await stub.getDashboardAggregates({
       startDate: options.date?.start,
@@ -159,6 +161,9 @@ export async function getDashboardAggregatesFromDurableObject(
       city: options.city,
       region: options.region,
       event: options.event,
+      cache: {
+        persistToKv: cacheConfig.persistHistoricalAnalyticsToEventsKv,
+      },
     });
 
     if (result.error) {
@@ -438,6 +443,7 @@ export async function getEventSummaryFromDurableObject(
 } | null> {
   try {
     const stub = await getDurableDatabaseStub(options.site_uuid, options.site_id);
+    const cacheConfig = getDurableAnalyticsCacheRuntimeConfig();
 
     const result = await stub.getEventSummary({
       startDate: options.date?.start,
@@ -451,6 +457,9 @@ export async function getEventSummaryFromDurableObject(
       action: options.action,
       sortBy: options.sortBy,
       sortDirection: options.sortDirection,
+      cache: {
+        persistToKv: cacheConfig.persistHistoricalAnalyticsToEventsKv,
+      },
     });
 
     if (result.error) {

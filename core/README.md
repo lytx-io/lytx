@@ -103,6 +103,7 @@ When providing a custom document, render `{children}` directly (do not wrap it i
 - `auth.emailPasswordEnabled`, `auth.requireEmailVerification`, `auth.socialProviders.google`, `auth.socialProviders.github`
 - `auth.signupMode` (`"open" | "bootstrap_then_invite" | "invite_only" | "demo"`; default is `"bootstrap_then_invite"`)
 - `ai.provider`, `ai.model`, `ai.baseURL`, `ai.apiKey`, `ai.accountId` (runtime AI vendor/model overrides; blank values are ignored; provider/model include preset autocomplete values)
+- `cache.persistHistoricalAnalyticsToEventsKv` (off by default; persists finalized historical Durable Object dashboard/event-summary cache entries into the existing `LYTX_EVENTS` KV namespace provisioned by Alchemy)
 - `features.reportBuilderEnabled` + `features.askAiEnabled`
 - `names.*` (typed resource binding names for D1/KV/Queue/DO)
 - `domains.app` + `domains.tracking` (typed host/domain values)

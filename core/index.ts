@@ -73,6 +73,7 @@ export type {
   LytxSignupMode,
   LytxEventStore,
   LytxDbConfig,
+  LytxCacheConfig,
   LytxAiConfig,
   LytxAiProviderPreset,
   LytxAiProvider,

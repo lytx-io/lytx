@@ -23,6 +23,11 @@ const app = createLytxApp({
     provider: process.env.AI_PROVIDER?.trim() || undefined,
     model: process.env.AI_MODEL?.trim() || undefined,
   },
+  cache: {
+    // Off by default. Enable this to persist finalized historical dashboard/event-summary
+    // Durable Object cache entries into the existing LYTX_EVENTS KV binding Alchemy already provisions.
+    persistHistoricalAnalyticsToEventsKv: false,
+  },
   auth: {
     // Signup mode controls who can register:
     // - "bootstrap_then_invite" (default): first account bootstraps admin, then closes public signup
