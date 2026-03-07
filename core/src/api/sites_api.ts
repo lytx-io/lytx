@@ -267,6 +267,7 @@ export async function getDashboardDataCore(input: DashboardDataCoreInput): Promi
             end: dateEndValue ?? undefined,
             endIsExact: endDateIsExact,
         },
+        timezone: normalizedTimezone ?? undefined,
         limit: normalizedEventSummaryLimit,
         offset: normalizedEventSummaryOffset,
         search: eventSummarySearch,

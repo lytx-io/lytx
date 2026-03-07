@@ -1,15 +1,24 @@
 import { DurableObject } from "cloudflare:workers";
-import { drizzle, DrizzleSqliteDODatabase } from 'drizzle-orm/durable-sqlite';
+import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { eq, and, gte, lte, desc, asc, count, sql, isNotNull, ne, like, or, isNull, not } from "drizzle-orm";
-import { siteEvents, type SiteEventInsert, type SiteEventSelect } from '@db/durable/schema';
+import { siteEvents, type SiteEventInsert } from '@db/durable/schema';
 import { migrate } from 'drizzle-orm/durable-sqlite/migrator';
 //TODO: generate durable object migrations
 import * as schema from "@db/durable/schema";
 import migrations from '@db/durable/migrations/migrations';
 import { SiteEventInput } from './types';
 import type { GetEventsOptions, Durable_DB } from "@db/durable/types";
-import { events_t, getEvents, type GetEventResult } from "@db/durable/events";
+import { getEvents } from "@db/durable/events";
 import { getSiteRidConfig, rotateSiteRidSalt } from "@db/d1/sites";
+import {
+  HistoricalAnalyticsResultMemoryCache,
+  buildAnalyticsResultCacheKey,
+  createAnalyticsResultCachePersistence,
+  getHistoricalAnalyticsCacheTtlMs,
+  isHistoricalAnalyticsRange,
+  type AnalyticsResultCacheKind,
+  type AnalyticsResultCachePersistence,
+} from "./analyticsResultCache";
 //TODO: Move this type
 
 const MAX_SQL_ROWS = 500;
@@ -77,6 +86,54 @@ function validateSqlQuery(query: string): string | null {
   return null;
 }
 
+type DashboardAggregatesResult = {
+  scoreCards: {
+    uniqueVisitors: number;
+    totalPageViews: number;
+    nonPageViewEvents: number;
+    bounceRatePercent: number;
+    conversionRatePercent: number;
+    avgSessionDurationSeconds: number;
+  };
+  pageViews: Array<{ x: string; y: number }>;
+  events: Array<[string, number]>;
+  devices: Array<[string, number]>;
+  cities: Array<[string, { count: number; country: string }]>;
+  countries: Array<{ id: string; value: number }>;
+  countryUniques: Array<{ id: string; value: number }>;
+  regions: Array<{ id: string; value: number }>;
+  referers: Array<{ id: string; value: number }>;
+  topPages: Array<{ id: string; value: number }>;
+  browsers: Array<{ id: string; value: number }>;
+  operatingSystems: Array<{ id: string; value: number }>;
+  pagination: { limit: number; offset: number; total: number; hasMore: boolean };
+  totalEvents: number;
+  totalAllTime: number;
+  siteId: number | null;
+  dateRange: { start?: string; end?: string };
+  error?: string;
+};
+
+type EventSummaryResult = {
+  summary: Array<{
+    event: string | null;
+    count: number;
+    firstSeen: number | null;
+    lastSeen: number | null;
+  }>;
+  pagination: {
+    offset: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  };
+  totalEvents: number;
+  totalEventTypes: number;
+  siteId: number | null;
+  dateRange: { start?: string; end?: string };
+  error?: string;
+};
+
 /**
  * Site-specific Durable Object for storing and querying site events
  * 
@@ -88,10 +145,13 @@ export class SiteDurableObject extends DurableObject {
   private state!: DurableObjectState;
   private site_id: number | null = null;
   private site_uuid: string | null = null;
+  private readonly analyticsResultCache = new HistoricalAnalyticsResultMemoryCache();
+  private readonly analyticsResultCachePersistence: AnalyticsResultCachePersistence;
 
   constructor(state: DurableObjectState, env: any) {
     super(state, env);
     this.state = state;
+    this.analyticsResultCachePersistence = createAnalyticsResultCachePersistence(env);
     // Use the SQL storage from the durable object state
     // this.db = drizzle(state.storage);
     this.db = drizzle(state.storage, {
@@ -103,6 +163,51 @@ export class SiteDurableObject extends DurableObject {
       await this._migrate();
     });
 
+  }
+
+  private async getCachedAnalyticsResult<T>(
+    kind: AnalyticsResultCacheKind,
+    key: string,
+  ): Promise<T | null> {
+    const memoryEntry = this.analyticsResultCache.get<T>(key);
+    if (memoryEntry) {
+      return memoryEntry.value;
+    }
+
+    const persistedEntry = await this.analyticsResultCachePersistence.get<T>(kind, key);
+    if (!persistedEntry || persistedEntry.expiresAt <= Date.now()) {
+      return null;
+    }
+
+    this.analyticsResultCache.set(key, persistedEntry);
+    return persistedEntry.value;
+  }
+
+  private async setCachedAnalyticsResult<T>(
+    kind: AnalyticsResultCacheKind,
+    key: string,
+    ttlMs: number,
+    value: T,
+  ) {
+    if (ttlMs <= 0) return;
+
+    const entry = {
+      expiresAt: Date.now() + ttlMs,
+      value,
+    };
+
+    this.analyticsResultCache.set(key, entry);
+    await this.analyticsResultCachePersistence.set(kind, key, entry);
+  }
+
+  private shouldInvalidateHistoricalAnalyticsCache(events: SiteEventInput[]): boolean {
+    if (events.length === 0) return false;
+
+    const now = new Date();
+    return events.some((event) => {
+      const createdAt = event.createdAt ?? now;
+      return isHistoricalAnalyticsRange({ endDate: createdAt, now });
+    });
   }
 
   async setSiteInfo(site_id: number, site_uuid: string) {
@@ -226,6 +331,11 @@ export class SiteDurableObject extends DurableObject {
         const batch = dbEvents.slice(i, i + BATCH_SIZE);
         await this.db.insert(siteEvents).values(batch);
         totalInserted += batch.length;
+      }
+
+      // Historical backfills can make cached aggregate results stale immediately.
+      if (this.shouldInvalidateHistoricalAnalyticsCache(events)) {
+        this.analyticsResultCache.clear();
       }
 
       return {
@@ -386,6 +496,35 @@ export class SiteDurableObject extends DurableObject {
     try {
       const { startDate, endDate, endDateIsExact, timezone, country, deviceType, source, pageUrl, city, region, event } = options;
       const effectiveTimeZone = normalizeTimeZone(timezone);
+      const cacheTtlMs = getHistoricalAnalyticsCacheTtlMs({
+        endDate,
+        timezone: effectiveTimeZone,
+      });
+      const cacheKey = cacheTtlMs > 0
+        ? buildAnalyticsResultCacheKey("dashboard-aggregates", {
+            startDate: startDate?.toISOString() ?? null,
+            endDate: endDate?.toISOString() ?? null,
+            endDateIsExact: endDateIsExact ?? false,
+            timezone: effectiveTimeZone,
+            country: country ?? null,
+            deviceType: deviceType ?? null,
+            source: source ?? null,
+            pageUrl: pageUrl ?? null,
+            city: city ?? null,
+            region: region ?? null,
+            event: event ?? null,
+          })
+        : null;
+
+      if (cacheKey) {
+        const cached = await this.getCachedAnalyticsResult<DashboardAggregatesResult>(
+          "dashboard-aggregates",
+          cacheKey,
+        );
+        if (cached) {
+          return cached;
+        }
+      }
 
       const conditions = [];
       if (startDate) {
@@ -647,7 +786,7 @@ export class SiteDurableObject extends DurableObject {
         ? totalDurationSeconds / sessionDurationRows.length
         : 0;
 
-      return {
+      const result: DashboardAggregatesResult = {
         scoreCards: {
           uniqueVisitors,
           totalPageViews,
@@ -716,6 +855,12 @@ export class SiteDurableObject extends DurableObject {
           end: endDate?.toISOString(),
         },
       };
+
+      if (cacheKey) {
+        await this.setCachedAnalyticsResult("dashboard-aggregates", cacheKey, cacheTtlMs, result);
+      }
+
+      return result;
     } catch (error) {
       if (this.env.ENVIRONMENT === "development") {
         console.error(`SiteDurableObject getDashboardAggregates error for site ${this.site_id}:`, error);
@@ -736,6 +881,7 @@ export class SiteDurableObject extends DurableObject {
         cities: [],
         countries: [],
         countryUniques: [],
+        regions: [],
         referers: [],
         topPages: [],
         browsers: [],
@@ -765,6 +911,7 @@ export class SiteDurableObject extends DurableObject {
     startDate?: Date;
     endDate?: Date;
     endDateIsExact?: boolean;
+    timezone?: string | null;
     limit?: number;
     offset?: number;
     search?: string;
@@ -775,6 +922,36 @@ export class SiteDurableObject extends DurableObject {
   } = {}) {
     try {
       const { startDate, endDate, endDateIsExact } = options;
+      const cacheTtlMs = getHistoricalAnalyticsCacheTtlMs({
+        endDate,
+        timezone: options.timezone,
+        now: new Date(),
+      });
+      const cacheKey = cacheTtlMs > 0
+        ? buildAnalyticsResultCacheKey("event-summary", {
+            startDate: startDate?.toISOString() ?? null,
+            endDate: endDate?.toISOString() ?? null,
+            endDateIsExact: endDateIsExact ?? false,
+            timezone: options.timezone ?? null,
+            limit: options.limit ?? 50,
+            offset: options.offset ?? 0,
+            search: options.search?.trim() ?? "",
+            type: options.type ?? "all",
+            action: options.action ?? "all",
+            sortBy: options.sortBy ?? "count",
+            sortDirection: options.sortDirection === "asc" ? "asc" : "desc",
+          })
+        : null;
+
+      if (cacheKey) {
+        const cached = await this.getCachedAnalyticsResult<EventSummaryResult>(
+          "event-summary",
+          cacheKey,
+        );
+        if (cached) {
+          return cached;
+        }
+      }
 
       const conditions = [];
       if (startDate) {
@@ -869,7 +1046,7 @@ export class SiteDurableObject extends DurableObject {
       const totalEvents = totalEventsResult[0]?.count || 0;
       const totalEventTypes = totalEventTypesResult[0]?.count || 0;
 
-      return {
+      const result: EventSummaryResult = {
         summary,
         pagination: {
           offset,
@@ -885,6 +1062,12 @@ export class SiteDurableObject extends DurableObject {
           end: endDate?.toISOString(),
         },
       };
+
+      if (cacheKey) {
+        await this.setCachedAnalyticsResult("event-summary", cacheKey, cacheTtlMs, result);
+      }
+
+      return result;
     } catch (error) {
       if (this.env.ENVIRONMENT === "development") console.error(`SiteDurableObject getEventSummary error for site ${this.site_id}:`, error);
       return {

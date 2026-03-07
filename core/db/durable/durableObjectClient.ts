@@ -419,6 +419,7 @@ export async function getMetricsFromDurableObject(
 
 export async function getEventSummaryFromDurableObject(
   options: DashboardOptions & {
+    timezone?: string;
     limit?: number;
     offset?: number;
     search?: string;
@@ -442,6 +443,7 @@ export async function getEventSummaryFromDurableObject(
       startDate: options.date?.start,
       endDate: options.date?.end,
       endDateIsExact: options.date?.endIsExact,
+      timezone: options.timezone,
       limit: options.limit,
       offset: options.offset,
       search: options.search,
