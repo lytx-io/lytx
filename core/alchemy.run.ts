@@ -8,15 +8,74 @@ import {
   Queue,
   Worker,
 } from "alchemy/cloudflare";
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   resolveLytxResourceNames,
   type LytxResourceStagePosition,
 } from "./src/config/resourceNames";
 
+const coreRoot = path.dirname(fileURLToPath(import.meta.url));
+
+function stripPersistedSqlFileLists(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+
+  let changed = false;
+  const record = value as Record<string, unknown>;
+
+  if ("migrationsFiles" in record) {
+    delete record.migrationsFiles;
+    changed = true;
+  }
+  if ("importFiles" in record) {
+    delete record.importFiles;
+    changed = true;
+  }
+
+  for (const nestedValue of Object.values(record)) {
+    if (stripPersistedSqlFileLists(nestedValue)) {
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+async function scrubLocalAlchemyMigrationState(appName: string, stage: string) {
+  const stateDir = path.join(coreRoot, ".alchemy", appName, stage);
+
+  let entries: string[];
+  try {
+    entries = await readdir(stateDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+
+    const filePath = path.join(stateDir, entry);
+    const raw = await readFile(filePath, "utf8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!stripPersistedSqlFileLists(parsed)) continue;
+    await writeFile(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+  }
+}
+
 const alchemyAppName = process.env.LYTX_APP_NAME ?? "lytx";
 const app = await alchemy(alchemyAppName);
 if (app.local && app.stage !== "dev") {
   throw new Error(`Refusing local run on non-dev stage: ${app.stage}`);
+}
+
+if (app.local) {
+  // Alchemy persists migration file metadata without the SQL body, which breaks
+  // the next local boot when D1 tries to replay migrations from cached state.
+  await scrubLocalAlchemyMigrationState(alchemyAppName, app.stage);
 }
 
 const adoptMode = false;
@@ -80,7 +139,7 @@ const lytxCoreDb = await D1Database(resourceNames.d1DatabaseName, {
   delete: false,
 });
 
-const localDurableHost = app.local
+const _localDurableHost = app.local
   ? await Worker(resourceNames.durableHostWorkerName, {
       entrypoint: "./endpoints/site_do_worker.ts",
       bindings: {
