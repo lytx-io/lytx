@@ -9,6 +9,7 @@ import { Document } from "./components/document";
 export { SyncDurableObject, SiteDurableObject };
 
 const app = createLytxApp({
+  cache: { persistHistoricalAnalyticsToEventsKv: true },
   db: {
     dbAdapter: "sqlite",
     eventStore: "durable_objects",
