@@ -53,8 +53,10 @@ import type { DashboardResponseData } from "@db/tranformReports";
 import { parseDateParam } from "@/utilities/dashboardParams";
 import { getTeamSettings } from "@db/d1/teams";
 import { d1_client } from "@db/d1/client";
-import { user } from "@db/d1/schema";
+import { sites, user } from "@db/d1/schema";
 import { eq } from "drizzle-orm";
+import { rebuildDailyAnalyticsRollupsInDurableObject } from "@db/durable/durableObjectClient";
+import { getPreviousUtcDayBucket } from "@db/durable/analyticsDailyRollups";
 import type { DashboardPageProps } from "@/app/Dashboard";
 import type {
   LytxDashboardRouteUiOverrideArgs,
@@ -170,6 +172,87 @@ const getDateStringInTimeZone = (date: Date, timeZone: string): string => {
   const month = parts.find((part) => part.type === "month")?.value ?? "01";
   const day = parts.find((part) => part.type === "day")?.value ?? "01";
   return `${year}-${month}-${day}`;
+};
+
+const DAILY_ROLLUP_REBUILD_CONCURRENCY = 8;
+
+const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
+  if (items.length === 0) return [];
+
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+};
+
+type DurableRollupSite = {
+  siteId: number;
+  siteUuid: string;
+};
+
+const listDurableRollupSites = async (): Promise<DurableRollupSite[]> => {
+  const rows = await d1_client
+    .select({
+      siteId: sites.site_id,
+      siteUuid: sites.uuid,
+    })
+    .from(sites)
+    .where(eq(sites.site_db_adapter, "sqlite"));
+
+  return rows.filter((row): row is DurableRollupSite =>
+    typeof row.siteId === "number"
+    && typeof row.siteUuid === "string"
+    && row.siteUuid.trim().length > 0,
+  );
+};
+
+const reconcileHistoricalDailyRollups = async (log: (message: string, ...args: unknown[]) => void) => {
+  const targetUtcDay = getPreviousUtcDayBucket(new Date());
+  const rollupSites = await listDurableRollupSites();
+  let successCount = 0;
+  let failureCount = 0;
+
+  for (const siteBatch of chunkArray(rollupSites, DAILY_ROLLUP_REBUILD_CONCURRENCY)) {
+    const batchResults = await Promise.allSettled(
+      siteBatch.map((site) =>
+        rebuildDailyAnalyticsRollupsInDurableObject({
+          siteId: site.siteId,
+          siteUuid: site.siteUuid,
+          startUtcDay: targetUtcDay,
+        }),
+      ),
+    );
+
+    batchResults.forEach((result, index) => {
+      const site = siteBatch[index];
+      if (result.status === "fulfilled" && result.value.success) {
+        successCount += 1;
+        return;
+      }
+
+      failureCount += 1;
+      const errorMessage = result.status === "fulfilled"
+        ? result.value.error
+        : result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason);
+      log("daily rollup rebuild failed", {
+        siteId: site.siteId,
+        siteUuid: site.siteUuid,
+        utcDay: targetUtcDay,
+        error: errorMessage,
+      });
+    });
+  }
+
+  log("daily rollup rebuild complete", {
+    utcDay: targetUtcDay,
+    sites: rollupSites.length,
+    succeeded: successCount,
+    failed: failureCount,
+  });
 };
 
 const appRoute = <TPath extends string>(
@@ -795,6 +878,20 @@ export function createLytxApp(config: CreateLytxAppConfig = {}) {
   return {
     fetch: app.fetch,
     queue: handleQueueMessage,
+    scheduled: async (controller: ScheduledController, _env: Env, ctx: ExecutionContext) => {
+      const log = (...args: unknown[]) => {
+        if (enableRequestLogging || IS_DEV) {
+          console.log("[lytx:daily-rollups]", ...args);
+        }
+      };
+
+      log("daily rollup rebuild starting", {
+        cron: controller.cron,
+        scheduledTime: new Date(controller.scheduledTime).toISOString(),
+      });
+
+      ctx.waitUntil(reconcileHistoricalDailyRollups(log));
+    },
   };
 }
 

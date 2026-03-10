@@ -156,6 +156,7 @@ const _localDurableHost = app.local
 
 export const worker = await Redwood(resourceNames.workerName, {
   adopt: false,
+  crons: ["10 0 * * *"],
   ...(appDomain
     ? {
         domains: [

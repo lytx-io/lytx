@@ -159,6 +159,7 @@ export const worker = await Redwood(resourceNames.workerName, {
 	adopt: false,
 	// url: false,
 	noBundle: false,
+	crons: ["10 0 * * *"],
 	...(appDomain
 		? {
 			domains: [

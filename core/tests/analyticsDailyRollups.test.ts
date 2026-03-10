@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildAnalyticsCityMetricKey,
   DIRECT_METRIC_KEY,
   UNKNOWN_METRIC_KEY,
   buildDailyAnalyticsRollupDeltas,
+  getPreviousUtcDayBucket,
+  getUtcDayDateRange,
   getUtcRollupWindow,
+  isUtcDayBucket,
 } from "../db/durable/analyticsDailyRollups";
 
 describe("buildDailyAnalyticsRollupDeltas", () => {
@@ -111,5 +115,29 @@ describe("getUtcRollupWindow", () => {
         end: new Date("2026-03-08T12:00:00.000Z"),
       },
     ]);
+  });
+});
+
+describe("utc day helpers", () => {
+  test("parses utc day buckets into whole-day date ranges", () => {
+    expect(getUtcDayDateRange("2026-03-09")).toEqual({
+      start: new Date("2026-03-09T00:00:00.000Z"),
+      end: new Date("2026-03-09T23:59:59.999Z"),
+    });
+  });
+
+  test("rejects invalid utc day buckets", () => {
+    expect(isUtcDayBucket("2026-03-09")).toBe(true);
+    expect(isUtcDayBucket("2026-3-9")).toBe(false);
+    expect(getUtcDayDateRange("2026-3-9")).toBeNull();
+  });
+
+  test("computes the previous utc day bucket from the current time", () => {
+    expect(getPreviousUtcDayBucket(new Date("2026-03-10T12:00:00.000Z"))).toBe("2026-03-09");
+  });
+
+  test("builds stable composite city metric keys", () => {
+    expect(buildAnalyticsCityMetricKey("Toronto", "CA")).toBe("CA\u001fToronto");
+    expect(buildAnalyticsCityMetricKey("", "")).toBe(`${UNKNOWN_METRIC_KEY}\u001f${UNKNOWN_METRIC_KEY}`);
   });
 });

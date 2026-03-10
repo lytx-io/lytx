@@ -303,6 +303,48 @@ export async function cleanupDurableObjectEvents(
   }
 }
 
+export async function rebuildDailyAnalyticsRollupsInDurableObject(options: {
+  siteId: number;
+  siteUuid: string;
+  startUtcDay: string;
+  endUtcDay?: string;
+}): Promise<{
+  success: boolean;
+  siteId: number | null;
+  startUtcDay?: string;
+  endUtcDay?: string;
+  siteMetricRowsInserted?: number;
+  metricFactRowsInserted?: number;
+  error?: string;
+}> {
+  try {
+    const stub = await getDurableDatabaseStub(options.siteUuid, options.siteId);
+    const result = await stub.rebuildDailyAnalyticsRollups({
+      startUtcDay: options.startUtcDay,
+      endUtcDay: options.endUtcDay,
+    });
+
+    return {
+      success: result.success,
+      siteId: result.siteId ?? options.siteId,
+      startUtcDay: "startUtcDay" in result ? result.startUtcDay : undefined,
+      endUtcDay: "endUtcDay" in result ? result.endUtcDay : undefined,
+      siteMetricRowsInserted: "siteMetricRowsInserted" in result ? result.siteMetricRowsInserted : undefined,
+      metricFactRowsInserted: "metricFactRowsInserted" in result ? result.metricFactRowsInserted : undefined,
+      error: result.error,
+    };
+  } catch (error) {
+    console.error("Error rebuilding daily analytics rollups in durable object:", error);
+    return {
+      success: false,
+      siteId: options.siteId,
+      startUtcDay: options.startUtcDay,
+      endUtcDay: options.endUtcDay ?? options.startUtcDay,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
 export async function getSiteInfo(
   siteId: number,
   _env: Env

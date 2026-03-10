@@ -5,6 +5,7 @@ import type { SiteEventInput } from "./types";
 export const UNKNOWN_METRIC_KEY = "__unknown__";
 export const DIRECT_METRIC_KEY = "__direct__";
 const COMPOSITE_KEY_SEPARATOR = "\u001f";
+const UTC_DAY_BUCKET_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export const analyticsMetricFamilies = [
   "page",
@@ -105,19 +106,41 @@ function isEndOfUtcDay(date: Date): boolean {
     && date.getUTCMilliseconds() === 999;
 }
 
-function normalizeMetricKey(value?: string | null): string {
+export function normalizeAnalyticsMetricKey(value?: string | null): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : UNKNOWN_METRIC_KEY;
 }
 
-function normalizeRefererMetricKey(value?: string | null): string {
+export function normalizeAnalyticsRefererMetricKey(value?: string | null): string {
   const trimmed = value?.trim();
   if (!trimmed || trimmed === "null") return DIRECT_METRIC_KEY;
   return trimmed;
 }
 
-function buildCityMetricKey(city?: string | null, country?: string | null): string {
-  return `${normalizeMetricKey(country)}${COMPOSITE_KEY_SEPARATOR}${normalizeMetricKey(city)}`;
+export function buildAnalyticsCityMetricKey(city?: string | null, country?: string | null): string {
+  return `${normalizeAnalyticsMetricKey(country)}${COMPOSITE_KEY_SEPARATOR}${normalizeAnalyticsMetricKey(city)}`;
+}
+
+export function isUtcDayBucket(value: string): boolean {
+  return UTC_DAY_BUCKET_PATTERN.test(value);
+}
+
+export function getUtcDayDateRange(utcDay: string): DateRange | null {
+  if (!isUtcDayBucket(utcDay)) return null;
+
+  const start = new Date(`${utcDay}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime())) {
+    return null;
+  }
+
+  return {
+    start,
+    end: endOfUtcDay(start),
+  };
+}
+
+export function getPreviousUtcDayBucket(now: Date = new Date()): string {
+  return toUtcDayBucket(addUtcDays(startOfUtcDay(now), -1));
 }
 
 function upsertSiteMetricDelta(
@@ -206,7 +229,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "event",
-        normalizeMetricKey(event.event),
+        normalizeAnalyticsMetricKey(event.event),
         timestampSeconds,
         null,
         true,
@@ -222,7 +245,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "page",
-        normalizeMetricKey(event.client_page_url),
+        normalizeAnalyticsMetricKey(event.client_page_url),
         timestampSeconds,
       ),
     );
@@ -231,7 +254,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "country",
-        normalizeMetricKey(event.country),
+        normalizeAnalyticsMetricKey(event.country),
         timestampSeconds,
       ),
     );
@@ -240,7 +263,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "region",
-        normalizeMetricKey(event.region),
+        normalizeAnalyticsMetricKey(event.region),
         timestampSeconds,
       ),
     );
@@ -249,7 +272,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "city",
-        buildCityMetricKey(event.city, event.country),
+        buildAnalyticsCityMetricKey(event.city, event.country),
         timestampSeconds,
         {
           city: event.city?.trim() || null,
@@ -262,7 +285,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "device",
-        normalizeMetricKey(event.device_type),
+        normalizeAnalyticsMetricKey(event.device_type),
         timestampSeconds,
       ),
     );
@@ -271,7 +294,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "browser",
-        normalizeMetricKey(event.browser),
+        normalizeAnalyticsMetricKey(event.browser),
         timestampSeconds,
       ),
     );
@@ -280,7 +303,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "os",
-        normalizeMetricKey(event.operating_system),
+        normalizeAnalyticsMetricKey(event.operating_system),
         timestampSeconds,
       ),
     );
@@ -289,7 +312,7 @@ export function buildDailyAnalyticsRollupDeltas(
       createMetricFactDelta(
         utcDay,
         "referer",
-        normalizeRefererMetricKey(event.referer),
+        normalizeAnalyticsRefererMetricKey(event.referer),
         timestampSeconds,
       ),
     );

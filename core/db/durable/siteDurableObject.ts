@@ -1,7 +1,14 @@
 import { DurableObject } from "cloudflare:workers";
 import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { eq, and, gte, lte, desc, asc, count, sql, isNotNull, ne, like, or, isNull, not } from "drizzle-orm";
-import { dailyMetricFacts, dailySiteMetrics, siteEvents, type SiteEventInsert } from '@db/durable/schema';
+import {
+  dailyMetricFacts,
+  dailySiteMetrics,
+  siteEvents,
+  type DailyMetricFactsInsert,
+  type DailySiteMetricsInsert,
+  type SiteEventInsert,
+} from '@db/durable/schema';
 import { migrate } from 'drizzle-orm/durable-sqlite/migrator';
 //TODO: generate durable object migrations
 import * as schema from "@db/durable/schema";
@@ -11,10 +18,15 @@ import type { GetEventsOptions, Durable_DB } from "@db/durable/types";
 import { getEvents } from "@db/durable/events";
 import { getSiteRidConfig, rotateSiteRidSalt } from "@db/d1/sites";
 import {
+  buildAnalyticsCityMetricKey,
   DIRECT_METRIC_KEY,
   UNKNOWN_METRIC_KEY,
   buildDailyAnalyticsRollupDeltas,
+  getUtcDayDateRange,
   getUtcRollupWindow,
+  isUtcDayBucket,
+  normalizeAnalyticsMetricKey,
+  normalizeAnalyticsRefererMetricKey,
   type DateRange,
 } from "./analyticsDailyRollups";
 import {
@@ -32,6 +44,10 @@ const MAX_SQL_ROWS = 500;
 const SQL_ALLOWED_PREFIX = /^(select|with)\s/i;
 const SQL_FORBIDDEN_PATTERN = /\b(insert|update|delete|drop|alter|create|pragma|attach|detach|replace|truncate)\b/i;
 const SQL_REQUIRED_TABLE = /\bsite_events\b/i;
+const ROLLUP_REBUILD_SITE_METRICS_INSERT_BATCH_SIZE = 20;
+const ROLLUP_REBUILD_METRIC_FACT_INSERT_BATCH_SIZE = 10;
+const UTC_DAY_SQL = sql<string>`date(${siteEvents.createdAt}, 'unixepoch')`;
+const UPDATED_AT_SQL = sql<number>`cast(max(${siteEvents.createdAt}) as integer)`;
 
 /** Adjusts end date to include the entire day (23:59:59.999 UTC) */
 function getEndOfDay(date: Date): Date {
@@ -441,6 +457,17 @@ function mergeEventSummaryAccumulators(
   }
 }
 
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  if (items.length === 0) return [];
+
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+}
+
 /**
  * Site-specific Durable Object for storing and querying site events
  * 
@@ -588,6 +615,310 @@ export class SiteDurableObject extends DurableObject {
         },
       });
     }
+  }
+
+  private async insertDailySiteMetricRows(rows: DailySiteMetricsInsert[]) {
+    for (const batch of chunkArray(rows, ROLLUP_REBUILD_SITE_METRICS_INSERT_BATCH_SIZE)) {
+      await this.db.insert(dailySiteMetrics).values(batch);
+    }
+  }
+
+  private async insertDailyMetricFactRows(rows: DailyMetricFactsInsert[]) {
+    for (const batch of chunkArray(rows, ROLLUP_REBUILD_METRIC_FACT_INSERT_BATCH_SIZE)) {
+      await this.db.insert(dailyMetricFacts).values(batch);
+    }
+  }
+
+  private async buildDailySiteMetricRowsFromRawEvents(range: DateRange): Promise<DailySiteMetricsInsert[]> {
+    const rows = await this.db
+      .select({
+        utcDay: UTC_DAY_SQL,
+        totalEvents: count(),
+        pageViews: sql<number>`sum(case when ${siteEvents.event} = 'page_view' then 1 else 0 end)`,
+        conversionEvents: sql<number>`sum(case when ${siteEvents.event} in ('conversion', 'purchase') then 1 else 0 end)`,
+        updatedAt: UPDATED_AT_SQL,
+      })
+      .from(siteEvents)
+      .where(and(
+        gte(siteEvents.createdAt, range.start),
+        lte(siteEvents.createdAt, range.end),
+      ))
+      .groupBy(UTC_DAY_SQL)
+      .orderBy(UTC_DAY_SQL);
+
+    return rows.map((row) => ({
+      utcDay: row.utcDay,
+      totalEvents: row.totalEvents,
+      pageViews: row.pageViews ?? 0,
+      conversionEvents: row.conversionEvents ?? 0,
+      updatedAt: row.updatedAt,
+    }));
+  }
+
+  private async buildDailyMetricFactRowsFromRawEvents(range: DateRange): Promise<DailyMetricFactsInsert[]> {
+    const fullRangeWhereClause = and(
+      gte(siteEvents.createdAt, range.start),
+      lte(siteEvents.createdAt, range.end),
+    );
+    const pageViewWhereClause = and(fullRangeWhereClause, eq(siteEvents.event, "page_view"));
+
+    const [
+      eventRows,
+      pageRows,
+      countryRows,
+      regionRows,
+      cityRows,
+      deviceRows,
+      browserRows,
+      operatingSystemRows,
+      refererRows,
+    ] = await Promise.all([
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          metricKey: siteEvents.event,
+          metricValue: count(),
+          firstSeenAt: sql<number | null>`cast(min(${siteEvents.createdAt}) as integer)`,
+          lastSeenAt: sql<number | null>`cast(max(${siteEvents.createdAt}) as integer)`,
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(fullRangeWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.event)
+        .orderBy(UTC_DAY_SQL, siteEvents.event),
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          metricKey: siteEvents.client_page_url,
+          metricValue: count(),
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.client_page_url)
+        .orderBy(UTC_DAY_SQL, siteEvents.client_page_url),
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          metricKey: siteEvents.country,
+          metricValue: count(),
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.country)
+        .orderBy(UTC_DAY_SQL, siteEvents.country),
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          metricKey: siteEvents.region,
+          metricValue: count(),
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.region)
+        .orderBy(UTC_DAY_SQL, siteEvents.region),
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          city: siteEvents.city,
+          country: siteEvents.country,
+          metricValue: count(),
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.city, siteEvents.country)
+        .orderBy(UTC_DAY_SQL, siteEvents.country, siteEvents.city),
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          metricKey: siteEvents.device_type,
+          metricValue: count(),
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.device_type)
+        .orderBy(UTC_DAY_SQL, siteEvents.device_type),
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          metricKey: siteEvents.browser,
+          metricValue: count(),
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.browser)
+        .orderBy(UTC_DAY_SQL, siteEvents.browser),
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          metricKey: siteEvents.operating_system,
+          metricValue: count(),
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.operating_system)
+        .orderBy(UTC_DAY_SQL, siteEvents.operating_system),
+      this.db
+        .select({
+          utcDay: UTC_DAY_SQL,
+          metricKey: siteEvents.referer,
+          metricValue: count(),
+          updatedAt: UPDATED_AT_SQL,
+        })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(UTC_DAY_SQL, siteEvents.referer)
+        .orderBy(UTC_DAY_SQL, siteEvents.referer),
+    ]);
+
+    return [
+      ...eventRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "event" as const,
+        metricKey: normalizeAnalyticsMetricKey(row.metricKey),
+        metricValue: row.metricValue,
+        dimensionJson: null,
+        firstSeenAt: row.firstSeenAt,
+        lastSeenAt: row.lastSeenAt,
+        updatedAt: row.updatedAt,
+      })),
+      ...pageRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "page" as const,
+        metricKey: normalizeAnalyticsMetricKey(row.metricKey),
+        metricValue: row.metricValue,
+        dimensionJson: null,
+        firstSeenAt: null,
+        lastSeenAt: null,
+        updatedAt: row.updatedAt,
+      })),
+      ...countryRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "country" as const,
+        metricKey: normalizeAnalyticsMetricKey(row.metricKey),
+        metricValue: row.metricValue,
+        dimensionJson: null,
+        firstSeenAt: null,
+        lastSeenAt: null,
+        updatedAt: row.updatedAt,
+      })),
+      ...regionRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "region" as const,
+        metricKey: normalizeAnalyticsMetricKey(row.metricKey),
+        metricValue: row.metricValue,
+        dimensionJson: null,
+        firstSeenAt: null,
+        lastSeenAt: null,
+        updatedAt: row.updatedAt,
+      })),
+      ...cityRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "city" as const,
+        metricKey: buildAnalyticsCityMetricKey(row.city, row.country),
+        metricValue: row.metricValue,
+        dimensionJson: {
+          city: row.city?.trim() || null,
+          country: row.country?.trim() || null,
+        },
+        firstSeenAt: null,
+        lastSeenAt: null,
+        updatedAt: row.updatedAt,
+      })),
+      ...deviceRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "device" as const,
+        metricKey: normalizeAnalyticsMetricKey(row.metricKey),
+        metricValue: row.metricValue,
+        dimensionJson: null,
+        firstSeenAt: null,
+        lastSeenAt: null,
+        updatedAt: row.updatedAt,
+      })),
+      ...browserRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "browser" as const,
+        metricKey: normalizeAnalyticsMetricKey(row.metricKey),
+        metricValue: row.metricValue,
+        dimensionJson: null,
+        firstSeenAt: null,
+        lastSeenAt: null,
+        updatedAt: row.updatedAt,
+      })),
+      ...operatingSystemRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "os" as const,
+        metricKey: normalizeAnalyticsMetricKey(row.metricKey),
+        metricValue: row.metricValue,
+        dimensionJson: null,
+        firstSeenAt: null,
+        lastSeenAt: null,
+        updatedAt: row.updatedAt,
+      })),
+      ...refererRows.map((row) => ({
+        utcDay: row.utcDay,
+        metricFamily: "referer" as const,
+        metricKey: normalizeAnalyticsRefererMetricKey(row.metricKey),
+        metricValue: row.metricValue,
+        dimensionJson: null,
+        firstSeenAt: null,
+        lastSeenAt: null,
+        updatedAt: row.updatedAt,
+      })),
+    ];
+  }
+
+  private async replaceDailyAnalyticsRollups(startUtcDay: string, endUtcDay: string) {
+    const startDayRange = getUtcDayDateRange(startUtcDay);
+    const endDayRange = getUtcDayDateRange(endUtcDay);
+    if (!startDayRange || !endDayRange) {
+      throw new Error("Invalid UTC day range");
+    }
+    if (startDayRange.start.getTime() > endDayRange.start.getTime()) {
+      throw new Error("UTC day range start must be on or before end");
+    }
+
+    const eventRange = {
+      start: startDayRange.start,
+      end: endDayRange.end,
+    };
+
+    const [siteMetricRows, metricFactRows] = await Promise.all([
+      this.buildDailySiteMetricRowsFromRawEvents(eventRange),
+      this.buildDailyMetricFactRowsFromRawEvents(eventRange),
+    ]);
+
+    const rollupDayWhereClause = and(
+      gte(dailySiteMetrics.utcDay, startUtcDay),
+      lte(dailySiteMetrics.utcDay, endUtcDay),
+    );
+    const metricFactDayWhereClause = and(
+      gte(dailyMetricFacts.utcDay, startUtcDay),
+      lte(dailyMetricFacts.utcDay, endUtcDay),
+    );
+
+    await this.db.delete(dailyMetricFacts).where(metricFactDayWhereClause);
+    await this.db.delete(dailySiteMetrics).where(rollupDayWhereClause);
+
+    if (siteMetricRows.length > 0) {
+      await this.insertDailySiteMetricRows(siteMetricRows);
+    }
+    if (metricFactRows.length > 0) {
+      await this.insertDailyMetricFactRows(metricFactRows);
+    }
+
+    this.analyticsResultCache.clear();
+
+    return {
+      siteMetricRowsInserted: siteMetricRows.length,
+      metricFactRowsInserted: metricFactRows.length,
+    };
   }
 
   private buildTimeRangesWhereClause(ranges: DateRange[]) {
@@ -922,6 +1253,53 @@ export class SiteDurableObject extends DurableObject {
   async fetch(_request: Request): Promise<Response> {
     // Fallback fetch method for compatibility
     return new Response('Use RPC methods instead of fetch', { status: 501 });
+  }
+
+  async rebuildDailyAnalyticsRollups(options: {
+    startUtcDay: string;
+    endUtcDay?: string;
+  }) {
+    try {
+      if (!this.site_id) {
+        return {
+          success: false,
+          siteId: this.site_id,
+          error: "Site not initialized",
+        };
+      }
+
+      const startUtcDay = options.startUtcDay?.trim();
+      const endUtcDay = options.endUtcDay?.trim() || startUtcDay;
+      if (!startUtcDay || !endUtcDay || !isUtcDayBucket(startUtcDay) || !isUtcDayBucket(endUtcDay)) {
+        return {
+          success: false,
+          siteId: this.site_id,
+          error: "Invalid UTC day range",
+        };
+      }
+
+      const rebuildResult = await this.state.blockConcurrencyWhile(async () =>
+        this.replaceDailyAnalyticsRollups(startUtcDay, endUtcDay),
+      );
+
+      return {
+        success: true,
+        siteId: this.site_id,
+        startUtcDay,
+        endUtcDay,
+        ...rebuildResult,
+      };
+    } catch (error) {
+      if (this.env.ENVIRONMENT === "development") {
+        console.error(`SiteDurableObject rebuildDailyAnalyticsRollups error for site ${this.site_id}:`, error);
+      }
+
+      return {
+        success: false,
+        siteId: this.site_id,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   }
 
   /**
