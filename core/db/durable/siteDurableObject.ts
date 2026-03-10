@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { eq, and, gte, lte, desc, asc, count, sql, isNotNull, ne, like, or, isNull, not } from "drizzle-orm";
-import { siteEvents, type SiteEventInsert } from '@db/durable/schema';
+import { dailyMetricFacts, dailySiteMetrics, siteEvents, type SiteEventInsert } from '@db/durable/schema';
 import { migrate } from 'drizzle-orm/durable-sqlite/migrator';
 //TODO: generate durable object migrations
 import * as schema from "@db/durable/schema";
@@ -10,6 +10,13 @@ import { SiteEventInput } from './types';
 import type { GetEventsOptions, Durable_DB } from "@db/durable/types";
 import { getEvents } from "@db/durable/events";
 import { getSiteRidConfig, rotateSiteRidSalt } from "@db/d1/sites";
+import {
+  DIRECT_METRIC_KEY,
+  UNKNOWN_METRIC_KEY,
+  buildDailyAnalyticsRollupDeltas,
+  getUtcRollupWindow,
+  type DateRange,
+} from "./analyticsDailyRollups";
 import {
   HistoricalAnalyticsResultMemoryCache,
   buildAnalyticsResultCacheKey,
@@ -134,6 +141,306 @@ type EventSummaryResult = {
   error?: string;
 };
 
+type DashboardAdditiveAccumulator = {
+  totalEvents: number;
+  totalPageViews: number;
+  conversionEvents: number;
+  events: Map<string, number>;
+  devices: Map<string, number>;
+  cities: Map<string, { count: number; country: string }>;
+  countries: Map<string, number>;
+  regions: Map<string, number>;
+  referers: Map<string, number>;
+  topPages: Map<string, number>;
+  browsers: Map<string, number>;
+  operatingSystems: Map<string, number>;
+};
+
+type EventSummaryAccumulatorEntry = {
+  count: number;
+  firstSeen: number | null;
+  lastSeen: number | null;
+};
+
+function createDashboardAdditiveAccumulator(): DashboardAdditiveAccumulator {
+  return {
+    totalEvents: 0,
+    totalPageViews: 0,
+    conversionEvents: 0,
+    events: new Map(),
+    devices: new Map(),
+    cities: new Map(),
+    countries: new Map(),
+    regions: new Map(),
+    referers: new Map(),
+    topPages: new Map(),
+    browsers: new Map(),
+    operatingSystems: new Map(),
+  };
+}
+
+function incrementCountMap(target: Map<string, number>, key: string, amount: number) {
+  target.set(key, (target.get(key) ?? 0) + amount);
+}
+
+function incrementCityMap(
+  target: Map<string, { count: number; country: string }>,
+  city: string,
+  country: string,
+  amount: number,
+) {
+  const existing = target.get(city);
+  if (!existing) {
+    target.set(city, { count: amount, country });
+    return;
+  }
+
+  existing.count += amount;
+  if (existing.country === "Unknown" && country !== "Unknown") {
+    existing.country = country;
+  }
+}
+
+function mergeCountMaps(target: Map<string, number>, source: Map<string, number>) {
+  for (const [key, value] of source) {
+    incrementCountMap(target, key, value);
+  }
+}
+
+function mergeCityMaps(
+  target: Map<string, { count: number; country: string }>,
+  source: Map<string, { count: number; country: string }>,
+) {
+  for (const [city, value] of source) {
+    incrementCityMap(target, city, value.country, value.count);
+  }
+}
+
+function mergeDashboardAdditiveAccumulators(
+  target: DashboardAdditiveAccumulator,
+  source: DashboardAdditiveAccumulator,
+) {
+  target.totalEvents += source.totalEvents;
+  target.totalPageViews += source.totalPageViews;
+  target.conversionEvents += source.conversionEvents;
+  mergeCountMaps(target.events, source.events);
+  mergeCountMaps(target.devices, source.devices);
+  mergeCityMaps(target.cities, source.cities);
+  mergeCountMaps(target.countries, source.countries);
+  mergeCountMaps(target.regions, source.regions);
+  mergeCountMaps(target.referers, source.referers);
+  mergeCountMaps(target.topPages, source.topPages);
+  mergeCountMaps(target.browsers, source.browsers);
+  mergeCountMaps(target.operatingSystems, source.operatingSystems);
+}
+
+function getSortedPairs(
+  source: Map<string, number>,
+  limit: number,
+): Array<[string, number]> {
+  return Array.from(source.entries())
+    .toSorted((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, limit);
+}
+
+function getSortedObjects(
+  source: Map<string, number>,
+  limit: number,
+): Array<{ id: string; value: number }> {
+  return getSortedPairs(source, limit).map(([id, value]) => ({ id, value }));
+}
+
+function normalizeRollupMetricLabel(metricKey: string): string {
+  if (metricKey === DIRECT_METRIC_KEY) return "Direct";
+  if (metricKey === UNKNOWN_METRIC_KEY) return "Unknown";
+  return metricKey;
+}
+
+function parseCityRollupDimension(rawDimension: unknown, metricKey: string): { city: string; country: string } {
+  const fallbackCity = normalizeRollupMetricLabel(metricKey.split("\u001f")[1] ?? metricKey);
+  if (typeof rawDimension !== "string" || rawDimension.length === 0) {
+    return { city: fallbackCity, country: "Unknown" };
+  }
+
+  try {
+    const parsed = JSON.parse(rawDimension) as { city?: unknown; country?: unknown };
+    const city = typeof parsed.city === "string" && parsed.city.trim().length > 0
+      ? parsed.city
+      : fallbackCity;
+    const country = typeof parsed.country === "string" && parsed.country.trim().length > 0
+      ? parsed.country
+      : "Unknown";
+    return { city, country };
+  } catch {
+    return { city: fallbackCity, country: "Unknown" };
+  }
+}
+
+function dashboardAdditiveAccumulatorToResult(
+  accumulator: DashboardAdditiveAccumulator,
+  totalAllTime: number,
+  uniqueVisitors: number,
+  bounceRatePercent: number,
+  conversionRatePercent: number,
+  avgSessionDurationSeconds: number,
+  pageViews: Array<{ x: string; y: number }>,
+  countryUniques: Array<{ id: string; value: number }>,
+  siteId: number | null,
+  startDate?: Date,
+  endDate?: Date,
+): DashboardAggregatesResult {
+  return {
+    scoreCards: {
+      uniqueVisitors,
+      totalPageViews: accumulator.totalPageViews,
+      nonPageViewEvents: Math.max(0, accumulator.totalEvents - accumulator.totalPageViews),
+      bounceRatePercent,
+      conversionRatePercent,
+      avgSessionDurationSeconds,
+    },
+    pageViews,
+    events: getSortedPairs(accumulator.events, 100),
+    devices: getSortedPairs(accumulator.devices, 25),
+    cities: Array.from(accumulator.cities.entries())
+      .toSorted((left, right) => right[1].count - left[1].count || left[0].localeCompare(right[0]))
+      .slice(0, 100),
+    countries: getSortedObjects(accumulator.countries, 250),
+    countryUniques,
+    regions: getSortedObjects(accumulator.regions, 100),
+    referers: getSortedObjects(accumulator.referers, 100),
+    topPages: getSortedObjects(accumulator.topPages, 100),
+    browsers: getSortedObjects(accumulator.browsers, 25),
+    operatingSystems: getSortedObjects(accumulator.operatingSystems, 25),
+    pagination: {
+      limit: 0,
+      offset: 0,
+      total: accumulator.totalEvents,
+      hasMore: false,
+    },
+    totalEvents: accumulator.totalEvents,
+    totalAllTime,
+    siteId,
+    dateRange: {
+      start: startDate?.toISOString(),
+      end: endDate?.toISOString(),
+    },
+  };
+}
+
+function createEmptyDashboardResult(
+  siteId: number | null,
+  startDate?: Date,
+  endDate?: Date,
+  error?: string,
+): DashboardAggregatesResult {
+  return {
+    scoreCards: {
+      uniqueVisitors: 0,
+      totalPageViews: 0,
+      nonPageViewEvents: 0,
+      bounceRatePercent: 0,
+      conversionRatePercent: 0,
+      avgSessionDurationSeconds: 0,
+    },
+    pageViews: [],
+    events: [],
+    devices: [],
+    cities: [],
+    countries: [],
+    countryUniques: [],
+    regions: [],
+    referers: [],
+    topPages: [],
+    browsers: [],
+    operatingSystems: [],
+    pagination: {
+      limit: 0,
+      offset: 0,
+      total: 0,
+      hasMore: false,
+    },
+    totalEvents: 0,
+    totalAllTime: 0,
+    siteId,
+    dateRange: {
+      start: startDate?.toISOString(),
+      end: endDate?.toISOString(),
+    },
+    error,
+  };
+}
+
+function matchesEventSummaryFilters(
+  eventName: string,
+  options: {
+    search?: string;
+    type?: "all" | "autocapture" | "event_capture" | "page_view";
+    action?: "all" | "click" | "submit" | "change" | "rule";
+  },
+): boolean {
+  const trimmedSearch = options.search?.trim().toLowerCase() ?? "";
+  if (trimmedSearch.length > 0 && !eventName.toLowerCase().includes(trimmedSearch)) {
+    return false;
+  }
+
+  if (options.type === "autocapture") {
+    if (!(eventName.startsWith("$ac_") || eventName === "auto_capture")) return false;
+  } else if (options.type === "event_capture") {
+    if (
+      eventName === "page_view"
+      || eventName === "auto_capture"
+      || eventName.startsWith("$ac_")
+    ) {
+      return false;
+    }
+  } else if (options.type === "page_view" && eventName !== "page_view") {
+    return false;
+  }
+
+  if (options.action === "rule" && eventName !== "auto_capture") {
+    return false;
+  }
+  if (options.action === "submit" && !eventName.startsWith("$ac_form_")) {
+    return false;
+  }
+  if (options.action === "change" && !eventName.startsWith("$ac_input_")) {
+    return false;
+  }
+  if (
+    options.action === "click"
+    && (!eventName.startsWith("$ac_") || eventName.startsWith("$ac_form_") || eventName.startsWith("$ac_input_"))
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function mergeEventSummaryAccumulators(
+  target: Map<string, EventSummaryAccumulatorEntry>,
+  source: Map<string, EventSummaryAccumulatorEntry>,
+) {
+  for (const [eventName, entry] of source) {
+    const existing = target.get(eventName);
+    if (!existing) {
+      target.set(eventName, { ...entry });
+      continue;
+    }
+
+    existing.count += entry.count;
+    existing.firstSeen = existing.firstSeen === null
+      ? entry.firstSeen
+      : entry.firstSeen === null
+        ? existing.firstSeen
+        : Math.min(existing.firstSeen, entry.firstSeen);
+    existing.lastSeen = existing.lastSeen === null
+      ? entry.lastSeen
+      : entry.lastSeen === null
+        ? existing.lastSeen
+        : Math.max(existing.lastSeen, entry.lastSeen);
+  }
+}
+
 /**
  * Site-specific Durable Object for storing and querying site events
  * 
@@ -216,6 +523,341 @@ export class SiteDurableObject extends DurableObject {
       const createdAt = event.createdAt ?? now;
       return isHistoricalAnalyticsRange({ endDate: createdAt, now });
     });
+  }
+
+  private canUseDashboardRollups(options: {
+    startDate?: Date;
+    endDate?: Date;
+    timezone?: string | null;
+    country?: string;
+    deviceType?: string;
+    source?: string;
+    pageUrl?: string;
+    city?: string;
+    region?: string;
+    event?: string;
+  }): boolean {
+    if (!options.startDate || !options.endDate) return false;
+    if (!isHistoricalAnalyticsRange({ endDate: options.endDate, timezone: options.timezone })) {
+      return false;
+    }
+
+    return !options.country
+      && !options.deviceType
+      && !options.source
+      && !options.pageUrl
+      && !options.city
+      && !options.region
+      && !options.event;
+  }
+
+  private async upsertDailyAnalyticsRollups(events: SiteEventInput[]) {
+    const deltas = buildDailyAnalyticsRollupDeltas(events);
+
+    for (const delta of deltas.siteMetrics) {
+      await this.db.insert(dailySiteMetrics).values(delta).onConflictDoUpdate({
+        target: dailySiteMetrics.utcDay,
+        set: {
+          totalEvents: sql`${dailySiteMetrics.totalEvents} + ${delta.totalEvents}`,
+          pageViews: sql`${dailySiteMetrics.pageViews} + ${delta.pageViews}`,
+          conversionEvents: sql`${dailySiteMetrics.conversionEvents} + ${delta.conversionEvents}`,
+          updatedAt: delta.updatedAt,
+        },
+      });
+    }
+
+    for (const delta of deltas.metricFacts) {
+      await this.db.insert(dailyMetricFacts).values(delta).onConflictDoUpdate({
+        target: [dailyMetricFacts.utcDay, dailyMetricFacts.metricFamily, dailyMetricFacts.metricKey],
+        set: {
+          metricValue: sql`${dailyMetricFacts.metricValue} + ${delta.metricValue}`,
+          dimensionJson: delta.dimensionJson,
+          firstSeenAt: delta.firstSeenAt === null
+            ? sql`${dailyMetricFacts.firstSeenAt}`
+            : sql`case
+                when ${dailyMetricFacts.firstSeenAt} is null then ${delta.firstSeenAt}
+                else min(${dailyMetricFacts.firstSeenAt}, ${delta.firstSeenAt})
+              end`,
+          lastSeenAt: delta.lastSeenAt === null
+            ? sql`${dailyMetricFacts.lastSeenAt}`
+            : sql`case
+                when ${dailyMetricFacts.lastSeenAt} is null then ${delta.lastSeenAt}
+                else max(${dailyMetricFacts.lastSeenAt}, ${delta.lastSeenAt})
+              end`,
+          updatedAt: delta.updatedAt,
+        },
+      });
+    }
+  }
+
+  private buildTimeRangesWhereClause(ranges: DateRange[]) {
+    if (ranges.length === 0) return undefined;
+    const timeConditions = ranges.map((range) =>
+      and(
+        gte(siteEvents.createdAt, range.start),
+        lte(siteEvents.createdAt, range.end),
+      ),
+    );
+
+    if (timeConditions.length === 1) {
+      return timeConditions[0];
+    }
+
+    return or(...timeConditions);
+  }
+
+  private async getRawDashboardAdditiveAccumulatorForRanges(
+    ranges: DateRange[],
+  ): Promise<DashboardAdditiveAccumulator> {
+    const accumulator = createDashboardAdditiveAccumulator();
+    const whereClause = this.buildTimeRangesWhereClause(ranges);
+    if (!whereClause) return accumulator;
+
+    const pageViewWhereClause = and(whereClause, eq(siteEvents.event, "page_view"));
+    const conversionWhereClause = and(
+      whereClause,
+      or(eq(siteEvents.event, "conversion"), eq(siteEvents.event, "purchase")),
+    );
+
+    const [
+      totalEventsResult,
+      totalPageViewsResult,
+      conversionEventsResult,
+      eventsByTypeResult,
+      devicesResult,
+      browsersResult,
+      operatingSystemsResult,
+      referersResult,
+      topPagesResult,
+      citiesResult,
+      countriesResult,
+      regionsResult,
+    ] = await Promise.all([
+      this.db.select({ count: count() }).from(siteEvents).where(whereClause),
+      this.db.select({ count: count() }).from(siteEvents).where(pageViewWhereClause),
+      this.db.select({ count: count() }).from(siteEvents).where(conversionWhereClause),
+      this.db
+        .select({ event: siteEvents.event, count: count() })
+        .from(siteEvents)
+        .where(whereClause)
+        .groupBy(siteEvents.event),
+      this.db
+        .select({ deviceType: siteEvents.device_type, count: count() })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(siteEvents.device_type),
+      this.db
+        .select({ browser: siteEvents.browser, count: count() })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(siteEvents.browser),
+      this.db
+        .select({ os: siteEvents.operating_system, count: count() })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(siteEvents.operating_system),
+      this.db
+        .select({ referer: siteEvents.referer, count: count() })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(siteEvents.referer),
+      this.db
+        .select({ page: siteEvents.client_page_url, count: count() })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(siteEvents.client_page_url),
+      this.db
+        .select({ city: siteEvents.city, country: siteEvents.country, count: count() })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(siteEvents.city, siteEvents.country),
+      this.db
+        .select({ country: siteEvents.country, count: count() })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(siteEvents.country),
+      this.db
+        .select({ region: siteEvents.region, count: count() })
+        .from(siteEvents)
+        .where(pageViewWhereClause)
+        .groupBy(siteEvents.region),
+    ]);
+
+    accumulator.totalEvents = totalEventsResult[0]?.count ?? 0;
+    accumulator.totalPageViews = totalPageViewsResult[0]?.count ?? 0;
+    accumulator.conversionEvents = conversionEventsResult[0]?.count ?? 0;
+
+    for (const item of eventsByTypeResult) {
+      incrementCountMap(accumulator.events, item.event ?? "Unknown", item.count);
+    }
+    for (const item of devicesResult) {
+      incrementCountMap(accumulator.devices, item.deviceType ?? "Unknown", item.count);
+    }
+    for (const item of browsersResult) {
+      incrementCountMap(accumulator.browsers, item.browser ?? "Unknown", item.count);
+    }
+    for (const item of operatingSystemsResult) {
+      incrementCountMap(accumulator.operatingSystems, item.os ?? "Unknown", item.count);
+    }
+    for (const item of referersResult) {
+      incrementCountMap(accumulator.referers, item.referer ?? "Direct", item.count);
+    }
+    for (const item of topPagesResult) {
+      incrementCountMap(accumulator.topPages, item.page ?? "Unknown", item.count);
+    }
+    for (const item of citiesResult) {
+      incrementCityMap(accumulator.cities, item.city ?? "Unknown", item.country ?? "Unknown", item.count);
+    }
+    for (const item of countriesResult) {
+      if (!item.country) continue;
+      incrementCountMap(accumulator.countries, item.country, item.count);
+    }
+    for (const item of regionsResult) {
+      if (!item.region) continue;
+      incrementCountMap(accumulator.regions, item.region, item.count);
+    }
+
+    return accumulator;
+  }
+
+  private async getRollupDashboardAdditiveAccumulator(
+    startUtcDay: string,
+    endUtcDay: string,
+  ): Promise<DashboardAdditiveAccumulator> {
+    const accumulator = createDashboardAdditiveAccumulator();
+
+    const [siteMetricTotals, factRows] = await Promise.all([
+      this.db
+        .select({
+          totalEvents: sql<number>`coalesce(sum(${dailySiteMetrics.totalEvents}), 0)`,
+          pageViews: sql<number>`coalesce(sum(${dailySiteMetrics.pageViews}), 0)`,
+          conversionEvents: sql<number>`coalesce(sum(${dailySiteMetrics.conversionEvents}), 0)`,
+        })
+        .from(dailySiteMetrics)
+        .where(and(
+          gte(dailySiteMetrics.utcDay, startUtcDay),
+          lte(dailySiteMetrics.utcDay, endUtcDay),
+        )),
+      this.db
+        .select({
+          metricFamily: dailyMetricFacts.metricFamily,
+          metricKey: dailyMetricFacts.metricKey,
+          metricValue: sql<number>`coalesce(sum(${dailyMetricFacts.metricValue}), 0)`,
+          dimensionJson: sql<string | null>`max(${dailyMetricFacts.dimensionJson})`,
+        })
+        .from(dailyMetricFacts)
+        .where(and(
+          gte(dailyMetricFacts.utcDay, startUtcDay),
+          lte(dailyMetricFacts.utcDay, endUtcDay),
+        ))
+        .groupBy(dailyMetricFacts.metricFamily, dailyMetricFacts.metricKey),
+    ]);
+
+    accumulator.totalEvents = siteMetricTotals[0]?.totalEvents ?? 0;
+    accumulator.totalPageViews = siteMetricTotals[0]?.pageViews ?? 0;
+    accumulator.conversionEvents = siteMetricTotals[0]?.conversionEvents ?? 0;
+
+    for (const row of factRows) {
+      const metricKeyLabel = normalizeRollupMetricLabel(row.metricKey);
+      switch (row.metricFamily) {
+        case "event":
+          incrementCountMap(accumulator.events, metricKeyLabel, row.metricValue);
+          break;
+        case "page":
+          incrementCountMap(accumulator.topPages, metricKeyLabel, row.metricValue);
+          break;
+        case "country":
+          if (metricKeyLabel !== "Unknown") {
+            incrementCountMap(accumulator.countries, metricKeyLabel, row.metricValue);
+          }
+          break;
+        case "region":
+          if (metricKeyLabel !== "Unknown") {
+            incrementCountMap(accumulator.regions, metricKeyLabel, row.metricValue);
+          }
+          break;
+        case "city": {
+          const { city, country } = parseCityRollupDimension(row.dimensionJson, row.metricKey);
+          incrementCityMap(accumulator.cities, city, country, row.metricValue);
+          break;
+        }
+        case "device":
+          incrementCountMap(accumulator.devices, metricKeyLabel, row.metricValue);
+          break;
+        case "browser":
+          incrementCountMap(accumulator.browsers, metricKeyLabel, row.metricValue);
+          break;
+        case "os":
+          incrementCountMap(accumulator.operatingSystems, metricKeyLabel, row.metricValue);
+          break;
+        case "referer":
+          incrementCountMap(accumulator.referers, metricKeyLabel, row.metricValue);
+          break;
+      }
+    }
+
+    return accumulator;
+  }
+
+  private async getRawEventSummaryAccumulatorForRanges(
+    ranges: DateRange[],
+  ): Promise<Map<string, EventSummaryAccumulatorEntry>> {
+    const summary = new Map<string, EventSummaryAccumulatorEntry>();
+    const whereClause = this.buildTimeRangesWhereClause(ranges);
+    if (!whereClause) return summary;
+
+    const rows = await this.db
+      .select({
+        event: siteEvents.event,
+        count: count(),
+        firstSeen: sql<number>`min(${siteEvents.createdAt}) * 1000`,
+        lastSeen: sql<number>`max(${siteEvents.createdAt}) * 1000`,
+      })
+      .from(siteEvents)
+      .where(whereClause)
+      .groupBy(siteEvents.event);
+
+    for (const row of rows) {
+      summary.set(row.event ?? "Unknown", {
+        count: row.count,
+        firstSeen: row.firstSeen ?? null,
+        lastSeen: row.lastSeen ?? null,
+      });
+    }
+
+    return summary;
+  }
+
+  private async getRollupEventSummaryAccumulator(
+    startUtcDay: string,
+    endUtcDay: string,
+  ): Promise<Map<string, EventSummaryAccumulatorEntry>> {
+    const summary = new Map<string, EventSummaryAccumulatorEntry>();
+
+    const rows = await this.db
+      .select({
+        event: dailyMetricFacts.metricKey,
+        count: sql<number>`coalesce(sum(${dailyMetricFacts.metricValue}), 0)`,
+        firstSeen: sql<number | null>`min(${dailyMetricFacts.firstSeenAt})`,
+        lastSeen: sql<number | null>`max(${dailyMetricFacts.lastSeenAt})`,
+      })
+      .from(dailyMetricFacts)
+      .where(and(
+        eq(dailyMetricFacts.metricFamily, "event"),
+        gte(dailyMetricFacts.utcDay, startUtcDay),
+        lte(dailyMetricFacts.utcDay, endUtcDay),
+      ))
+      .groupBy(dailyMetricFacts.metricKey);
+
+    for (const row of rows) {
+      summary.set(normalizeRollupMetricLabel(row.event), {
+        count: row.count,
+        firstSeen: row.firstSeen === null ? null : row.firstSeen * 1000,
+        lastSeen: row.lastSeen === null ? null : row.lastSeen * 1000,
+      });
+    }
+
+    return summary;
   }
 
   async setSiteInfo(site_id: number, site_uuid: string) {
@@ -340,6 +982,8 @@ export class SiteDurableObject extends DurableObject {
         await this.db.insert(siteEvents).values(batch);
         totalInserted += batch.length;
       }
+
+      await this.upsertDailyAnalyticsRollups(events);
 
       // Historical backfills can make cached aggregate results stale immediately.
       if (this.shouldInvalidateHistoricalAnalyticsCache(events)) {
@@ -535,6 +1179,156 @@ export class SiteDurableObject extends DurableObject {
         );
         if (cached) {
           return cached;
+        }
+      }
+
+      const resolvedEndDate = endDate ? resolveEndDate(endDate, endDateIsExact) : undefined;
+      if (
+        this.canUseDashboardRollups({
+          startDate,
+          endDate,
+          timezone: effectiveTimeZone,
+          country,
+          deviceType,
+          source,
+          pageUrl,
+          city,
+          region,
+          event,
+        })
+        && startDate
+        && resolvedEndDate
+      ) {
+        const rollupWindow = getUtcRollupWindow(startDate, resolvedEndDate);
+        if (rollupWindow.fullDayStartUtcDay && rollupWindow.fullDayEndUtcDay) {
+          const fullRangeWhereClause = and(
+            gte(siteEvents.createdAt, startDate),
+            lte(siteEvents.createdAt, resolvedEndDate),
+          );
+          const pageViewWhereClause = and(fullRangeWhereClause, eq(siteEvents.event, "page_view"));
+          const sessionsWhereClause = and(
+            fullRangeWhereClause,
+            isNotNull(siteEvents.rid),
+            ne(siteEvents.rid, ""),
+          );
+
+          const [
+            rollupAccumulator,
+            edgeAccumulator,
+            totalAllTimeResult,
+            uniqueVisitorsResult,
+            pageViewsByRidResult,
+            sessionDurationRows,
+            pageViewsByHourResult,
+            countryUniquesResult,
+          ] = await Promise.all([
+            this.getRollupDashboardAdditiveAccumulator(
+              rollupWindow.fullDayStartUtcDay,
+              rollupWindow.fullDayEndUtcDay,
+            ),
+            this.getRawDashboardAdditiveAccumulatorForRanges(rollupWindow.edgeRanges),
+            this.db.select({ count: count() }).from(siteEvents),
+            this.db
+              .select({ count: sql<number>`COUNT(DISTINCT ${siteEvents.rid})` })
+              .from(siteEvents)
+              .where(sessionsWhereClause),
+            this.db
+              .select({
+                rid: siteEvents.rid,
+                pageViewCount: count(),
+              })
+              .from(siteEvents)
+              .where(and(pageViewWhereClause, isNotNull(siteEvents.rid), ne(siteEvents.rid, "")))
+              .groupBy(siteEvents.rid),
+            this.db
+              .select({
+                rid: siteEvents.rid,
+                firstSeen: sql<number>`min(${siteEvents.createdAt}) * 1000`,
+                lastSeen: sql<number>`max(${siteEvents.createdAt}) * 1000`,
+              })
+              .from(siteEvents)
+              .where(sessionsWhereClause)
+              .groupBy(siteEvents.rid),
+            this.db
+              .select({
+                hourEpoch: sql<number>`CAST(${siteEvents.createdAt} / 3600 AS INTEGER) * 3600`,
+                count: count(),
+              })
+              .from(siteEvents)
+              .where(pageViewWhereClause)
+              .groupBy(sql<number>`CAST(${siteEvents.createdAt} / 3600 AS INTEGER) * 3600`)
+              .orderBy(sql<number>`CAST(${siteEvents.createdAt} / 3600 AS INTEGER) * 3600`),
+            this.db
+              .select({
+                country: siteEvents.country,
+                count: sql<number>`COUNT(DISTINCT ${siteEvents.rid})`,
+              })
+              .from(siteEvents)
+              .where(and(pageViewWhereClause, isNotNull(siteEvents.rid), ne(siteEvents.rid, "")))
+              .groupBy(siteEvents.country)
+              .orderBy(desc(sql<number>`COUNT(DISTINCT ${siteEvents.rid})`)),
+          ]);
+
+          mergeDashboardAdditiveAccumulators(rollupAccumulator, edgeAccumulator);
+
+          const formatDateBucket = createDateBucketFormatter(effectiveTimeZone);
+          const pageViewsByDate = new Map<string, number>();
+          for (const item of pageViewsByHourResult) {
+            const hourEpoch = Number(item.hourEpoch);
+            if (!Number.isFinite(hourEpoch)) continue;
+            const bucketDate = formatDateBucket(new Date(hourEpoch * 1000));
+            pageViewsByDate.set(bucketDate, (pageViewsByDate.get(bucketDate) ?? 0) + item.count);
+          }
+
+          const pageViews = Array.from(pageViewsByDate.entries())
+            .toSorted((a, b) => a[0].localeCompare(b[0]))
+            .map(([x, y]) => ({ x, y }));
+
+          const uniqueVisitors = uniqueVisitorsResult[0]?.count || 0;
+          const singlePageSessions = pageViewsByRidResult.filter((row) => row.pageViewCount === 1).length;
+          const bounceRatePercent = uniqueVisitors > 0
+            ? Number(((singlePageSessions / uniqueVisitors) * 100).toFixed(1))
+            : 0;
+          const conversionRatePercent = uniqueVisitors > 0
+            ? Number(((rollupAccumulator.conversionEvents / uniqueVisitors) * 100).toFixed(2))
+            : 0;
+          const totalDurationSeconds = sessionDurationRows.reduce((acc, row) => {
+            const firstSeen = row.firstSeen ?? 0;
+            const lastSeen = row.lastSeen ?? 0;
+            if (!firstSeen || !lastSeen) return acc;
+            return acc + Math.max(0, (lastSeen - firstSeen) / 1000);
+          }, 0);
+          const avgSessionDurationSeconds = sessionDurationRows.length > 0
+            ? totalDurationSeconds / sessionDurationRows.length
+            : 0;
+
+          const result = dashboardAdditiveAccumulatorToResult(
+            rollupAccumulator,
+            totalAllTimeResult[0]?.count || 0,
+            uniqueVisitors,
+            bounceRatePercent,
+            conversionRatePercent,
+            avgSessionDurationSeconds,
+            pageViews,
+            countryUniquesResult
+              .filter((item) => !!item.country)
+              .map((item) => ({ id: item.country!, value: item.count })),
+            this.site_id,
+            startDate,
+            endDate,
+          );
+
+          if (cacheKey) {
+            await this.setCachedAnalyticsResult(
+              "dashboard-aggregates",
+              cacheKey,
+              cacheTtlMs,
+              result,
+              options.cache?.persistToKv === true,
+            );
+          }
+
+          return result;
         }
       }
 
@@ -884,41 +1678,12 @@ export class SiteDurableObject extends DurableObject {
         console.error(`SiteDurableObject getDashboardAggregates error for site ${this.site_id}:`, error);
       }
 
-      return {
-        scoreCards: {
-          uniqueVisitors: 0,
-          totalPageViews: 0,
-          nonPageViewEvents: 0,
-          bounceRatePercent: 0,
-          conversionRatePercent: 0,
-          avgSessionDurationSeconds: 0,
-        },
-        pageViews: [],
-        events: [],
-        devices: [],
-        cities: [],
-        countries: [],
-        countryUniques: [],
-        regions: [],
-        referers: [],
-        topPages: [],
-        browsers: [],
-        operatingSystems: [],
-        pagination: {
-          limit: 0,
-          offset: 0,
-          total: 0,
-          hasMore: false,
-        },
-        totalEvents: 0,
-        totalAllTime: 0,
-        siteId: this.site_id,
-        dateRange: {
-          start: options.startDate?.toISOString(),
-          end: options.endDate?.toISOString(),
-        },
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+      return createEmptyDashboardResult(
+        this.site_id,
+        options.startDate,
+        options.endDate,
+        error instanceof Error ? error.message : "Unknown error",
+      );
     }
   }
 
@@ -972,6 +1737,106 @@ export class SiteDurableObject extends DurableObject {
         );
         if (cached) {
           return cached;
+        }
+      }
+
+      const resolvedEndDate = endDate ? resolveEndDate(endDate, endDateIsExact) : undefined;
+      if (
+        startDate
+        && resolvedEndDate
+        && isHistoricalAnalyticsRange({
+          endDate,
+          timezone: options.timezone,
+          now: new Date(),
+        })
+      ) {
+        const rollupWindow = getUtcRollupWindow(startDate, resolvedEndDate);
+        if (rollupWindow.fullDayStartUtcDay && rollupWindow.fullDayEndUtcDay) {
+          const [rollupSummary, rawEdgeSummary] = await Promise.all([
+            this.getRollupEventSummaryAccumulator(
+              rollupWindow.fullDayStartUtcDay,
+              rollupWindow.fullDayEndUtcDay,
+            ),
+            this.getRawEventSummaryAccumulatorForRanges(rollupWindow.edgeRanges),
+          ]);
+
+          mergeEventSummaryAccumulators(rollupSummary, rawEdgeSummary);
+
+          const filteredSummary = Array.from(rollupSummary.entries())
+            .filter(([eventName]) =>
+              matchesEventSummaryFilters(eventName, {
+                search: options.search,
+                type: options.type ?? "all",
+                action: options.action ?? "all",
+              }),
+            )
+            .map(([eventName, entry]) => ({
+              event: eventName,
+              count: entry.count,
+              firstSeen: entry.firstSeen,
+              lastSeen: entry.lastSeen,
+            }));
+
+          const limit = Math.min(Math.max(1, options.limit ?? 50), 500);
+          const offset = Math.max(0, options.offset ?? 0);
+          const sortBy = options.sortBy ?? "count";
+          const sortDirection = options.sortDirection === "asc" ? "asc" : "desc";
+
+          filteredSummary.sort((left, right) => {
+            const leftPrimary = sortBy === "first_seen"
+              ? left.firstSeen ?? 0
+              : sortBy === "last_seen"
+                ? left.lastSeen ?? 0
+                : left.count;
+            const rightPrimary = sortBy === "first_seen"
+              ? right.firstSeen ?? 0
+              : sortBy === "last_seen"
+                ? right.lastSeen ?? 0
+                : right.count;
+
+            if (leftPrimary !== rightPrimary) {
+              return sortDirection === "asc" ? leftPrimary - rightPrimary : rightPrimary - leftPrimary;
+            }
+
+            const leftSecondary = sortBy === "count" ? left.lastSeen ?? 0 : left.count;
+            const rightSecondary = sortBy === "count" ? right.lastSeen ?? 0 : right.count;
+            if (leftSecondary !== rightSecondary) {
+              return rightSecondary - leftSecondary;
+            }
+
+            return (left.event ?? "").localeCompare(right.event ?? "");
+          });
+
+          const totalEvents = filteredSummary.reduce((sum, item) => sum + item.count, 0);
+          const totalEventTypes = filteredSummary.length;
+          const result: EventSummaryResult = {
+            summary: filteredSummary.slice(offset, offset + limit),
+            pagination: {
+              offset,
+              limit,
+              total: totalEventTypes,
+              hasMore: offset + limit < totalEventTypes,
+            },
+            totalEvents,
+            totalEventTypes,
+            siteId: this.site_id,
+            dateRange: {
+              start: startDate?.toISOString(),
+              end: endDate?.toISOString(),
+            },
+          };
+
+          if (cacheKey) {
+            await this.setCachedAnalyticsResult(
+              "event-summary",
+              cacheKey,
+              cacheTtlMs,
+              result,
+              options.cache?.persistToKv === true,
+            );
+          }
+
+          return result;
         }
       }
 

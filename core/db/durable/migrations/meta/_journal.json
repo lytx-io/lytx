@@ -8,6 +8,13 @@
       "when": 1757004116917,
       "tag": "0000_fair_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1773157200000,
+      "tag": "0001_ancient_rollups",
+      "breakpoints": true
     }
   ]
 }
